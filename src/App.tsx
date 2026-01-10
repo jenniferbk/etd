@@ -3,12 +3,18 @@ import { Toolbar } from './components/Toolbar';
 import { Palette } from './components/Palette';
 import { Canvas } from './components/Canvas';
 import { PropertiesPanel } from './components/Properties';
+import { RecoveryPrompt } from './components/RecoveryPrompt';
 import { useDiagramStore, useTemporalStore } from './store';
+import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
+  const [recoveryData, setRecoveryData] = useState<{ timestamp: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-save hook
+  useAutoSave();
 
   const {
     selectedIds,
@@ -23,6 +29,30 @@ function App() {
     fitToView,
     loadDiagram,
   } = useDiagramStore();
+
+  // Check for auto-saved data on mount
+  useEffect(() => {
+    const saved = getAutoSavedData();
+    if (saved && (saved.elements.length > 0 || saved.connections.length > 0)) {
+      setRecoveryData({ timestamp: saved.timestamp });
+    }
+  }, []);
+
+  // Handle recovery
+  const handleRecover = useCallback(() => {
+    const saved = getAutoSavedData();
+    if (saved) {
+      loadDiagram(saved.elements, saved.connections);
+      clearAutoSave();
+    }
+    setRecoveryData(null);
+  }, [loadDiagram]);
+
+  // Handle discard
+  const handleDiscard = useCallback(() => {
+    clearAutoSave();
+    setRecoveryData(null);
+  }, []);
 
   // Toggle connect mode
   const toggleConnectMode = useCallback(() => {
@@ -226,6 +256,15 @@ function App() {
         />
       </div>
       <PropertiesPanel />
+
+      {/* Recovery Prompt */}
+      {recoveryData && (
+        <RecoveryPrompt
+          timestamp={recoveryData.timestamp}
+          onRecover={handleRecover}
+          onDiscard={handleDiscard}
+        />
+      )}
     </div>
   );
 }

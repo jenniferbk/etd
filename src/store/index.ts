@@ -1,1 +1,1 @@
-export { useDiagramStore } from './diagramStore';
+export { useDiagramStore, useTemporalStore } from './diagramStore';

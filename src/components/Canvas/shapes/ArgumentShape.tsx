@@ -2,12 +2,16 @@ import { Group, Rect, Text, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { ArgumentElement } from '../../../types';
 import { getContributorColor } from '../../../utils/colors';
+import { EmbeddedImage } from './EmbeddedImage';
 
 interface ArgumentShapeProps {
   element: ArgumentElement;
   isSelected: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  shapeRef?: (node: Konva.Group | null) => void;
+  onTransformEnd?: (node: Konva.Group) => void;
+  onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
 export function ArgumentShape({
@@ -15,8 +19,11 @@ export function ArgumentShape({
   isSelected,
   onSelect,
   onDragEnd,
+  shapeRef,
+  onTransformEnd,
+  onContextMenu,
 }: ArgumentShapeProps) {
-  const { position, size, label, content, contributor, attribution } = element;
+  const { position, size, label, content, contributor, attribution, image } = element;
   const borderColor = getContributorColor(contributor);
 
   // Format attribution text
@@ -37,12 +44,15 @@ export function ArgumentShape({
     // Render cloud shape for implicit elements
     return (
       <Group
+        ref={shapeRef}
         x={position.x}
         y={position.y}
         draggable
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={onDragEnd}
+        onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+        onContextMenu={onContextMenu}
       >
         {/* Cloud shape using bezier curves */}
         <CloudShape
@@ -69,12 +79,22 @@ export function ArgumentShape({
           x={padding}
           y={padding + labelHeight}
           width={size.width - padding * 2}
-          height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0)}
+          height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 40 : 0)}
           text={content}
           fontSize={12}
           fill="#000000"
           wrap="word"
         />
+        {/* Embedded Image */}
+        {image && (
+          <EmbeddedImage
+            imageData={image}
+            x={padding}
+            y={size.height - 50 - (attributionText ? 16 : 0)}
+            maxWidth={size.width - padding * 2}
+            maxHeight={40}
+          />
+        )}
         {/* Attribution */}
         {attributionText && (
           <Text
@@ -95,12 +115,15 @@ export function ArgumentShape({
   // Standard rectangle shape
   return (
     <Group
+      ref={shapeRef}
       x={position.x}
       y={position.y}
       draggable
       onClick={onSelect}
       onTap={onSelect}
       onDragEnd={onDragEnd}
+      onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+      onContextMenu={onContextMenu}
     >
       {/* Background */}
       <Rect
@@ -141,12 +164,22 @@ export function ArgumentShape({
         x={padding}
         y={padding + labelHeight}
         width={size.width - padding * 2}
-        height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0)}
+        height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 40 : 0)}
         text={content}
         fontSize={12}
         fill="#000000"
         wrap="word"
       />
+      {/* Embedded Image */}
+      {image && (
+        <EmbeddedImage
+          imageData={image}
+          x={padding}
+          y={size.height - 50 - (attributionText ? 16 : 0)}
+          maxWidth={size.width - padding * 2}
+          maxHeight={40}
+        />
+      )}
       {/* Attribution */}
       {attributionText && (
         <Text

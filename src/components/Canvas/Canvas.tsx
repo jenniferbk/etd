@@ -1,12 +1,24 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Stage, Layer } from 'react-konva';
+import { Stage, Layer, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import { useDiagramStore } from '../../store';
 import { ArgumentShape } from './shapes/ArgumentShape';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
-import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
+import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType } from '../../types';
 import { InfoBoxShape } from './shapes/InfoBoxShape';
+import { ContextMenu } from './ContextMenu';
+import { Legend } from './shapes/Legend';
+import { SelectionRect } from './SelectionRect';
+import { useMarqueeSelection } from '../../hooks/useMarqueeSelection';
+
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  elementId: string;
+  elementType: 'argument' | 'teacherSupport' | 'infoBox' | 'connection';
+}
 
 interface CanvasProps {
   connectMode: boolean;
@@ -17,8 +29,20 @@ interface CanvasProps {
 export function Canvas({ connectMode, onConnectionStart, connectingFrom }: CanvasProps) {
   const stageRef = useRef<Konva.Stage>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const transformerRef = useRef<Konva.Transformer>(null);
+  const shapeRefs = useRef<Map<string, Konva.Group>>(new Map());
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    elementId: '',
+    elementType: 'argument',
+  });
+
+  // Marquee selection
+  const { marqueeState, startMarquee, updateMarquee, endMarquee, cancelMarquee } = useMarqueeSelection();
 
   const {
     elements,
@@ -27,12 +51,21 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     panX,
     panY,
     selectedIds,
+    legendConfig,
     setZoom,
     setPan,
     setSelectedIds,
     clearSelection,
     moveElement,
+    resizeElement,
     addConnection,
+    removeElement,
+    removeConnection,
+    duplicateElements,
+    bringToFront,
+    sendToBack,
+    changeContributor,
+    moveLegend,
   } = useDiagramStore();
 
   // Update stage size on resize
@@ -50,6 +83,65 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
   }, []);
+
+  // Attach transformer to selected elements
+  useEffect(() => {
+    if (!transformerRef.current) return;
+
+    // Get all selected element shapes (not connections)
+    const selectedNodes: Konva.Node[] = [];
+    selectedIds.forEach((id) => {
+      const node = shapeRefs.current.get(id);
+      if (node) {
+        selectedNodes.push(node);
+      }
+    });
+
+    transformerRef.current.nodes(selectedNodes);
+    transformerRef.current.getLayer()?.batchDraw();
+  }, [selectedIds, elements]);
+
+  // Register shape ref callback
+  const registerShapeRef = useCallback((id: string, node: Konva.Group | null) => {
+    if (node) {
+      shapeRefs.current.set(id, node);
+    } else {
+      shapeRefs.current.delete(id);
+    }
+  }, []);
+
+  // Handle transform end (resize)
+  const handleTransformEnd = useCallback(
+    (id: string, node: Konva.Group) => {
+      const scaleX = node.scaleX();
+      const scaleY = node.scaleY();
+
+      // Get the element to find its current size
+      const element = elements.find((el) => el.id === id);
+      if (!element) return;
+
+      // Calculate new size based on scale
+      const newWidth = Math.max(80, element.size.width * scaleX);
+      const newHeight = Math.max(60, element.size.height * scaleY);
+
+      // Reset scale and update position
+      node.scaleX(1);
+      node.scaleY(1);
+
+      // Update position (transformer may have moved it)
+      moveElement(id, {
+        x: node.x(),
+        y: node.y(),
+      });
+
+      // Update size
+      resizeElement(id, {
+        width: newWidth,
+        height: newHeight,
+      });
+    },
+    [elements, moveElement, resizeElement]
+  );
 
   // Handle zoom with mouse wheel
   const handleWheel = useCallback(
@@ -96,6 +188,49 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     },
     [clearSelection, connectMode, onConnectionStart]
   );
+
+  // Handle mouse down on stage for marquee selection
+  const handleStageMouseDown = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      // Only start marquee if clicking on empty stage (not on an element)
+      if (e.target === e.target.getStage() && !connectMode) {
+        const stage = stageRef.current;
+        if (!stage) return;
+
+        const pos = stage.getPointerPosition();
+        if (pos) {
+          startMarquee(pos.x, pos.y);
+        }
+      }
+    },
+    [connectMode, startMarquee]
+  );
+
+  // Handle mouse move for marquee selection
+  const handleStageMouseMove = useCallback(
+    (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (!marqueeState.isSelecting) return;
+
+      const stage = stageRef.current;
+      if (!stage) return;
+
+      const pos = stage.getPointerPosition();
+      if (pos) {
+        updateMarquee(pos.x, pos.y);
+      }
+    },
+    [marqueeState.isSelecting, updateMarquee]
+  );
+
+  // Handle mouse up for marquee selection
+  const handleStageMouseUp = useCallback(() => {
+    if (!marqueeState.isSelecting) return;
+
+    const selectedIds = endMarquee(elements, zoom, panX, panY);
+    if (selectedIds.length > 0) {
+      setSelectedIds(selectedIds);
+    }
+  }, [marqueeState.isSelecting, endMarquee, elements, zoom, panX, panY, setSelectedIds]);
 
   // Handle element selection (or connection)
   const handleElementSelect = useCallback(
@@ -178,6 +313,75 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [moveElement]
   );
 
+  // Handle context menu (right-click)
+  const handleContextMenu = useCallback(
+    (id: string, elementType: ContextMenuState['elementType'], e: Konva.KonvaEventObject<PointerEvent>) => {
+      e.evt.preventDefault();
+      e.cancelBubble = true;
+
+      // Get position relative to the container
+      const containerRect = containerRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+
+      setContextMenu({
+        visible: true,
+        x: e.evt.clientX,
+        y: e.evt.clientY,
+        elementId: id,
+        elementType,
+      });
+
+      // Select the element if not already selected
+      if (!selectedIds.includes(id)) {
+        setSelectedIds([id]);
+      }
+    },
+    [selectedIds, setSelectedIds]
+  );
+
+  // Close context menu
+  const closeContextMenu = useCallback(() => {
+    setContextMenu((prev) => ({ ...prev, visible: false }));
+  }, []);
+
+  // Context menu actions
+  const handleContextMenuDuplicate = useCallback(() => {
+    if (contextMenu.elementId) {
+      duplicateElements([contextMenu.elementId]);
+    }
+  }, [contextMenu.elementId, duplicateElements]);
+
+  const handleContextMenuDelete = useCallback(() => {
+    if (contextMenu.elementId) {
+      if (contextMenu.elementType === 'connection') {
+        removeConnection(contextMenu.elementId);
+      } else {
+        removeElement(contextMenu.elementId);
+      }
+    }
+  }, [contextMenu.elementId, contextMenu.elementType, removeElement, removeConnection]);
+
+  const handleContextMenuBringToFront = useCallback(() => {
+    if (contextMenu.elementId) {
+      bringToFront(contextMenu.elementId);
+    }
+  }, [contextMenu.elementId, bringToFront]);
+
+  const handleContextMenuSendToBack = useCallback(() => {
+    if (contextMenu.elementId) {
+      sendToBack(contextMenu.elementId);
+    }
+  }, [contextMenu.elementId, sendToBack]);
+
+  const handleContextMenuChangeContributor = useCallback(
+    (contributor: ContributorType) => {
+      if (contextMenu.elementId) {
+        changeContributor(contextMenu.elementId, contributor);
+      }
+    },
+    [contextMenu.elementId, changeContributor]
+  );
+
   // Determine if we're connecting from a warrant-type element
   const connectingFromElement = connectingFrom
     ? elements.find((el) => el.id === connectingFrom)
@@ -213,9 +417,12 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         scaleY={zoom}
         x={panX}
         y={panY}
-        draggable={!connectMode}
+        draggable={!connectMode && !marqueeState.isSelecting}
         onWheel={handleWheel}
         onClick={handleStageClick}
+        onMouseDown={handleStageMouseDown}
+        onMouseMove={handleStageMouseMove}
+        onMouseUp={handleStageMouseUp}
         onDragEnd={(e) => {
           if (e.target === e.target.getStage()) {
             setPan(e.target.x(), e.target.y());
@@ -249,6 +456,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+                  shapeRef={(node) => registerShapeRef(element.id, node)}
+                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+                  onContextMenu={(e) => handleContextMenu(element.id, 'argument', e)}
                 />
               );
             }
@@ -260,6 +470,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+                  shapeRef={(node) => registerShapeRef(element.id, node)}
+                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+                  onContextMenu={(e) => handleContextMenu(element.id, 'teacherSupport', e)}
                 />
               );
             }
@@ -271,13 +484,70 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id)}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+                  shapeRef={(node) => registerShapeRef(element.id, node)}
+                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+                  onContextMenu={(e) => handleContextMenu(element.id, 'infoBox', e)}
                 />
               );
             }
             return null;
           })}
+
+          {/* Transformer for resizing selected elements */}
+          <Transformer
+            ref={transformerRef}
+            boundBoxFunc={(oldBox, newBox) => {
+              // Minimum size constraint
+              if (newBox.width < 80 || newBox.height < 60) {
+                return oldBox;
+              }
+              return newBox;
+            }}
+            rotateEnabled={false}
+            keepRatio={false}
+            borderStroke="#4A90D9"
+            borderStrokeWidth={2}
+            anchorStroke="#4A90D9"
+            anchorFill="#FFFFFF"
+            anchorSize={10}
+            anchorCornerRadius={2}
+          />
+
+          {/* Legend */}
+          {legendConfig.visible && (
+            <Legend
+              elements={elements}
+              position={legendConfig.position}
+              onDragEnd={moveLegend}
+            />
+          )}
+
+          {/* Marquee Selection Rectangle */}
+          <SelectionRect
+            x={marqueeState.startX}
+            y={marqueeState.startY}
+            width={marqueeState.currentX - marqueeState.startX}
+            height={marqueeState.currentY - marqueeState.startY}
+            visible={marqueeState.isSelecting}
+          />
         </Layer>
       </Stage>
+
+      {/* Context Menu */}
+      {contextMenu.visible && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          elementId={contextMenu.elementId}
+          elementType={contextMenu.elementType}
+          onClose={closeContextMenu}
+          onDuplicate={handleContextMenuDuplicate}
+          onDelete={handleContextMenuDelete}
+          onBringToFront={handleContextMenuBringToFront}
+          onSendToBack={handleContextMenuSendToBack}
+          onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
+        />
+      )}
     </div>
   );
 }

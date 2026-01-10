@@ -8,6 +8,9 @@ interface TeacherSupportShapeProps {
   isSelected: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  shapeRef?: (node: Konva.Group | null) => void;
+  onTransformEnd?: (node: Konva.Group) => void;
+  onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
 export function TeacherSupportShape({
@@ -15,6 +18,9 @@ export function TeacherSupportShape({
   isSelected,
   onSelect,
   onDragEnd,
+  shapeRef,
+  onTransformEnd,
+  onContextMenu,
 }: TeacherSupportShapeProps) {
   const { position, size, content, supportType, subtype, attribution } = element;
   const { border, fill } = getTeacherSupportColors(supportType);
@@ -30,12 +36,15 @@ export function TeacherSupportShape({
   if (supportType === 'action') {
     return (
       <Group
+        ref={shapeRef}
         x={position.x}
         y={position.y}
         draggable
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={onDragEnd}
+        onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+        onContextMenu={onContextMenu}
       >
         <Ellipse
           x={size.width / 2}
@@ -88,12 +97,15 @@ export function TeacherSupportShape({
   if (supportType === 'question') {
     return (
       <Group
+        ref={shapeRef}
         x={position.x}
         y={position.y}
         draggable
         onClick={onSelect}
         onTap={onSelect}
         onDragEnd={onDragEnd}
+        onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+        onContextMenu={onContextMenu}
       >
         <Rect
           width={size.width}
@@ -156,12 +168,15 @@ export function TeacherSupportShape({
   // Other Support - Gold Rounded Rectangle
   return (
     <Group
+      ref={shapeRef}
       x={position.x}
       y={position.y}
       draggable
       onClick={onSelect}
       onTap={onSelect}
       onDragEnd={onDragEnd}
+      onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+      onContextMenu={onContextMenu}
     >
       <Rect
         width={size.width}

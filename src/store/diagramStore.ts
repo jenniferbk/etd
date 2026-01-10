@@ -108,32 +108,32 @@ export const useDiagramStore = create<DiagramState>()(
       setElementImage: (id, imageData) =>
         set((state) => ({
           elements: state.elements.map((el) =>
-            el.id === id ? { ...el, image: imageData } : el
+            el.id === id ? { ...el, image: imageData } as typeof el : el
           ),
         })),
 
-      duplicateElements: (ids) =>
-        set((state) => {
-          const duplicates: DiagramElement[] = [];
-          ids.forEach((id) => {
-            const original = state.elements.find((el) => el.id === id);
-            if (original) {
-              const duplicate: DiagramElement = {
-                ...original,
-                id: `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                position: {
-                  x: original.position.x + 20,
-                  y: original.position.y + 20,
-                },
-              };
-              duplicates.push(duplicate);
-            }
-          });
-          return {
-            elements: [...state.elements, ...duplicates],
-            selectedIds: duplicates.map((d) => d.id),
-          };
-        }),
+      duplicateElements: (ids) => {
+        const state = get();
+        const duplicates: DiagramElement[] = [];
+        ids.forEach((id) => {
+          const original = state.elements.find((el) => el.id === id);
+          if (original) {
+            const duplicate = {
+              ...original,
+              id: `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              position: {
+                x: original.position.x + 20,
+                y: original.position.y + 20,
+              },
+            } as DiagramElement;
+            duplicates.push(duplicate);
+          }
+        });
+        set({
+          elements: [...state.elements, ...duplicates],
+          selectedIds: duplicates.map((d) => d.id),
+        });
+      },
 
       bringToFront: (id) =>
         set((state) => {
@@ -163,7 +163,7 @@ export const useDiagramStore = create<DiagramState>()(
         set((state) => ({
           elements: state.elements.map((el) =>
             el.id === id && el.type === 'argument'
-              ? { ...el, contributor }
+              ? { ...el, contributor } as typeof el
               : el
           ),
         })),

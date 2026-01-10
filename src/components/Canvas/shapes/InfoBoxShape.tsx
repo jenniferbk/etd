@@ -7,6 +7,9 @@ interface InfoBoxShapeProps {
   isSelected: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
+  shapeRef?: (node: Konva.Group | null) => void;
+  onTransformEnd?: (node: Konva.Group) => void;
+  onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
 export function InfoBoxShape({
@@ -14,6 +17,9 @@ export function InfoBoxShape({
   isSelected,
   onSelect,
   onDragEnd,
+  shapeRef,
+  onTransformEnd,
+  onContextMenu,
 }: InfoBoxShapeProps) {
   const { position, size, label, content, attribution } = element;
 
@@ -24,12 +30,15 @@ export function InfoBoxShape({
 
   return (
     <Group
+      ref={shapeRef}
       x={position.x}
       y={position.y}
       draggable
       onClick={onSelect}
       onTap={onSelect}
       onDragEnd={onDragEnd}
+      onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+      onContextMenu={onContextMenu}
     >
       {/* Black-bordered rectangle */}
       <Rect
