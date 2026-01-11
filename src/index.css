@@ -1,7 +1,45 @@
 @import "tailwindcss";
 
-/* Reset defaults */
-* {
+/* ============================================
+   Deep Void Theme - jenkleiman.com aesthetic
+   ============================================ */
+
+/* CSS Custom Properties */
+:root {
+  /* Deep void base */
+  --void-950: #030509;
+  --void-900: #050a14;
+  --void-850: #0a1019;
+  --void-800: #141824;
+  --void-700: #1a2030;
+  --void-600: #1f2937;
+  --void-500: #2a3548;
+  --void-400: #374151;
+
+  /* Text colors */
+  --text-primary: #f3f4f6;
+  --text-secondary: #d1d5db;
+  --text-tertiary: #9ca3af;
+  --text-muted: #6b7280;
+
+  /* Cyan accent - bioluminescent */
+  --accent: #00f0ff;
+  --accent-hover: #00c0cc;
+  --accent-glow: rgba(0, 240, 255, 0.15);
+  --accent-glow-strong: rgba(0, 240, 255, 0.25);
+
+  /* Secondary */
+  --secondary: #0aff60;
+  --highlight: #ffd700;
+
+  /* Transitions */
+  --transition-fast: 100ms ease-out;
+  --transition-normal: 150ms ease-out;
+  --transition-slow: 250ms ease-out;
+}
+
+/* Reset */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
@@ -13,7 +51,314 @@ html, body, #root {
 }
 
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background: var(--void-900);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   Focus States - Cyan accent
+   ============================================ */
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-glow-strong), 0 0 0 4px rgba(0, 240, 255, 0.1);
+}
+
+/* ============================================
+   Form Controls
+   ============================================ */
+
+button, input, textarea, select {
+  transition: all var(--transition-normal);
+}
+
+input, textarea, select {
+  background: var(--void-800);
+  border: 1px solid var(--void-600);
+  color: var(--text-primary);
+}
+
+input:hover, textarea:hover, select:hover {
+  border-color: var(--void-500);
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: var(--accent);
+  background: var(--void-700);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--text-muted);
+}
+
+select option {
+  background: var(--void-800);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   Scrollbars
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--void-600);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--void-500);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--void-600) transparent;
+}
+
+/* ============================================
+   Selection
+   ============================================ */
+
+::selection {
+  background: var(--accent-glow-strong);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+.animate-fade-in { animation: fade-in var(--transition-normal) forwards; }
+.animate-slide-up { animation: slide-up var(--transition-slow) forwards; }
+.animate-scale-in { animation: scale-in var(--transition-normal) forwards; }
+.tooltip-animate { animation: tooltip-fade-in 150ms ease-out; }
+
+/* ============================================
+   Panel Transitions
+   ============================================ */
+
+.panel-transition {
+  transition:
+    height var(--transition-slow),
+    padding var(--transition-slow),
+    opacity var(--transition-normal);
+}
+
+/* ============================================
+   Interactive Effects
+   ============================================ */
+
+.glow-accent {
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.glow-accent-strong {
+  box-shadow: 0 0 0 4px var(--accent-glow-strong);
+}
+
+.hover-lift {
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.press-effect:active {
+  transform: scale(0.98);
+}
+
+/* ============================================
+   Button Base Styles
+   ============================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--void-950);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: var(--void-800);
+  color: var(--text-primary);
+  border: 1px solid var(--void-600);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--void-700);
+  border-color: var(--void-500);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--void-700);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   Utility Classes
+   ============================================ */
+
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+.text-accent { color: var(--accent); }
+
+.bg-surface { background: var(--void-800); }
+.bg-elevated { background: var(--void-700); }
+
+.border-subtle { border-color: var(--void-700); }
+.border-default { border-color: var(--void-600); }
+
+/* ============================================
+   Label styling
+   ============================================ */
+
+label {
+  color: var(--text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ============================================
+   Range Slider
+   ============================================ */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--void-900);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: transform 100ms ease-out, box-shadow 100ms ease-out;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+  box-shadow: 0 0 10px var(--accent-glow-strong);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--void-900);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+input[type="range"]:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--accent-glow-strong);
 }

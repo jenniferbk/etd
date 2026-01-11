@@ -33,6 +33,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const shapeRefs = useRef<Map<string, Konva.Group>>(new Map());
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
+  const [isPanMode, setIsPanMode] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -43,6 +44,29 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
   // Marquee selection
   const { marqueeState, startMarquee, updateMarquee, endMarquee, cancelMarquee } = useMarqueeSelection();
+
+  // Handle Space key for pan mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault();
+        setIsPanMode(true);
+        cancelMarquee();
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsPanMode(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [cancelMarquee]);
 
   const {
     elements,
@@ -193,7 +217,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const handleStageMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
       // Only start marquee if clicking on empty stage (not on an element)
-      if (e.target === e.target.getStage() && !connectMode) {
+      // Don't start marquee if in pan mode or using middle mouse button
+      if (e.target === e.target.getStage() && !connectMode && !isPanMode && e.evt.button !== 1) {
         const stage = stageRef.current;
         if (!stage) return;
 
@@ -203,7 +228,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         }
       }
     },
-    [connectMode, startMarquee]
+    [connectMode, isPanMode, startMarquee]
   );
 
   // Handle mouse move for marquee selection
@@ -395,7 +420,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   return (
     <div
       ref={containerRef}
-      className={`flex-1 overflow-hidden ${connectMode ? 'cursor-crosshair' : ''}`}
+      className={`flex-1 overflow-hidden ${connectMode ? 'cursor-crosshair' : isPanMode ? 'cursor-grab' : ''}`}
       style={{ backgroundColor: '#f8f9fa' }}
     >
       {/* Status bar for connect mode */}
@@ -409,6 +434,14 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         </div>
       )}
 
+      {/* Pan mode indicator */}
+      {isPanMode && (
+        <div className="absolute top-16 left-64 z-10 bg-gray-700 text-white px-3 py-1 rounded-b text-sm flex items-center gap-2">
+          <span>Pan Mode</span>
+          <span className="text-gray-400 text-xs">Release Space to exit</span>
+        </div>
+      )}
+
       <Stage
         ref={stageRef}
         width={stageSize.width}
@@ -417,7 +450,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         scaleY={zoom}
         x={panX}
         y={panY}
-        draggable={!connectMode && !marqueeState.isSelecting}
+        draggable={!connectMode && (isPanMode || !marqueeState.isSelecting)}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onMouseDown={handleStageMouseDown}

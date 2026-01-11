@@ -43,13 +43,30 @@ export interface Attribution {
   timestamp: string;
 }
 
+export interface CropArea {
+  x: number;      // 0-1 percentage from left
+  y: number;      // 0-1 percentage from top
+  width: number;  // 0-1 percentage of original width
+  height: number; // 0-1 percentage of original height
+}
+
+export interface ImageSettings {
+  displayWidth?: number;   // User-resized width (px) - deprecated, use scale
+  displayHeight?: number;  // User-resized height (px) - deprecated, use scale
+  scale?: number;          // Proportional scale (0.1 to 1.0, default 1.0)
+  offsetX?: number;        // X offset within element (px from default position)
+  offsetY?: number;        // Y offset within element (px from default position)
+  cropArea?: CropArea;     // Non-destructive crop region
+}
+
 export interface BaseElement {
   id: string;
   position: Position;
   size: Size;
   content: string;
   attribution?: Attribution;
-  image?: string | null; // Base64 or URL
+  image?: string | null;       // Base64 or URL
+  imageSettings?: ImageSettings; // Resize/crop settings
 }
 
 export interface ArgumentElement extends BaseElement {

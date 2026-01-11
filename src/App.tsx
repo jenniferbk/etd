@@ -4,7 +4,8 @@ import { Palette } from './components/Palette';
 import { Canvas } from './components/Canvas';
 import { PropertiesPanel } from './components/Properties';
 import { RecoveryPrompt } from './components/RecoveryPrompt';
-import { useDiagramStore, useTemporalStore } from './store';
+import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
+import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 
 function App() {
@@ -29,6 +30,8 @@ function App() {
     fitToView,
     loadDiagram,
   } = useDiagramStore();
+
+  const { isOpen: lightboxOpen, imageData: lightboxImage, elementLabel: lightboxLabel, closeLightbox } = useLightboxStore();
 
   // Check for auto-saved data on mount
   useEffect(() => {
@@ -263,6 +266,15 @@ function App() {
           timestamp={recoveryData.timestamp}
           onRecover={handleRecover}
           onDiscard={handleDiscard}
+        />
+      )}
+
+      {/* Image Lightbox */}
+      {lightboxOpen && lightboxImage && (
+        <ImageLightbox
+          imageData={lightboxImage}
+          elementLabel={lightboxLabel || undefined}
+          onClose={closeLightbox}
         />
       )}
     </div>

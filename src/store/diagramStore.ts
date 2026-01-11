@@ -1,10 +1,42 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { DiagramElement, Connection, Position, Size, ContributorType } from '../types';
+import type { DiagramElement, Connection, Position, Size, ContributorType, ImageSettings } from '../types';
+import { isArgumentElement, isInfoBoxElement } from '../types';
+import { calculateElementSize } from '../utils/textMeasure';
 
 interface LegendConfig {
   visible: boolean;
   position: Position;
+}
+
+// Helper to calculate auto-size for an element
+function getAutoSize(element: DiagramElement): Size {
+  const label = isArgumentElement(element) || isInfoBoxElement(element)
+    ? element.label
+    : element.supportType;
+
+  const hasAttribution = !!(element.attribution?.speaker || element.attribution?.timestamp);
+  const hasImage = isArgumentElement(element) && !!element.image;
+  const imageScale = hasImage && element.imageSettings?.scale ? element.imageSettings.scale : 1;
+  const isImplicit = isArgumentElement(element) && element.contributor === 'implicit';
+
+  const calculated = calculateElementSize({
+    label: label || '',
+    content: element.content || '',
+    hasAttribution,
+    hasImage,
+    imageScale,
+    isImplicit,
+    currentWidth: element.size.width,
+  });
+
+  // Force height to be at least the calculated height
+  const newHeight = Math.max(element.size.height, calculated.height);
+
+  return {
+    width: element.size.width,
+    height: newHeight,
+  };
 }
 
 interface DiagramState {
@@ -30,6 +62,7 @@ interface DiagramState {
   moveElement: (id: string, position: Position) => void;
   resizeElement: (id: string, size: Size) => void;
   setElementImage: (id: string, imageData: string | null) => void;
+  setElementImageSettings: (id: string, settings: Partial<ImageSettings>) => void;
   duplicateElements: (ids: string[]) => void;
   bringToFront: (id: string) => void;
   sendToBack: (id: string) => void;
@@ -73,13 +106,34 @@ export const useDiagramStore = create<DiagramState>()(
       },
 
       addElement: (element) =>
-        set((state) => ({ elements: [...state.elements, element] })),
+        set((state) => {
+          // Auto-size the new element based on its content
+          const autoSize = getAutoSize(element);
+          const sizedElement = { ...element, size: autoSize };
+          return { elements: [...state.elements, sizedElement] };
+        }),
 
       updateElement: (id, updates) =>
         set((state) => ({
-          elements: state.elements.map((el) =>
-            el.id === id ? { ...el, ...updates } : el
-          ),
+          elements: state.elements.map((el) => {
+            if (el.id !== id) return el;
+
+            // Apply updates first
+            const updated = { ...el, ...updates } as DiagramElement;
+
+            // Check if content-affecting fields changed
+            const contentChanged = 'content' in updates ||
+              'label' in updates ||
+              'attribution' in updates;
+
+            // If content changed, auto-expand to fit
+            if (contentChanged) {
+              const autoSize = getAutoSize(updated);
+              return { ...updated, size: autoSize };
+            }
+
+            return updated;
+          }),
         })),
 
       removeElement: (id) =>
@@ -107,9 +161,33 @@ export const useDiagramStore = create<DiagramState>()(
 
       setElementImage: (id, imageData) =>
         set((state) => ({
-          elements: state.elements.map((el) =>
-            el.id === id ? { ...el, image: imageData } as typeof el : el
-          ),
+          elements: state.elements.map((el) => {
+            if (el.id !== id) return el;
+            const updated = { ...el, image: imageData } as typeof el;
+            // Auto-resize when image is added/removed
+            const autoSize = getAutoSize(updated as DiagramElement);
+            return { ...updated, size: autoSize };
+          }),
+        })),
+
+      setElementImageSettings: (id, settings) =>
+        set((state) => ({
+          elements: state.elements.map((el) => {
+            if (el.id !== id) return el;
+            const updated = {
+              ...el,
+              imageSettings: {
+                ...el.imageSettings,
+                ...settings,
+              },
+            } as typeof el;
+            // Auto-resize when scale changes
+            if ('scale' in settings) {
+              const autoSize = getAutoSize(updated as DiagramElement);
+              return { ...updated, size: autoSize };
+            }
+            return updated;
+          }),
         })),
 
       duplicateElements: (ids) => {
@@ -244,8 +322,14 @@ export const useDiagramStore = create<DiagramState>()(
           },
         })),
 
-      loadDiagram: (elements, connections) =>
-        set({ elements, connections, selectedIds: [] }),
+      loadDiagram: (elements, connections) => {
+        // Auto-size all elements on load to ensure content fits
+        const sizedElements = elements.map((el) => {
+          const autoSize = getAutoSize(el);
+          return { ...el, size: autoSize };
+        });
+        set({ elements: sizedElements, connections, selectedIds: [] });
+      },
 
       clearDiagram: () =>
         set({

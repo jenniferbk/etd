@@ -23,7 +23,7 @@ export function ArgumentShape({
   onTransformEnd,
   onContextMenu,
 }: ArgumentShapeProps) {
-  const { position, size, label, content, contributor, attribution, image } = element;
+  const { position, size, label, content, contributor, attribution, image, imageSettings } = element;
   const borderColor = getContributorColor(contributor);
 
   // Format attribution text
@@ -37,7 +37,8 @@ export function ArgumentShape({
   const strokeWidth = contributor === 'implicit' ? 2 : 3;
 
   // Calculate text positioning
-  const padding = 10;
+  // Cloud shapes need more padding because the elliptical boundary curves inward
+  const padding = isCloud ? 25 : 10;
   const labelHeight = 20;
 
   if (isCloud) {
@@ -79,7 +80,7 @@ export function ArgumentShape({
           x={padding}
           y={padding + labelHeight}
           width={size.width - padding * 2}
-          height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 40 : 0)}
+          height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 100 : 0)}
           text={content}
           fontSize={12}
           fill="#000000"
@@ -90,9 +91,16 @@ export function ArgumentShape({
           <EmbeddedImage
             imageData={image}
             x={padding}
-            y={size.height - 50 - (attributionText ? 16 : 0)}
+            y={size.height - 110 - (attributionText ? 16 : 0)}
             maxWidth={size.width - padding * 2}
-            maxHeight={40}
+            maxHeight={100}
+            scale={imageSettings?.scale ?? 1}
+            offsetX={imageSettings?.offsetX ?? 0}
+            offsetY={imageSettings?.offsetY ?? 0}
+            cropArea={imageSettings?.cropArea}
+            elementLabel={label}
+            elementId={element.id}
+            isSelected={isSelected}
           />
         )}
         {/* Attribution */}
@@ -164,7 +172,7 @@ export function ArgumentShape({
         x={padding}
         y={padding + labelHeight}
         width={size.width - padding * 2}
-        height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 40 : 0)}
+        height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 100 : 0)}
         text={content}
         fontSize={12}
         fill="#000000"
@@ -175,9 +183,16 @@ export function ArgumentShape({
         <EmbeddedImage
           imageData={image}
           x={padding}
-          y={size.height - 50 - (attributionText ? 16 : 0)}
+          y={size.height - 110 - (attributionText ? 16 : 0)}
           maxWidth={size.width - padding * 2}
-          maxHeight={40}
+          maxHeight={100}
+          scale={imageSettings?.scale ?? 1}
+          offsetX={imageSettings?.offsetX ?? 0}
+          offsetY={imageSettings?.offsetY ?? 0}
+          cropArea={imageSettings?.cropArea}
+          elementLabel={label}
+          elementId={element.id}
+          isSelected={isSelected}
         />
       )}
       {/* Attribution */}

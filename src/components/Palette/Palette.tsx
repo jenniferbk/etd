@@ -121,63 +121,114 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     addElement(newElement);
   };
 
-  const sectionHeaderClass = `
-    flex items-center justify-between w-full py-2 text-xs font-semibold uppercase tracking-wider
-    cursor-pointer hover:opacity-80 transition-opacity
-  `;
+  const SectionHeader = ({
+    label,
+    section,
+    isExpanded,
+  }: {
+    label: string;
+    section: keyof typeof expandedSections;
+    isExpanded: boolean;
+  }) => (
+    <button
+      onClick={() => toggleSection(section)}
+      className="flex items-center justify-between w-full px-3 py-2.5 rounded-lg transition-all duration-150"
+      style={{
+        color: theme.sidebar.textSecondary,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = theme.sidebar.surfaceHover;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = 'transparent';
+      }}
+    >
+      <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
+      <ChevronDown
+        size={14}
+        className={`transition-transform duration-200 ${isExpanded ? '' : '-rotate-90'}`}
+        style={{ color: theme.sidebar.muted }}
+      />
+    </button>
+  );
 
   return (
     <div
-      className="w-60 border-r p-4 flex flex-col gap-3 overflow-y-auto"
+      className="w-64 border-r flex flex-col overflow-y-auto"
       style={{
-        backgroundColor: theme.sidebar.bg,
+        background: theme.sidebar.bgGradient,
         borderColor: theme.sidebar.border,
       }}
     >
-      <h2
-        className="font-semibold text-sm uppercase tracking-wide"
-        style={{ color: theme.sidebar.text }}
+      {/* Header */}
+      <div
+        className="px-5 py-4 border-b"
+        style={{ borderColor: theme.sidebar.border }}
       >
-        Elements
-      </h2>
+        <h2
+          className="font-semibold text-sm uppercase tracking-wider"
+          style={{ color: theme.sidebar.text }}
+        >
+          Elements
+        </h2>
+      </div>
+
+      <div className="p-4 flex flex-col gap-4">
 
       {/* Connect Mode Toggle */}
       <button
         onClick={onToggleConnectMode}
-        className={`w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-all duration-150 flex items-center justify-center gap-2 ${
+        className={`w-full px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 ${
           connectMode
-            ? 'bg-blue-500 text-white'
+            ? 'shadow-lg'
             : ''
         }`}
-        style={!connectMode ? {
+        style={connectMode ? {
+          backgroundColor: theme.sidebar.accent,
+          color: theme.colors.void[950],
+          boxShadow: `0 4px 14px ${theme.colors.accent.glow}`,
+        } : {
           backgroundColor: theme.sidebar.surface,
           color: theme.sidebar.text,
-        } : {}}
+        }}
+        onMouseEnter={(e) => {
+          if (!connectMode) {
+            e.currentTarget.style.backgroundColor = theme.sidebar.surfaceHover;
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!connectMode) {
+            e.currentTarget.style.backgroundColor = theme.sidebar.surface;
+          }
+        }}
       >
-        <Link2 size={16} />
-        {connectMode ? 'Connecting... (C)' : 'Connect Mode (C)'}
+        <Link2 size={18} />
+        {connectMode ? 'Connecting...' : 'Connect Mode'}
+        <kbd
+          className="ml-auto px-1.5 py-0.5 text-[10px] rounded font-mono"
+          style={{
+            backgroundColor: connectMode ? 'rgba(0,0,0,0.2)' : theme.sidebar.bg,
+            color: connectMode ? theme.colors.ink[950] : theme.sidebar.muted,
+          }}
+        >
+          C
+        </kbd>
       </button>
 
       {/* Argument Elements */}
       <div className="space-y-2">
-        <button
-          onClick={() => toggleSection('arguments')}
-          className={sectionHeaderClass}
-          style={{ color: theme.sidebar.muted }}
-        >
-          <span>Argument Components</span>
-          <ChevronDown
-            size={14}
-            className={`transition-transform ${expandedSections.arguments ? '' : '-rotate-90'}`}
-          />
-        </button>
+        <SectionHeader
+          label="Argument Components"
+          section="arguments"
+          isExpanded={expandedSections.arguments}
+        />
         {expandedSections.arguments && (
-          <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-2 px-1">
             {ARGUMENT_TYPES.map(({ type, label }) => (
               <button
                 key={type}
                 onClick={() => handleAddArgument(type)}
-                className="w-full px-3 py-2 text-left text-sm rounded-lg hover:opacity-90 transition-all"
+                className="px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]"
                 style={{
                   backgroundColor: theme.sidebar.surface,
                   color: theme.sidebar.text,
@@ -195,23 +246,30 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
 
       {/* Contributor Selector */}
       <div className="space-y-2">
-        <button
-          onClick={() => toggleSection('contributor')}
-          className={sectionHeaderClass}
-          style={{ color: theme.sidebar.muted }}
-        >
-          <span>Contributor Type</span>
-          <ChevronDown
-            size={14}
-            className={`transition-transform ${expandedSections.contributor ? '' : '-rotate-90'}`}
-          />
-        </button>
+        <SectionHeader
+          label="Contributor Type"
+          section="contributor"
+          isExpanded={expandedSections.contributor}
+        />
         {expandedSections.contributor && (
-          <div className="space-y-2">
+          <div className="space-y-1 px-1">
             {CONTRIBUTOR_TYPES.map(({ type, label, color }) => (
               <label
                 key={type}
-                className="flex items-center gap-2.5 cursor-pointer px-2 py-1.5 rounded-lg hover:bg-[#313244]/50 transition-colors"
+                className="flex items-center gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-all duration-150"
+                style={{
+                  backgroundColor: selectedContributor === type ? theme.sidebar.surfaceHover : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedContributor !== type) {
+                    e.currentTarget.style.backgroundColor = theme.sidebar.surface;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedContributor !== type) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }
+                }}
               >
                 <input
                   type="radio"
@@ -219,18 +277,30 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                   value={type}
                   checked={selectedContributor === type}
                   onChange={() => setSelectedContributor(type)}
-                  className="w-4 h-4 accent-blue-500"
+                  className="sr-only"
                 />
                 <span
-                  className="w-4 h-4 border-2 rounded-sm flex-shrink-0"
+                  className="w-5 h-5 rounded flex-shrink-0 transition-transform duration-150"
                   style={{
+                    borderWidth: '3px',
                     borderColor: color,
                     borderStyle: type === 'student' || type === 'joint' ? 'dashed' : 'solid',
+                    transform: selectedContributor === type ? 'scale(1.1)' : 'scale(1)',
+                    boxShadow: selectedContributor === type ? `0 0 8px ${color}40` : 'none',
                   }}
                 />
-                <span className="text-sm" style={{ color: theme.sidebar.text }}>
+                <span
+                  className="text-sm font-medium"
+                  style={{ color: selectedContributor === type ? theme.sidebar.text : theme.sidebar.textSecondary }}
+                >
                   {label}
                 </span>
+                {selectedContributor === type && (
+                  <span
+                    className="ml-auto w-2 h-2 rounded-full"
+                    style={{ backgroundColor: theme.sidebar.accent }}
+                  />
+                )}
               </label>
             ))}
           </div>
@@ -239,48 +309,42 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
 
       {/* Teacher Support */}
       <div
-        className="space-y-2 border-t pt-3"
+        className="space-y-2 border-t pt-4"
         style={{ borderColor: theme.sidebar.border }}
       >
-        <button
-          onClick={() => toggleSection('teacher')}
-          className={sectionHeaderClass}
-          style={{ color: theme.sidebar.muted }}
-        >
-          <span>Teacher Support</span>
-          <ChevronDown
-            size={14}
-            className={`transition-transform ${expandedSections.teacher ? '' : '-rotate-90'}`}
-          />
-        </button>
+        <SectionHeader
+          label="Teacher Support"
+          section="teacher"
+          isExpanded={expandedSections.teacher}
+        />
         {expandedSections.teacher && (
-          <div className="space-y-1.5">
+          <div className="space-y-2 px-1">
             <button
               onClick={() => handleAddTeacherSupport('action')}
-              className="w-full px-3 py-2 text-left text-sm border-2 rounded-full hover:opacity-90 transition-all"
+              className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-full transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
               style={{ borderColor: COLORS.teacherAction, color: COLORS.teacherAction, backgroundColor: 'transparent' }}
             >
               Action
             </button>
             <button
               onClick={() => handleAddTeacherSupport('question')}
-              className="w-full px-3 py-2 text-left text-sm border-2 rounded-lg hover:opacity-90 transition-all"
-              style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill }}
+              className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+              style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill, color: '#0d7377' }}
             >
               Question
             </button>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <button
                 onClick={() => handleAddTeacherSupport('other')}
-                className="w-full px-3 py-2 text-left text-sm border-2 rounded-lg hover:opacity-90 transition-all"
-                style={{ borderColor: COLORS.otherSupport, backgroundColor: COLORS.otherSupportFill }}
+                className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+                style={{ borderColor: COLORS.otherSupport, backgroundColor: COLORS.otherSupportFill, color: '#9a7b0a' }}
               >
                 Other Support
               </button>
               <select
                 value={selectedSubtype}
                 onChange={(e) => setSelectedSubtype(e.target.value as OtherSupportSubtype)}
-                className="w-full px-2 py-1.5 text-xs rounded-lg border"
+                className="w-full px-3 py-2 text-sm rounded-lg border transition-colors duration-150"
                 style={{
                   backgroundColor: theme.sidebar.surface,
                   borderColor: theme.sidebar.border,
@@ -300,29 +364,38 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
 
       {/* Info Box */}
       <div
-        className="space-y-2 border-t pt-3"
+        className="space-y-2 border-t pt-4"
         style={{ borderColor: theme.sidebar.border }}
       >
-        <button
-          onClick={() => toggleSection('annotations')}
-          className={sectionHeaderClass}
-          style={{ color: theme.sidebar.muted }}
-        >
-          <span>Annotations</span>
-          <ChevronDown
-            size={14}
-            className={`transition-transform ${expandedSections.annotations ? '' : '-rotate-90'}`}
-          />
-        </button>
+        <SectionHeader
+          label="Annotations"
+          section="annotations"
+          isExpanded={expandedSections.annotations}
+        />
         {expandedSections.annotations && (
-          <button
-            onClick={handleAddInfoBox}
-            className="w-full px-3 py-2 text-left text-sm border-2 border-white/50 rounded-lg hover:bg-white/10 transition-all"
-            style={{ color: theme.sidebar.text }}
-          >
-            Info Box
-          </button>
+          <div className="px-1">
+            <button
+              onClick={handleAddInfoBox}
+              className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+              style={{
+                borderColor: theme.sidebar.border,
+                color: theme.sidebar.text,
+                backgroundColor: 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = theme.sidebar.muted;
+                e.currentTarget.style.backgroundColor = theme.sidebar.surface;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = theme.sidebar.border;
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              Info Box
+            </button>
+          </div>
         )}
+      </div>
       </div>
     </div>
   );

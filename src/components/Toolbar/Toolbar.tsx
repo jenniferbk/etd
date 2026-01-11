@@ -13,17 +13,20 @@ import {
   Redo2,
   Info,
   LayoutGrid,
+  Loader2,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { theme } from '../../utils/theme';
 import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
 import { exportToPdf } from '../../utils/pdfExport';
+import { Tooltip } from '../ui/Tooltip';
 
 export function Toolbar() {
   const { zoom, setZoom, elements, connections, loadDiagram, clearDiagram, toggleLegend, legendConfig } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
+  const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | null>(null);
   const temporal = useTemporalStore();
 
   const canUndo = temporal.pastStates.length > 0;
@@ -74,37 +77,50 @@ export function Toolbar() {
   };
 
   // Export diagram as PNG
-  const handleExportPNG = () => {
-    const stages = Konva.stages;
-    if (stages.length === 0) {
-      alert('No canvas found to export');
-      return;
+  const handleExportPNG = async () => {
+    setExporting('png');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100)); // Allow UI to update
+      const stages = Konva.stages;
+      if (stages.length === 0) {
+        alert('No canvas found to export');
+        return;
+      }
+
+      const stage = stages[0];
+      const dataURL = stage.toDataURL({
+        pixelRatio: 2,
+        mimeType: 'image/png',
+      });
+
+      const a = document.createElement('a');
+      a.href = dataURL;
+      a.download = `toulmin-diagram-${Date.now()}.png`;
+      a.click();
+    } finally {
+      setExporting(null);
     }
-
-    const stage = stages[0];
-    const dataURL = stage.toDataURL({
-      pixelRatio: 2,
-      mimeType: 'image/png',
-    });
-
-    const a = document.createElement('a');
-    a.href = dataURL;
-    a.download = `toulmin-diagram-${Date.now()}.png`;
-    a.click();
   };
 
   // Export diagram as SVG
-  const handleExportSVG = () => {
-    if (elements.length === 0) {
-      alert('No elements to export');
-      return;
+  const handleExportSVG = async () => {
+    setExporting('svg');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (elements.length === 0) {
+        alert('No elements to export');
+        return;
+      }
+      const svgContent = exportToSvg(elements, connections);
+      downloadSvg(svgContent, `toulmin-diagram-${Date.now()}.svg`);
+    } finally {
+      setExporting(null);
     }
-    const svgContent = exportToSvg(elements, connections);
-    downloadSvg(svgContent, `toulmin-diagram-${Date.now()}.svg`);
   };
 
   // Export diagram as PDF
   const handleExportPDF = async () => {
+    setExporting('pdf');
     try {
       await exportToPdf({
         filename: `toulmin-diagram-${Date.now()}.pdf`,
@@ -114,6 +130,8 @@ export function Toolbar() {
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('Failed to export PDF');
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -125,29 +143,75 @@ export function Toolbar() {
     }
   };
 
-  const buttonClass = `
-    w-9 h-9 flex items-center justify-center rounded-lg
-    transition-all duration-150 ease-in-out
-    hover:bg-[${theme.sidebar.hover}]
-    text-[${theme.sidebar.text}]
-    disabled:opacity-40 disabled:cursor-not-allowed
-  `;
-
   const iconButtonClass = `
-    p-2 rounded-lg transition-all duration-150
-    hover:bg-[#45475a] text-[#cdd6f4]
-    disabled:opacity-40 disabled:cursor-not-allowed
+    w-9 h-9 flex items-center justify-center rounded-lg
+    transition-all duration-150 ease-out
+    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100
   `;
 
-  const dividerClass = 'w-px h-6 bg-[#45475a] mx-2';
+  const dividerClass = 'w-px h-6 mx-2';
+
+  const IconButton = ({
+    onClick,
+    disabled,
+    icon: Icon,
+    tooltip,
+    shortcut,
+    variant,
+    isActive,
+    isLoading,
+  }: {
+    onClick: () => void;
+    disabled?: boolean;
+    icon: typeof Save;
+    tooltip: string;
+    shortcut?: string;
+    variant?: 'danger';
+    isActive?: boolean;
+    isLoading?: boolean;
+  }) => {
+    const [isHovered, setIsHovered] = useState(false);
+
+    return (
+      <Tooltip content={tooltip} shortcut={shortcut}>
+        <button
+          onClick={onClick}
+          disabled={disabled || isLoading}
+          className={`${iconButtonClass} ${isActive ? '' : ''}`}
+          style={{
+            color: variant === 'danger' && isHovered
+              ? theme.colors.error
+              : theme.sidebar.text,
+            backgroundColor: isActive
+              ? theme.sidebar.surfaceHover
+              : isHovered
+                ? variant === 'danger'
+                  ? 'rgba(239, 68, 68, 0.15)'
+                  : theme.sidebar.surfaceHover
+                : 'transparent',
+            transform: isHovered && !disabled ? 'scale(1.05)' : 'scale(1)',
+          }}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
+          {isLoading ? (
+            <Loader2 size={18} className="animate-spin" style={{ color: theme.sidebar.accent }} />
+          ) : (
+            <Icon size={18} />
+          )}
+        </button>
+      </Tooltip>
+    );
+  };
 
   return (
     <>
       <div
-        className="h-14 px-4 flex items-center justify-between border-b"
+        className="h-14 px-5 flex items-center justify-between border-b"
         style={{
-          backgroundColor: theme.toolbar.bg,
+          background: theme.toolbar.bgGradient,
           borderColor: theme.toolbar.border,
+          boxShadow: theme.toolbar.shadow,
         }}
       >
         <div className="flex items-center gap-3">
@@ -161,43 +225,39 @@ export function Toolbar() {
 
         <div className="flex items-center">
           {/* Undo/Redo */}
-          <div className="flex items-center gap-1">
-            <button
+          <div className="flex items-center gap-0.5">
+            <IconButton
               onClick={() => temporal.undo()}
               disabled={!canUndo}
-              className={iconButtonClass}
-              title="Undo (Ctrl+Z)"
-            >
-              <Undo2 size={18} />
-            </button>
-            <button
+              icon={Undo2}
+              tooltip="Undo"
+              shortcut="Ctrl+Z"
+            />
+            <IconButton
               onClick={() => temporal.redo()}
               disabled={!canRedo}
-              className={iconButtonClass}
-              title="Redo (Ctrl+Shift+Z)"
-            >
-              <Redo2 size={18} />
-            </button>
+              icon={Redo2}
+              tooltip="Redo"
+              shortcut="Ctrl+Shift+Z"
+            />
           </div>
 
-          <div className={dividerClass} />
+          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
           {/* File operations */}
-          <div className="flex items-center gap-1">
-            <button
+          <div className="flex items-center gap-0.5">
+            <IconButton
               onClick={handleSave}
-              className={iconButtonClass}
-              title="Save diagram (Ctrl+S)"
-            >
-              <Save size={18} />
-            </button>
-            <button
+              icon={Save}
+              tooltip="Save diagram"
+              shortcut="Ctrl+S"
+            />
+            <IconButton
               onClick={handleLoad}
-              className={iconButtonClass}
-              title="Load diagram (Ctrl+O)"
-            >
-              <FolderOpen size={18} />
-            </button>
+              icon={FolderOpen}
+              tooltip="Load diagram"
+              shortcut="Ctrl+O"
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -207,90 +267,81 @@ export function Toolbar() {
             />
           </div>
 
-          <div className={dividerClass} />
+          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
           {/* Export */}
-          <div className="flex items-center gap-1">
-            <button
+          <div className="flex items-center gap-0.5">
+            <IconButton
               onClick={handleExportPNG}
-              className={iconButtonClass}
-              title="Export as PNG"
-            >
-              <Image size={18} />
-            </button>
-            <button
+              icon={Image}
+              tooltip="Export as PNG"
+              isLoading={exporting === 'png'}
+            />
+            <IconButton
               onClick={handleExportSVG}
-              className={iconButtonClass}
-              title="Export as SVG"
-            >
-              <Download size={18} />
-            </button>
-            <button
+              icon={Download}
+              tooltip="Export as SVG"
+              isLoading={exporting === 'svg'}
+            />
+            <IconButton
               onClick={handleExportPDF}
-              className={iconButtonClass}
-              title="Export as PDF"
-            >
-              <FileText size={18} />
-            </button>
+              icon={FileText}
+              tooltip="Export as PDF"
+              isLoading={exporting === 'pdf'}
+            />
           </div>
 
-          <div className={dividerClass} />
+          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
           {/* View options */}
-          <div className="flex items-center gap-1">
-            <button
+          <div className="flex items-center gap-0.5">
+            <IconButton
               onClick={toggleLegend}
-              className={`${iconButtonClass} ${legendConfig.visible ? 'bg-[#45475a]' : ''}`}
-              title="Toggle Legend"
-            >
-              <LayoutGrid size={18} />
-            </button>
+              icon={LayoutGrid}
+              tooltip="Toggle Legend"
+              isActive={legendConfig.visible}
+            />
           </div>
 
-          <div className={dividerClass} />
+          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
           {/* Zoom controls */}
-          <div className="flex items-center gap-1">
-            <button
+          <div className="flex items-center gap-0.5">
+            <IconButton
               onClick={() => setZoom(zoom / 1.2)}
-              className={iconButtonClass}
-              title="Zoom out (Ctrl+-)"
-            >
-              <ZoomOut size={18} />
-            </button>
+              icon={ZoomOut}
+              tooltip="Zoom out"
+              shortcut="Ctrl+-"
+            />
             <span
-              className="text-sm w-14 text-center font-medium"
-              style={{ color: theme.sidebar.muted }}
+              className="text-sm w-14 text-center font-medium tabular-nums"
+              style={{ color: theme.sidebar.textSecondary }}
             >
               {Math.round(zoom * 100)}%
             </span>
-            <button
+            <IconButton
               onClick={() => setZoom(zoom * 1.2)}
-              className={iconButtonClass}
-              title="Zoom in (Ctrl++)"
-            >
-              <ZoomIn size={18} />
-            </button>
+              icon={ZoomIn}
+              tooltip="Zoom in"
+              shortcut="Ctrl+="
+            />
           </div>
 
-          <div className={dividerClass} />
+          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
           {/* Clear and About */}
-          <div className="flex items-center gap-1">
-            <button
+          <div className="flex items-center gap-0.5">
+            <IconButton
               onClick={handleClear}
-              className={`${iconButtonClass} hover:bg-red-500/20 hover:text-red-400`}
-              title="Clear diagram"
-            >
-              <Trash2 size={18} />
-            </button>
-            <button
+              icon={Trash2}
+              tooltip="Clear diagram"
+              variant="danger"
+            />
+            <IconButton
               onClick={() => setShowAbout(true)}
-              className={iconButtonClass}
-              title="About"
-            >
-              <Info size={18} />
-            </button>
+              icon={Info}
+              tooltip="About & Shortcuts"
+            />
           </div>
         </div>
       </div>

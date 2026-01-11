@@ -88,6 +88,54 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
   const labelY = y + padding + 14;
   const contentY = y + padding + 30;
 
+  // Build image element if present
+  let imageElement = '';
+  if (el.image) {
+    const imgMaxWidth = width - padding * 2;
+    const imgMaxHeight = 100;
+    const imgX = x + padding;
+    const imgY = y + height - 110 - (el.attribution?.speaker || el.attribution?.timestamp ? 16 : 0);
+
+    // Apply crop if present
+    if (el.imageSettings?.cropArea) {
+      const crop = el.imageSettings.cropArea;
+      const clipId = `clip-${el.id.replace(/[^a-zA-Z0-9]/g, '')}`;
+      imageElement = `
+      <defs>
+        <clipPath id="${clipId}">
+          <rect x="${imgX}" y="${imgY}" width="${imgMaxWidth}" height="${imgMaxHeight}"/>
+        </clipPath>
+      </defs>
+      <image
+        href="${el.image}"
+        x="${imgX}"
+        y="${imgY}"
+        width="${imgMaxWidth}"
+        height="${imgMaxHeight}"
+        preserveAspectRatio="xMidYMid meet"
+        clip-path="url(#${clipId})"
+      />`;
+    } else {
+      imageElement = `<image
+        href="${el.image}"
+        x="${imgX}"
+        y="${imgY}"
+        width="${imgMaxWidth}"
+        height="${imgMaxHeight}"
+        preserveAspectRatio="xMidYMid meet"
+      />`;
+    }
+  }
+
+  // Build attribution element if present
+  let attributionElement = '';
+  const attributionText = el.attribution?.speaker || el.attribution?.timestamp
+    ? `${el.attribution.speaker || ''}${el.attribution.speaker && el.attribution.timestamp ? ' @ ' : ''}${el.attribution.timestamp || ''}`
+    : '';
+  if (attributionText) {
+    attributionElement = `<text x="${x + width - padding}" y="${y + height - 6}" class="attribution" font-size="10" fill="#666666" text-anchor="end">${escapeXml(attributionText)}</text>`;
+  }
+
   if (isCloud) {
     // Cloud shape
     const cloudPath = generateCloudPath(x, y, width, height);
@@ -95,6 +143,8 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
       <path d="${cloudPath}" fill="${fill}" stroke="${color}" stroke-width="${strokeWidth}"/>
       <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="#000000">${escapeXml(el.label)}</text>
       <text x="${x + padding}" y="${contentY}" class="content" font-size="12" fill="#000000">${escapeXml(el.content)}</text>
+      ${imageElement}
+      ${attributionElement}
     </g>`;
   }
 
@@ -102,6 +152,8 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
     <rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${color}" stroke-width="${strokeWidth}" ${dashArray}/>
     <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="${color}">${escapeXml(el.label)}</text>
     <text x="${x + padding}" y="${contentY}" class="content" font-size="12" fill="#000000">${escapeXml(el.content)}</text>
+    ${imageElement}
+    ${attributionElement}
   </g>`;
 }
 
