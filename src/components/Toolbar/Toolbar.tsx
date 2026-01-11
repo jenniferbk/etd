@@ -22,8 +22,17 @@ import { exportToSvg, downloadSvg } from '../../utils/svgExport';
 import { exportToPdf } from '../../utils/pdfExport';
 import { Tooltip } from '../ui/Tooltip';
 
+// Helper to create a safe filename from diagram name
+function toFilename(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'diagram';
+}
+
 export function Toolbar() {
-  const { zoom, setZoom, elements, connections, loadDiagram, clearDiagram, toggleLegend, legendConfig } = useDiagramStore();
+  const { zoom, setZoom, elements, connections, loadDiagram, clearDiagram, toggleLegend, legendConfig, diagramName, setDiagramName } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | null>(null);
@@ -36,6 +45,7 @@ export function Toolbar() {
   const handleSave = () => {
     const data = {
       version: '1.0',
+      name: diagramName,
       elements,
       connections,
     };
@@ -44,7 +54,7 @@ export function Toolbar() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `toulmin-diagram-${Date.now()}.json`;
+    a.download = `${toFilename(diagramName)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -63,7 +73,7 @@ export function Toolbar() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections);
+          loadDiagram(data.elements, data.connections, data.name);
         } else {
           alert('Invalid diagram file format');
         }
@@ -95,7 +105,7 @@ export function Toolbar() {
 
       const a = document.createElement('a');
       a.href = dataURL;
-      a.download = `toulmin-diagram-${Date.now()}.png`;
+      a.download = `${toFilename(diagramName)}.png`;
       a.click();
     } finally {
       setExporting(null);
@@ -112,7 +122,7 @@ export function Toolbar() {
         return;
       }
       const svgContent = exportToSvg(elements, connections);
-      downloadSvg(svgContent, `toulmin-diagram-${Date.now()}.svg`);
+      downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
     } finally {
       setExporting(null);
     }
@@ -123,7 +133,7 @@ export function Toolbar() {
     setExporting('pdf');
     try {
       await exportToPdf({
-        filename: `toulmin-diagram-${Date.now()}.pdf`,
+        filename: `${toFilename(diagramName)}.pdf`,
         orientation: 'landscape',
         quality: 2,
       });
@@ -215,12 +225,21 @@ export function Toolbar() {
         }}
       >
         <div className="flex items-center gap-3">
-          <h1
-            className="text-base font-semibold tracking-tight"
-            style={{ color: theme.sidebar.text }}
+          <span
+            className="text-sm font-medium"
+            style={{ color: theme.sidebar.textSecondary }}
           >
-            Extended Toulmin Diagram Editor
-          </h1>
+            ETD
+          </span>
+          <span style={{ color: theme.sidebar.border }}>|</span>
+          <input
+            type="text"
+            value={diagramName}
+            onChange={(e) => setDiagramName(e.target.value)}
+            className="text-base font-semibold tracking-tight bg-transparent border-none outline-none focus:ring-0 min-w-[200px]"
+            style={{ color: theme.sidebar.text }}
+            placeholder="Untitled Diagram"
+          />
         </div>
 
         <div className="flex items-center">

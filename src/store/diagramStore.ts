@@ -40,6 +40,9 @@ function getAutoSize(element: DiagramElement): Size {
 }
 
 interface DiagramState {
+  // Diagram metadata
+  diagramName: string;
+
   // Elements and connections
   elements: DiagramElement[];
   connections: Connection[];
@@ -86,14 +89,18 @@ interface DiagramState {
   toggleLegend: () => void;
   moveLegend: (position: Position) => void;
 
+  // Actions - Metadata
+  setDiagramName: (name: string) => void;
+
   // Actions - File operations
-  loadDiagram: (elements: DiagramElement[], connections: Connection[]) => void;
+  loadDiagram: (elements: DiagramElement[], connections: Connection[], name?: string) => void;
   clearDiagram: () => void;
 }
 
 export const useDiagramStore = create<DiagramState>()(
   temporal(
     (set, get) => ({
+      diagramName: 'Untitled Diagram',
       elements: [],
       connections: [],
       zoom: 1,
@@ -322,17 +329,25 @@ export const useDiagramStore = create<DiagramState>()(
           },
         })),
 
-      loadDiagram: (elements, connections) => {
+      setDiagramName: (name) => set({ diagramName: name }),
+
+      loadDiagram: (elements, connections, name) => {
         // Auto-size all elements on load to ensure content fits
         const sizedElements = elements.map((el) => {
           const autoSize = getAutoSize(el);
           return { ...el, size: autoSize };
         });
-        set({ elements: sizedElements, connections, selectedIds: [] });
+        set({
+          elements: sizedElements,
+          connections,
+          selectedIds: [],
+          diagramName: name || 'Untitled Diagram',
+        });
       },
 
       clearDiagram: () =>
         set({
+          diagramName: 'Untitled Diagram',
           elements: [],
           connections: [],
           selectedIds: [],

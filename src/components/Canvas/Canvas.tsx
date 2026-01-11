@@ -5,12 +5,13 @@ import { useDiagramStore } from '../../store';
 import { ArgumentShape } from './shapes/ArgumentShape';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
-import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType } from '../../types';
+import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType, type DiagramElement } from '../../types';
 import { InfoBoxShape } from './shapes/InfoBoxShape';
 import { ContextMenu } from './ContextMenu';
 import { Legend } from './shapes/Legend';
 import { SelectionRect } from './SelectionRect';
 import { useMarqueeSelection } from '../../hooks/useMarqueeSelection';
+import { InlineEditor } from './InlineEditor';
 
 interface ContextMenuState {
   visible: boolean;
@@ -41,6 +42,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     elementId: '',
     elementType: 'argument',
   });
+
+  // Inline editing state
+  const [editingElement, setEditingElement] = useState<DiagramElement | null>(null);
 
   // Marquee selection
   const { marqueeState, startMarquee, updateMarquee, endMarquee, cancelMarquee } = useMarqueeSelection();
@@ -92,6 +96,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     clearSelection,
     moveElement,
     resizeElement,
+    updateElement,
     addConnection,
     removeElement,
     removeConnection,
@@ -417,6 +422,28 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [contextMenu.elementId, changeContributor]
   );
 
+  // Handle double-click for inline editing
+  const handleElementDoubleClick = useCallback(
+    (element: DiagramElement) => {
+      setEditingElement(element);
+    },
+    []
+  );
+
+  // Handle inline edit save
+  const handleInlineEditSave = useCallback(
+    (id: string, content: string) => {
+      updateElement(id, { content });
+      setEditingElement(null);
+    },
+    [updateElement]
+  );
+
+  // Handle inline edit cancel
+  const handleInlineEditCancel = useCallback(() => {
+    setEditingElement(null);
+  }, []);
+
   // Determine if we're connecting from a warrant-type element
   const connectingFromElement = connectingFrom
     ? elements.find((el) => el.id === connectingFrom)
@@ -430,7 +457,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   return (
     <div
       ref={containerRef}
-      className={`flex-1 overflow-hidden ${connectMode ? 'cursor-crosshair' : isPanMode ? 'cursor-grab' : ''}`}
+      className={`flex-1 overflow-hidden relative ${connectMode ? 'cursor-crosshair' : isPanMode ? 'cursor-grab' : ''}`}
       style={{ backgroundColor: '#f8f9fa' }}
     >
       {/* Status bar for connect mode */}
@@ -460,7 +487,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         scaleY={zoom}
         x={panX}
         y={panY}
-        draggable={!connectMode && (isPanMode || !marqueeState.isSelecting)}
+        draggable={!connectMode && isPanMode}
         onWheel={handleWheel}
         onClick={handleStageClick}
         onMouseDown={handleStageMouseDown}
@@ -498,6 +525,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   element={element}
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
+                  onDoubleClick={() => handleElementDoubleClick(element)}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -512,6 +540,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   element={element}
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
+                  onDoubleClick={() => handleElementDoubleClick(element)}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -526,6 +555,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   element={element}
                   isSelected={selectedIds.includes(element.id)}
                   onSelect={(e) => handleElementSelect(element.id, e)}
+                  onDoubleClick={() => handleElementDoubleClick(element)}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -589,6 +619,21 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           onBringToFront={handleContextMenuBringToFront}
           onSendToBack={handleContextMenuSendToBack}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
+        />
+      )}
+
+      {/* Inline Editor */}
+      {editingElement && (
+        <InlineEditor
+          elementId={editingElement.id}
+          content={editingElement.content}
+          position={editingElement.position}
+          size={editingElement.size}
+          zoom={zoom}
+          panX={panX}
+          panY={panY}
+          onSave={handleInlineEditSave}
+          onCancel={handleInlineEditCancel}
         />
       )}
     </div>

@@ -29,6 +29,7 @@ function App() {
     zoom,
     fitToView,
     loadDiagram,
+    diagramName,
   } = useDiagramStore();
 
   const { isOpen: lightboxOpen, imageData: lightboxImage, elementLabel: lightboxLabel, closeLightbox } = useLightboxStore();
@@ -76,8 +77,12 @@ function App() {
 
   // Save handler for keyboard shortcut
   const handleSave = useCallback(() => {
+    const toFilename = (name: string) =>
+      name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'diagram';
+
     const data = {
       version: '1.0',
+      name: diagramName,
       elements,
       connections,
     };
@@ -85,10 +90,10 @@ function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `toulmin-diagram-${Date.now()}.json`;
+    a.download = `${toFilename(diagramName)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [elements, connections]);
+  }, [elements, connections, diagramName]);
 
   // Load handler for keyboard shortcut
   const handleLoad = useCallback(() => {
@@ -104,7 +109,7 @@ function App() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections);
+          loadDiagram(data.elements, data.connections, data.name);
         }
       } catch (err) {
         console.error('Failed to parse diagram file:', err);
