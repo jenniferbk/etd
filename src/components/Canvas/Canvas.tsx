@@ -47,7 +47,17 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
   // Handle Space key for pan mode
   useEffect(() => {
+    const isInputFocused = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      return (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target.isContentEditable
+      );
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (isInputFocused(e)) return;
       if (e.code === 'Space' && !e.repeat) {
         e.preventDefault();
         setIsPanMode(true);
