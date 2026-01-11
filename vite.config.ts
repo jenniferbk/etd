@@ -4,5 +4,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/tools/etd/',  // Subpath for jenkleiman.com integration
   plugins: [react(), tailwindcss()],
 })

@@ -1,6 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
-import { theme } from '../../utils/theme';
+import { X } from 'lucide-react';
 
 interface ImageLightboxProps {
   imageData: string;

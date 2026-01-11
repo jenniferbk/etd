@@ -1,4 +1,4 @@
-import { Arrow as KonvaArrow, Circle, Line } from 'react-konva';
+import { Arrow as KonvaArrow, Circle } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement } from '../../../types';
 import { isArrowAttachment } from '../../../types';
@@ -10,7 +10,7 @@ interface ArrowProps {
   isSelected: boolean;
   isHovered: boolean;
   connectModeActive: boolean;
-  onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onArrowClick?: (connectionId: string, position: number, point: { x: number; y: number }) => void;
   onHover?: (connectionId: string | null) => void;
 }
@@ -85,30 +85,6 @@ function getConnectionPoints(
   };
 }
 
-// Find connection points when target is an arrow attachment
-function getArrowAttachmentPoints(
-  fromEl: DiagramElement,
-  targetConnection: Connection,
-  position: number,
-  elements: DiagramElement[],
-  connections: Connection[]
-): { from: { x: number; y: number }; to: { x: number; y: number }; perpendicular: boolean } | null {
-  // Get the target connection's line points
-  const targetPoints = getConnectionLinePoints(targetConnection, elements, connections);
-  if (!targetPoints) return null;
-
-  // Calculate the attachment point on the target line
-  const attachPoint = getPointOnLine(targetPoints.from, targetPoints.to, position);
-
-  // Get the edge of the source element toward the attachment point
-  const fromPoint = getEdgePoint(fromEl, attachPoint);
-
-  return {
-    from: fromPoint,
-    to: attachPoint,
-    perpendicular: true,
-  };
-}
 
 // Get the actual line points for a connection (recursive for attachments)
 function getConnectionLinePoints(
@@ -121,7 +97,8 @@ function getConnectionLinePoints(
 
   if (isArrowAttachment(connection.to)) {
     // This connection attaches to another connection
-    const targetConn = connections.find((c) => c.id === connection.to.connectionId);
+    const attachment = connection.to;
+    const targetConn = connections.find((c) => c.id === attachment.connectionId);
     if (!targetConn) return null;
 
     const targetPoints = getConnectionLinePoints(targetConn, elements, connections);
@@ -160,7 +137,7 @@ export function ConnectionArrow({
   const midPoint = getPointOnLine(points.from, points.to, 0.5);
 
   // Handle click on arrow line
-  const handleArrowClick = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleArrowClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (connectModeActive && onArrowClick) {
       e.cancelBubble = true;
       const stage = e.target.getStage();

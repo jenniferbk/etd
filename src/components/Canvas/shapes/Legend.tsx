@@ -1,7 +1,7 @@
 import { Group, Rect, Text, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { DiagramElement, ArgumentElement, TeacherSupportElement } from '../../../types';
-import { COLORS, getContributorColor, getTeacherSupportColors } from '../../../utils/colors';
+import { COLORS, getTeacherSupportColors } from '../../../utils/colors';
 
 interface LegendProps {
   elements: DiagramElement[];

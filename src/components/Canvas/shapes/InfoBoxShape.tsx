@@ -5,7 +5,7 @@ import type { InfoBoxElement } from '../../../types';
 interface InfoBoxShapeProps {
   element: InfoBoxElement;
   isSelected: boolean;
-  onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;

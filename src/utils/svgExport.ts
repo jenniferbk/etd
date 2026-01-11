@@ -98,7 +98,7 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
 
     // Apply crop if present
     if (el.imageSettings?.cropArea) {
-      const crop = el.imageSettings.cropArea;
+      // TODO: Apply crop values to clipPath using el.imageSettings.cropArea
       const clipId = `clip-${el.id.replace(/[^a-zA-Z0-9]/g, '')}`;
       imageElement = `
       <defs>

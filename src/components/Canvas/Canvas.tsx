@@ -233,7 +233,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
   // Handle mouse move for marquee selection
   const handleStageMouseMove = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_e: Konva.KonvaEventObject<MouseEvent>) => {
       if (!marqueeState.isSelecting) return;
 
       const stage = stageRef.current;
@@ -259,7 +259,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
   // Handle element selection (or connection)
   const handleElementSelect = useCallback(
-    (id: string, e: Konva.KonvaEventObject<MouseEvent>) => {
+    (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
       e.cancelBubble = true;
 
       // If in connect mode and we have a source, create the connection
@@ -318,7 +318,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
   // Handle connection selection
   const handleConnectionSelect = useCallback(
-    (id: string, e: Konva.KonvaEventObject<MouseEvent>) => {
+    (id: string, e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
       e.cancelBubble = true;
       if (!connectMode) {
         setSelectedIds([id]);
@@ -472,7 +472,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
               connections={connections}
               isSelected={selectedIds.includes(connection.id)}
               isHovered={hoveredArrowId === connection.id}
-              connectModeActive={connectMode && !!connectingFrom && isWarrantConnection}
+              connectModeActive={connectMode && !!connectingFrom && !!isWarrantConnection}
               onSelect={(e) => handleConnectionSelect(connection.id, e)}
               onArrowClick={handleArrowClick}
               onHover={handleArrowHover}

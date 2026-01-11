@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useDiagramStore } from '../../store';
-import type { ArgumentElement, TeacherSupportElement, InfoBoxElement, DiagramElement, CropArea } from '../../types';
+import type { DiagramElement, CropArea } from '../../types';
 import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';

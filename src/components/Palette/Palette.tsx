@@ -208,7 +208,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
           className="ml-auto px-1.5 py-0.5 text-[10px] rounded font-mono"
           style={{
             backgroundColor: connectMode ? 'rgba(0,0,0,0.2)' : theme.sidebar.bg,
-            color: connectMode ? theme.colors.ink[950] : theme.sidebar.muted,
+            color: connectMode ? theme.colors.void[950] : theme.sidebar.muted,
           }}
         >
           C

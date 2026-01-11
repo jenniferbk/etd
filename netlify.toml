@@ -1,0 +1,9 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# SPA routing - all routes under /tools/etd/ go to index.html
+[[redirects]]
+  from = "/tools/etd/*"
+  to = "/tools/etd/index.html"
+  status = 200

@@ -1,4 +1,4 @@
-import { Group, Ellipse, Rect, Text, Line } from 'react-konva';
+import { Group, Ellipse, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { TeacherSupportElement } from '../../../types';
 import { getTeacherSupportColors } from '../../../utils/colors';
@@ -6,7 +6,7 @@ import { getTeacherSupportColors } from '../../../utils/colors';
 interface TeacherSupportShapeProps {
   element: TeacherSupportElement;
   isSelected: boolean;
-  onSelect: (e: Konva.KonvaEventObject<MouseEvent>) => void;
+  onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;

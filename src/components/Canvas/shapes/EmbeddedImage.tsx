@@ -21,10 +21,11 @@ interface EmbeddedImageProps {
   isSelected?: boolean;
 }
 
-const HANDLE_SIZE = 10;
+// Reserved for future resize handle implementation
+// const HANDLE_SIZE = 10;
 const HANDLE_COLOR = '#00f0ff'; // Cyan accent - matches jenkleiman.com
-const HANDLE_STROKE = '#00c0cc';
-const MIN_SIZE = 40;
+// const HANDLE_STROKE = '#00c0cc';
+// const MIN_SIZE = 40;
 
 export function EmbeddedImage({
   imageData,

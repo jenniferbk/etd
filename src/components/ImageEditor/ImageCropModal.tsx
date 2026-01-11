@@ -195,16 +195,16 @@ export function ImageCropModal({
             sw: 'sw-resize',
             se: 'se-resize',
           };
-          e.currentTarget.style.cursor = cursors[handle];
+          (e.currentTarget as HTMLElement).style.cursor = cursors[handle];
         } else if (
           pos.x >= crop.x &&
           pos.x <= crop.x + crop.width &&
           pos.y >= crop.y &&
           pos.y <= crop.y + crop.height
         ) {
-          e.currentTarget.style.cursor = 'move';
+          (e.currentTarget as HTMLElement).style.cursor = 'move';
         } else {
-          e.currentTarget.style.cursor = 'crosshair';
+          (e.currentTarget as HTMLElement).style.cursor = 'crosshair';
         }
         return;
       }
