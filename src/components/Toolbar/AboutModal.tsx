@@ -77,6 +77,11 @@ export function AboutModal({ onClose }: AboutModalProps) {
               className="text-sm leading-relaxed"
               style={{ color: theme.sidebar.muted }}
             >
+              App coding and design by{' '}
+              <span style={{ color: theme.sidebar.accent }}>
+                Jennifer Kleiman
+              </span>{' '}
+              <br />
               Based on the Extended Toulmin Framework developed by{' '}
               <span style={{ color: theme.sidebar.accent }}>
                 AnnaMarie Conner
