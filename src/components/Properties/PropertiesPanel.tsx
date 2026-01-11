@@ -1,10 +1,28 @@
 import { useCallback, useMemo } from 'react';
 import { useDiagramStore } from '../../store';
-import type { DiagramElement, CropArea } from '../../types';
+import type { DiagramElement, CropArea, ArgumentType, ContributorType } from '../../types';
 import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
 import { useImagePaste } from '../../hooks/useImagePaste';
+
+// Argument type options
+const ARGUMENT_TYPES: { value: ArgumentType; label: string }[] = [
+  { value: 'claim', label: 'Claim' },
+  { value: 'data', label: 'Data' },
+  { value: 'warrant', label: 'Warrant' },
+  { value: 'backing', label: 'Backing' },
+  { value: 'qualifier', label: 'Qualifier' },
+  { value: 'rebuttal', label: 'Rebuttal' },
+];
+
+// Contributor type options
+const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
+  { value: 'given', label: 'Given' },
+  { value: 'student', label: 'Student' },
+  { value: 'joint', label: 'Joint' },
+  { value: 'implicit', label: 'Implicit' },
+];
 
 export function PropertiesPanel() {
   const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings } = useDiagramStore();
@@ -59,24 +77,13 @@ export function PropertiesPanel() {
     return 'min-h-28';
   }, [selectedElement]);
 
-  // Input styling with new theme
+  // Shared styles
   const inputStyle = {
     backgroundColor: theme.input.bg,
     borderColor: theme.input.border,
     color: theme.input.text,
   };
 
-  const inputHoverStyle = {
-    borderColor: theme.input.borderHover,
-  };
-
-  const inputFocusStyle = {
-    borderColor: theme.input.borderFocus,
-    backgroundColor: theme.input.bgFocus,
-    boxShadow: `0 0 0 3px ${theme.input.ring}`,
-  };
-
-  // Label styling - more visible
   const labelStyle = {
     color: theme.sidebar.textSecondary,
     fontSize: '0.6875rem',
@@ -85,11 +92,10 @@ export function PropertiesPanel() {
     textTransform: 'uppercase' as const,
   };
 
-  // Badge styling
-  const badgeStyle = {
-    backgroundColor: theme.sidebar.surface,
-    color: theme.sidebar.text,
-    border: `1px solid ${theme.sidebar.border}`,
+  const selectStyle = {
+    backgroundColor: theme.input.bg,
+    borderColor: theme.input.border,
+    color: theme.input.text,
   };
 
   if (!selectedElement) {
@@ -123,42 +129,6 @@ export function PropertiesPanel() {
     });
   };
 
-  // Enhanced input component with proper focus handling
-  const Input = ({
-    value,
-    onChange,
-    placeholder,
-    className = '',
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    className?: string;
-  }) => (
-    <input
-      type="text"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className={`px-3 py-2 text-sm border rounded-lg transition-all duration-150 ${className}`}
-      style={inputStyle}
-      onMouseEnter={(e) => {
-        Object.assign(e.currentTarget.style, inputHoverStyle);
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = theme.input.border;
-      }}
-      onFocus={(e) => {
-        Object.assign(e.currentTarget.style, inputFocusStyle);
-      }}
-      onBlur={(e) => {
-        e.currentTarget.style.borderColor = theme.input.border;
-        e.currentTarget.style.backgroundColor = theme.input.bg;
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    />
-  );
-
   return (
     <div
       className={`${panelHeight} border-t px-5 py-4 panel-transition`}
@@ -175,23 +145,43 @@ export function PropertiesPanel() {
             <>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Label</label>
-                <Input
+                <input
+                  type="text"
                   value={selectedElement.label}
-                  onChange={(value) => handleChange('label', value)}
-                  className="w-32"
+                  onChange={(e) => handleChange('label', e.target.value)}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-32 focus:outline-none focus:ring-2"
+                  style={inputStyle}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Type</label>
-                <span className="px-3 py-2 text-sm rounded-lg capitalize font-medium" style={badgeStyle}>
-                  {selectedElement.argumentType}
-                </span>
+                <select
+                  value={selectedElement.argumentType}
+                  onChange={(e) => handleChange('argumentType', e.target.value)}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                  style={selectStyle}
+                >
+                  {ARGUMENT_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Contributor</label>
-                <span className="px-3 py-2 text-sm rounded-lg capitalize font-medium" style={badgeStyle}>
-                  {selectedElement.contributor}
-                </span>
+                <select
+                  value={selectedElement.contributor}
+                  onChange={(e) => handleChange('contributor', e.target.value)}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                  style={selectStyle}
+                >
+                  {CONTRIBUTOR_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             </>
           )}
@@ -199,14 +189,28 @@ export function PropertiesPanel() {
             <>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Type</label>
-                <span className="px-3 py-2 text-sm rounded-lg capitalize font-medium" style={badgeStyle}>
+                <span
+                  className="px-3 py-2 text-sm rounded-lg capitalize font-medium"
+                  style={{
+                    backgroundColor: theme.sidebar.surface,
+                    color: theme.sidebar.text,
+                    border: `1px solid ${theme.sidebar.border}`,
+                  }}
+                >
                   {selectedElement.supportType}
                 </span>
               </div>
               {selectedElement.subtype && (
                 <div className="flex flex-col gap-1.5">
                   <label style={labelStyle}>Subtype</label>
-                  <span className="px-3 py-2 text-sm rounded-lg capitalize font-medium" style={badgeStyle}>
+                  <span
+                    className="px-3 py-2 text-sm rounded-lg capitalize font-medium"
+                    style={{
+                      backgroundColor: theme.sidebar.surface,
+                      color: theme.sidebar.text,
+                      border: `1px solid ${theme.sidebar.border}`,
+                    }}
+                  >
                     {selectedElement.subtype}
                   </span>
                 </div>
@@ -217,15 +221,24 @@ export function PropertiesPanel() {
             <>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Label</label>
-                <Input
+                <input
+                  type="text"
                   value={selectedElement.label}
-                  onChange={(value) => handleChange('label', value)}
-                  className="w-32"
+                  onChange={(e) => handleChange('label', e.target.value)}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-32 focus:outline-none focus:ring-2"
+                  style={inputStyle}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Type</label>
-                <span className="px-3 py-2 text-sm rounded-lg font-medium" style={badgeStyle}>
+                <span
+                  className="px-3 py-2 text-sm rounded-lg font-medium"
+                  style={{
+                    backgroundColor: theme.sidebar.surface,
+                    color: theme.sidebar.text,
+                    border: `1px solid ${theme.sidebar.border}`,
+                  }}
+                >
                   Info Box
                 </span>
               </div>
@@ -239,24 +252,10 @@ export function PropertiesPanel() {
           <textarea
             value={selectedElement.content}
             onChange={(e) => handleChange('content', e.target.value)}
-            className="w-full px-3 py-2 text-sm border rounded-lg resize-y min-h-[60px] transition-all duration-150"
+            className="w-full px-3 py-2 text-sm border rounded-lg resize-y min-h-[60px] transition-all duration-150 focus:outline-none focus:ring-2"
             style={inputStyle}
             rows={3}
             placeholder="Enter element content..."
-            onMouseEnter={(e) => {
-              Object.assign(e.currentTarget.style, inputHoverStyle);
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = theme.input.border;
-            }}
-            onFocus={(e) => {
-              Object.assign(e.currentTarget.style, inputFocusStyle);
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = theme.input.border;
-              e.currentTarget.style.backgroundColor = theme.input.bg;
-              e.currentTarget.style.boxShadow = 'none';
-            }}
           />
         </div>
 
@@ -264,20 +263,24 @@ export function PropertiesPanel() {
         <div className="flex gap-3 flex-shrink-0">
           <div className="flex flex-col gap-1.5">
             <label style={labelStyle}>Speaker</label>
-            <Input
+            <input
+              type="text"
               value={selectedElement.attribution?.speaker || ''}
-              onChange={(value) => handleAttributionChange('speaker', value)}
+              onChange={(e) => handleAttributionChange('speaker', e.target.value)}
               placeholder="S1"
-              className="w-20"
+              className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-20 focus:outline-none focus:ring-2"
+              style={inputStyle}
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <label style={labelStyle}>Time</label>
-            <Input
+            <input
+              type="text"
               value={selectedElement.attribution?.timestamp || ''}
-              onChange={(value) => handleAttributionChange('timestamp', value)}
+              onChange={(e) => handleAttributionChange('timestamp', e.target.value)}
               placeholder="00:00"
-              className="w-20"
+              className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-20 focus:outline-none focus:ring-2"
+              style={inputStyle}
             />
           </div>
         </div>
