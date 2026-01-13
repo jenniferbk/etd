@@ -7,6 +7,7 @@ interface InfoBoxShapeProps {
   isSelected: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDoubleClick?: () => void;
+  onDragStart?: () => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;
@@ -18,6 +19,7 @@ export function InfoBoxShape({
   isSelected,
   onSelect,
   onDoubleClick,
+  onDragStart,
   onDragEnd,
   shapeRef,
   onTransformEnd,
@@ -40,6 +42,7 @@ export function InfoBoxShape({
       onTap={onSelect}
       onDblClick={onDoubleClick}
       onDblTap={onDoubleClick}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
       onContextMenu={onContextMenu}

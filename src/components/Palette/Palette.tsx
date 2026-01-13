@@ -5,12 +5,13 @@ import type {
   ArgumentType,
   ContributorType,
   ArgumentElement,
-  TeacherSupportElement,
-  TeacherSupportType,
-  OtherSupportSubtype,
+  SupportElement,
+  SupportType,
+  SupportSubtype,
+  SupportContributor,
   InfoBoxElement,
 } from '../../types';
-import { COLORS } from '../../utils/colors';
+import { COLORS, getSupportColors } from '../../utils/colors';
 import { theme } from '../../utils/theme';
 
 const ARGUMENT_TYPES: { type: ArgumentType; label: string }[] = [
@@ -25,17 +26,23 @@ const ARGUMENT_TYPES: { type: ArgumentType; label: string }[] = [
 const CONTRIBUTOR_TYPES: { type: ContributorType; label: string; color: string }[] = [
   { type: 'given', label: 'Given', color: COLORS.given },
   { type: 'student', label: 'Student', color: COLORS.student },
+  { type: 'teacher', label: 'Teacher', color: COLORS.teacher },
   { type: 'joint', label: 'Joint', color: COLORS.joint },
   { type: 'implicit', label: 'Implicit', color: COLORS.implicit },
 ];
 
-const OTHER_SUPPORT_SUBTYPES: OtherSupportSubtype[] = [
+const SUPPORT_SUBTYPES: SupportSubtype[] = [
   'displays',
   'suggests',
   'summarizes',
   'restates',
   'highlights',
   'validates',
+];
+
+const SUPPORT_CONTRIBUTORS: { type: SupportContributor; label: string; color: string }[] = [
+  { type: 'teacher', label: 'Teacher', color: COLORS.teacher },
+  { type: 'student', label: 'Student', color: COLORS.student },
 ];
 
 interface PaletteProps {
@@ -45,11 +52,12 @@ interface PaletteProps {
 
 export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
   const [selectedContributor, setSelectedContributor] = useState<ContributorType>('student');
-  const [selectedSubtype, setSelectedSubtype] = useState<OtherSupportSubtype>('displays');
+  const [selectedSupportContributor, setSelectedSupportContributor] = useState<SupportContributor>('teacher');
+  const [selectedSubtype, setSelectedSubtype] = useState<SupportSubtype>('displays');
   const [expandedSections, setExpandedSections] = useState({
     arguments: true,
     contributor: true,
-    teacher: true,
+    support: true,
     annotations: true,
   });
   const addElement = useDiagramStore((state) => state.addElement);
@@ -87,10 +95,11 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     addElement(newElement);
   };
 
-  const handleAddTeacherSupport = (supportType: TeacherSupportType) => {
-    const newElement: TeacherSupportElement = {
+  const handleAddSupport = (supportType: SupportType) => {
+    const newElement: SupportElement = {
       id: generateId(),
-      type: 'teacherSupport',
+      type: 'support',
+      contributor: selectedSupportContributor,
       supportType,
       subtype: supportType === 'other' ? selectedSubtype : undefined,
       content: '',
@@ -234,7 +243,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                   color: theme.sidebar.text,
                   borderWidth: '2px',
                   borderColor: CONTRIBUTOR_TYPES.find((c) => c.type === selectedContributor)?.color,
-                  borderStyle: selectedContributor === 'student' || selectedContributor === 'joint' ? 'dashed' : 'solid',
+                  borderStyle: selectedContributor === 'student' ? 'dashed' : 'solid',
                 }}
               >
                 {label}
@@ -284,9 +293,10 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                   style={{
                     borderWidth: '3px',
                     borderColor: color,
-                    borderStyle: type === 'student' || type === 'joint' ? 'dashed' : 'solid',
+                    borderStyle: type === 'student' ? 'dashed' : 'solid',
                     transform: selectedContributor === type ? 'scale(1.1)' : 'scale(1)',
                     boxShadow: selectedContributor === type ? `0 0 8px ${color}40` : 'none',
+                    // Note: CSS can't do dot-dash easily, so joint shows as solid in preview
                   }}
                 />
                 <span
@@ -307,27 +317,51 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
         )}
       </div>
 
-      {/* Teacher Support */}
+      {/* Support (Teacher or Student) */}
       <div
         className="space-y-2 border-t pt-4"
         style={{ borderColor: theme.sidebar.border }}
       >
         <SectionHeader
-          label="Teacher Support"
-          section="teacher"
-          isExpanded={expandedSections.teacher}
+          label="Support"
+          section="support"
+          isExpanded={expandedSections.support}
         />
-        {expandedSections.teacher && (
+        {expandedSections.support && (
           <div className="space-y-2 px-1">
+            {/* Contributor Selector for Support */}
+            <div className="flex gap-2 mb-2">
+              {SUPPORT_CONTRIBUTORS.map(({ type, label, color }) => (
+                <button
+                  key={type}
+                  onClick={() => setSelectedSupportContributor(type)}
+                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-150 ${
+                    selectedSupportContributor === type ? 'ring-2 ring-offset-1' : ''
+                  }`}
+                  style={{
+                    backgroundColor: selectedSupportContributor === type ? color + '20' : theme.sidebar.surface,
+                    color: selectedSupportContributor === type ? color : theme.sidebar.textSecondary,
+                    borderWidth: '2px',
+                    borderColor: selectedSupportContributor === type ? color : 'transparent',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
-              onClick={() => handleAddTeacherSupport('action')}
+              onClick={() => handleAddSupport('action')}
               className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-full transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
-              style={{ borderColor: COLORS.teacherAction, color: COLORS.teacherAction, backgroundColor: 'transparent' }}
+              style={{
+                borderColor: getSupportColors('action', selectedSupportContributor).border,
+                color: getSupportColors('action', selectedSupportContributor).border,
+                backgroundColor: 'transparent'
+              }}
             >
               Action
             </button>
             <button
-              onClick={() => handleAddTeacherSupport('question')}
+              onClick={() => handleAddSupport('question')}
               className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
               style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill, color: '#0d7377' }}
             >
@@ -335,7 +369,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
             </button>
             <div className="space-y-2">
               <button
-                onClick={() => handleAddTeacherSupport('other')}
+                onClick={() => handleAddSupport('other')}
                 className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
                 style={{ borderColor: COLORS.otherSupport, backgroundColor: COLORS.otherSupportFill, color: '#9a7b0a' }}
               >
@@ -343,7 +377,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
               </button>
               <select
                 value={selectedSubtype}
-                onChange={(e) => setSelectedSubtype(e.target.value as OtherSupportSubtype)}
+                onChange={(e) => setSelectedSubtype(e.target.value as SupportSubtype)}
                 className="w-full px-3 py-2 text-sm rounded-lg border transition-colors duration-150"
                 style={{
                   backgroundColor: theme.sidebar.surface,
@@ -351,7 +385,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                   color: theme.sidebar.text,
                 }}
               >
-                {OTHER_SUPPORT_SUBTYPES.map((subtype) => (
+                {SUPPORT_SUBTYPES.map((subtype) => (
                   <option key={subtype} value={subtype}>
                     {subtype.charAt(0).toUpperCase() + subtype.slice(1)}
                   </option>

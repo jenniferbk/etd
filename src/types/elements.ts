@@ -11,15 +11,16 @@ export type ArgumentType =
 export type ContributorType =
   | 'given'
   | 'student'
+  | 'teacher'
   | 'joint'
   | 'implicit';
 
-export type TeacherSupportType =
+export type SupportType =
   | 'action'
   | 'question'
   | 'other';
 
-export type OtherSupportSubtype =
+export type SupportSubtype =
   | 'displays'
   | 'suggests'
   | 'summarizes'
@@ -27,6 +28,12 @@ export type OtherSupportSubtype =
   | 'highlights'
   | 'validates'
   | string; // Allow custom subtypes
+
+export type SupportContributor = 'teacher' | 'student';
+
+// Deprecated - use SupportType instead
+export type TeacherSupportType = SupportType;
+export type OtherSupportSubtype = SupportSubtype;
 
 export interface Position {
   x: number;
@@ -76,10 +83,18 @@ export interface ArgumentElement extends BaseElement {
   label: string; // e.g., "Claim 1", "Warrant/Data 2"
 }
 
+export interface SupportElement extends BaseElement {
+  type: 'support';
+  contributor: SupportContributor;
+  supportType: SupportType;
+  subtype?: SupportSubtype;
+}
+
+// Deprecated - use SupportElement instead
 export interface TeacherSupportElement extends BaseElement {
   type: 'teacherSupport';
-  supportType: TeacherSupportType;
-  subtype?: OtherSupportSubtype;
+  supportType: SupportType;
+  subtype?: SupportSubtype;
 }
 
 export interface InfoBoxElement extends BaseElement {
@@ -87,13 +102,18 @@ export interface InfoBoxElement extends BaseElement {
   label: string;
 }
 
-export type DiagramElement = ArgumentElement | TeacherSupportElement | InfoBoxElement;
+export type DiagramElement = ArgumentElement | SupportElement | TeacherSupportElement | InfoBoxElement;
 
 // Type guards
 export function isArgumentElement(el: DiagramElement): el is ArgumentElement {
   return el.type === 'argument';
 }
 
+export function isSupportElement(el: DiagramElement): el is SupportElement {
+  return el.type === 'support';
+}
+
+// Deprecated - use isSupportElement instead
 export function isTeacherSupportElement(el: DiagramElement): el is TeacherSupportElement {
   return el.type === 'teacherSupport';
 }

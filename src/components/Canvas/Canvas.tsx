@@ -1,11 +1,12 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
-import { Stage, Layer, Transformer } from 'react-konva';
+import { Stage, Layer, Transformer, Line } from 'react-konva';
 import type Konva from 'konva';
 import { useDiagramStore } from '../../store';
 import { ArgumentShape } from './shapes/ArgumentShape';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
+import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
-import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType, type DiagramElement } from '../../types';
+import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType, type DiagramElement } from '../../types';
 import { InfoBoxShape } from './shapes/InfoBoxShape';
 import { ContextMenu } from './ContextMenu';
 import { Legend } from './shapes/Legend';
@@ -13,12 +14,45 @@ import { SelectionRect } from './SelectionRect';
 import { useMarqueeSelection } from '../../hooks/useMarqueeSelection';
 import { InlineEditor } from './InlineEditor';
 
+// Lane configuration
+const LANE_CONFIG = {
+  startY: 50,           // First lane Y position
+  spacing: 150,         // Distance between lanes
+  count: 6,             // Number of lanes
+  snapThreshold: 40,    // Snap to lane if within this distance
+  width: 3000,          // Lane guide line width
+};
+
+// Calculate lane Y positions
+const getLanePositions = () => {
+  const lanes: number[] = [];
+  for (let i = 0; i < LANE_CONFIG.count; i++) {
+    lanes.push(LANE_CONFIG.startY + i * LANE_CONFIG.spacing);
+  }
+  return lanes;
+};
+
+// Snap to nearest lane if within threshold
+const snapToLane = (y: number, elementHeight: number): number => {
+  const lanes = getLanePositions();
+  const elementCenterY = y + elementHeight / 2;
+
+  for (const laneY of lanes) {
+    if (Math.abs(elementCenterY - laneY) < LANE_CONFIG.snapThreshold) {
+      // Snap element center to lane
+      return laneY - elementHeight / 2;
+    }
+  }
+
+  return y; // No snap, return original
+};
+
 interface ContextMenuState {
   visible: boolean;
   x: number;
   y: number;
   elementId: string;
-  elementType: 'argument' | 'teacherSupport' | 'infoBox' | 'connection';
+  elementType: 'argument' | 'support' | 'teacherSupport' | 'infoBox' | 'connection';
 }
 
 interface CanvasProps {
@@ -35,6 +69,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
   const [isPanMode, setIsPanMode] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -342,15 +377,29 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [setSelectedIds, connectMode]
   );
 
-  // Handle element drag
+  // Handle element drag start
+  const handleElementDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
+  // Handle element drag end with snap-to-lane
   const handleElementDragEnd = useCallback(
     (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
-      moveElement(id, {
-        x: e.target.x(),
-        y: e.target.y(),
-      });
+      setIsDragging(false);
+
+      const element = elements.find((el) => el.id === id);
+      const x = e.target.x();
+      let y = e.target.y();
+
+      // Snap to lane if close enough
+      if (element) {
+        y = snapToLane(y, element.size.height);
+        e.target.y(y); // Update visual position immediately
+      }
+
+      moveElement(id, { x, y });
     },
-    [moveElement]
+    [moveElement, elements]
   );
 
   // Handle context menu (right-click)
@@ -500,6 +549,19 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         }}
       >
         <Layer>
+          {/* Lane guides - shown when dragging elements */}
+          {isDragging && getLanePositions().map((laneY, index) => (
+            <Line
+              key={`lane-${index}`}
+              points={[-500, laneY, LANE_CONFIG.width, laneY]}
+              stroke="#4A90D9"
+              strokeWidth={1}
+              dash={[10, 5]}
+              opacity={0.4}
+              listening={false}
+            />
+          ))}
+
           {/* Render connections first (behind elements) */}
           {connections.map((connection) => (
             <ConnectionArrow
@@ -526,6 +588,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
+                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -533,6 +596,23 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                 />
               );
             }
+            if (isSupportElement(element)) {
+              return (
+                <SupportShape
+                  key={element.id}
+                  element={element}
+                  isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
+                  onSelect={(e) => handleElementSelect(element.id, e)}
+                  onDoubleClick={() => handleElementDoubleClick(element)}
+                  onDragStart={handleElementDragStart}
+                  onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+                  shapeRef={(node) => registerShapeRef(element.id, node)}
+                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+                  onContextMenu={(e) => handleContextMenu(element.id, 'support', e)}
+                />
+              );
+            }
+            // Deprecated: TeacherSupportElement (for backwards compatibility)
             if (isTeacherSupportElement(element)) {
               return (
                 <TeacherSupportShape
@@ -541,6 +621,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
+                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -556,6 +637,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id)}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
+                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}

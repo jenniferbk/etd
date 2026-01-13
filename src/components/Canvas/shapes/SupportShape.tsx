@@ -1,10 +1,10 @@
 import { Group, Ellipse, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
-import type { TeacherSupportElement } from '../../../types';
-import { getTeacherSupportColors } from '../../../utils/colors';
+import type { SupportElement } from '../../../types';
+import { getSupportColors } from '../../../utils/colors';
 
-interface TeacherSupportShapeProps {
-  element: TeacherSupportElement;
+interface SupportShapeProps {
+  element: SupportElement;
   isSelected: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDoubleClick?: () => void;
@@ -15,7 +15,7 @@ interface TeacherSupportShapeProps {
   onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
-export function TeacherSupportShape({
+export function SupportShape({
   element,
   isSelected,
   onSelect,
@@ -25,9 +25,9 @@ export function TeacherSupportShape({
   shapeRef,
   onTransformEnd,
   onContextMenu,
-}: TeacherSupportShapeProps) {
-  const { position, size, content, supportType, subtype, attribution } = element;
-  const { border, fill } = getTeacherSupportColors(supportType);
+}: SupportShapeProps) {
+  const { position, size, content, supportType, subtype, contributor, attribution } = element;
+  const { border, fill } = getSupportColors(supportType, contributor);
 
   const padding = 8;
 
@@ -36,7 +36,10 @@ export function TeacherSupportShape({
     ? `${attribution.speaker || ''}${attribution.speaker && attribution.timestamp ? ' @ ' : ''}${attribution.timestamp || ''}`
     : '';
 
-  // Teacher Action - Red Ellipse
+  // Contributor label
+  const contributorLabel = contributor === 'teacher' ? 'T' : 'S';
+
+  // Action - Ellipse shape
   if (supportType === 'action') {
     return (
       <Group
@@ -73,6 +76,15 @@ export function TeacherSupportShape({
             dash={[5, 3]}
           />
         )}
+        {/* Contributor indicator */}
+        <Text
+          x={4}
+          y={4}
+          text={contributorLabel}
+          fontSize={10}
+          fontStyle="bold"
+          fill={border}
+        />
         <Text
           x={padding}
           y={size.height / 2 - 12}
@@ -100,7 +112,7 @@ export function TeacherSupportShape({
     );
   }
 
-  // Question - Aqua Rounded Rectangle
+  // Question - Rounded Rectangle
   if (supportType === 'question') {
     return (
       <Group
@@ -137,12 +149,12 @@ export function TeacherSupportShape({
             cornerRadius={10}
           />
         )}
-        {/* Label */}
+        {/* Label with contributor */}
         <Text
           x={padding}
           y={padding}
           width={size.width - padding * 2}
-          text="Question"
+          text={`[${contributorLabel}] Question`}
           fontSize={10}
           fontStyle="bold"
           fill={border}
@@ -175,7 +187,7 @@ export function TeacherSupportShape({
     );
   }
 
-  // Other Support - Gold Rounded Rectangle
+  // Other Support - Rounded Rectangle
   return (
     <Group
       ref={shapeRef}
@@ -211,12 +223,12 @@ export function TeacherSupportShape({
           cornerRadius={10}
         />
       )}
-      {/* Label with subtype */}
+      {/* Label with subtype and contributor */}
       <Text
         x={padding}
         y={padding}
         width={size.width - padding * 2}
-        text={`Other Support: ${subtype ? subtype.charAt(0).toUpperCase() + subtype.slice(1) : ''}`}
+        text={`[${contributorLabel}] ${subtype ? subtype.charAt(0).toUpperCase() + subtype.slice(1) : 'Other'}`}
         fontSize={10}
         fontStyle="bold"
         fill="#000000"

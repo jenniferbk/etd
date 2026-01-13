@@ -9,6 +9,7 @@ interface ArgumentShapeProps {
   isSelected: boolean;
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDoubleClick?: () => void;
+  onDragStart?: () => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;
@@ -20,6 +21,7 @@ export function ArgumentShape({
   isSelected,
   onSelect,
   onDoubleClick,
+  onDragStart,
   onDragEnd,
   shapeRef,
   onTransformEnd,
@@ -34,13 +36,14 @@ export function ArgumentShape({
     : '';
 
   // Determine border style
-  const isDashed = contributor === 'student' || contributor === 'joint';
+  const isDashed = contributor === 'student';
+  const isDotDash = contributor === 'joint';  // dot-dash-dot-dash pattern
   const isCloud = contributor === 'implicit';
   const strokeWidth = contributor === 'implicit' ? 2 : 3;
 
   // Calculate text positioning
   // Cloud shapes need more padding because the elliptical boundary curves inward
-  const padding = isCloud ? 25 : 10;
+  const padding = isCloud ? 18 : 10;
   const labelHeight = 20;
 
   if (isCloud) {
@@ -55,6 +58,7 @@ export function ArgumentShape({
         onTap={onSelect}
         onDblClick={onDoubleClick}
         onDblTap={onDoubleClick}
+        onDragStart={onDragStart}
         onDragEnd={onDragEnd}
         onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
         onContextMenu={onContextMenu}
@@ -135,6 +139,7 @@ export function ArgumentShape({
       onTap={onSelect}
       onDblClick={onDoubleClick}
       onDblTap={onDoubleClick}
+      onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
       onContextMenu={onContextMenu}
@@ -146,7 +151,7 @@ export function ArgumentShape({
         fill={contributor === 'given' ? '#F0FFF0' : '#FFFFFF'}
         stroke={borderColor}
         strokeWidth={strokeWidth}
-        dash={isDashed ? [10, 5] : undefined}
+        dash={isDotDash ? [10, 5, 2, 5] : isDashed ? [10, 5] : undefined}
         cornerRadius={0}
       />
       {/* Selection indicator */}
@@ -218,7 +223,7 @@ export function ArgumentShape({
   );
 }
 
-// Cloud/thought bubble shape component
+// Classic comic-style thought bubble shape with scalloped bumps
 interface CloudShapeProps {
   width: number;
   height: number;
@@ -226,6 +231,60 @@ interface CloudShapeProps {
   strokeWidth: number;
   fill: string;
   isSelected: boolean;
+}
+
+// Generate thought bubble path using absolute cosine modulation
+// All bumps go outward (no inward cusps) creating classic cloud appearance
+function generateThoughtBubblePath(width: number, height: number): number[] {
+  const cx = width / 2;
+  const cy = height / 2;
+
+  // Bump depth - how far out each bump extends (calculated first)
+  const baseBumpDepth = Math.min(width, height) * 0.08;
+
+  // Base ellipse dimensions - sized so bumps reach the bounding box edge
+  // rx + bumpDepth ≈ width/2, so rx ≈ width/2 - bumpDepth
+  const rx = (width / 2) - baseBumpDepth;
+  const ry = (height / 2) - baseBumpDepth;
+
+  // Number of bumps - scales with size
+  const perimeter = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
+  const numBumps = Math.max(8, Math.min(18, Math.round(perimeter / 35)));
+
+  // Actual bump depth
+  const bumpDepth = baseBumpDepth;
+
+  const points: number[] = [];
+  const pointsPerBump = 8;
+  const totalPoints = numBumps * pointsPerBump;
+
+  for (let i = 0; i <= totalPoints; i++) {
+    const t = (i / totalPoints) * Math.PI * 2;
+
+    // Base position on ellipse
+    const baseX = cx + rx * Math.cos(t);
+    const baseY = cy + ry * Math.sin(t);
+
+    // Absolute cosine - ALL bumps go outward, no inward cusps
+    // |cos| oscillates between 0 and 1, creating smooth bumps
+    const bumpPhase = t * numBumps;
+    const bumpWave = Math.abs(Math.cos(bumpPhase));
+
+    // Apply bump outward
+    const bumpAmount = bumpWave * bumpDepth;
+
+    // Normal direction (outward from center)
+    const normalX = Math.cos(t);
+    const normalY = Math.sin(t);
+
+    // Final position - base + outward bump
+    const finalX = baseX + normalX * bumpAmount;
+    const finalY = baseY + normalY * bumpAmount;
+
+    points.push(finalX, finalY);
+  }
+
+  return points;
 }
 
 function CloudShape({
@@ -236,24 +295,20 @@ function CloudShape({
   fill,
   isSelected,
 }: CloudShapeProps) {
-  // Create cloud outline using a series of arcs
-  // This creates a bumpy cloud-like border
-  const bumps = 8;
-  const points: number[] = [];
-
-  // Generate cloud path points
   const cx = width / 2;
   const cy = height / 2;
-  const rx = width / 2 - 5;
-  const ry = height / 2 - 5;
 
-  for (let i = 0; i <= bumps * 4; i++) {
-    const angle = (i / (bumps * 4)) * Math.PI * 2;
-    const bumpOffset = Math.sin(i * Math.PI / 2) * 5;
-    const x = cx + (rx + bumpOffset) * Math.cos(angle);
-    const y = cy + (ry + bumpOffset) * Math.sin(angle);
-    points.push(x, y);
-  }
+  // Generate the thought bubble path
+  const points = generateThoughtBubblePath(width, height);
+
+  // Generate selection outline (slightly larger)
+  const selectionPoints = points.map((p, i) => {
+    if (i % 2 === 0) {
+      return p + (p > cx ? 5 : -5);
+    } else {
+      return p + (p > cy ? 5 : -5);
+    }
+  });
 
   return (
     <>
@@ -263,18 +318,18 @@ function CloudShape({
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
-        tension={0.5}
+        tension={0.2}
+        lineCap="round"
+        lineJoin="round"
       />
       {isSelected && (
         <Line
-          points={points.map((p, i) =>
-            i % 2 === 0 ? p + (p > cx ? 3 : -3) : p + (p > cy ? 3 : -3)
-          )}
+          points={selectionPoints}
           closed
           stroke="#4A90D9"
           strokeWidth={2}
           dash={[5, 3]}
-          tension={0.5}
+          tension={0.2}
         />
       )}
     </>

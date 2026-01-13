@@ -1,4 +1,4 @@
-import { Arrow as KonvaArrow, Circle } from 'react-konva';
+import { Circle, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement } from '../../../types';
 import { isArrowAttachment } from '../../../types';
@@ -23,75 +23,211 @@ function getElementCenter(el: DiagramElement): { x: number; y: number } {
   };
 }
 
-// Calculate point along a line at position t (0-1)
-function getPointOnLine(
-  start: { x: number; y: number },
-  end: { x: number; y: number },
+// Calculate point along a polyline at position t (0-1)
+function getPointOnPolyline(
+  points: number[],
   t: number
 ): { x: number; y: number } {
-  return {
-    x: start.x + (end.x - start.x) * t,
-    y: start.y + (end.y - start.y) * t,
-  };
-}
-
-// Get the edge point of an element closest to a target point
-function getEdgePoint(
-  el: DiagramElement,
-  target: { x: number; y: number }
-): { x: number; y: number } {
-  const center = getElementCenter(el);
-  const angle = Math.atan2(target.y - center.y, target.x - center.x);
-
-  const hw = el.size.width / 2;
-  const hh = el.size.height / 2;
-
-  // Calculate intersection with rectangle edges
-  const tanAngle = Math.tan(angle);
-  const cosAngle = Math.cos(angle);
-  const sinAngle = Math.sin(angle);
-
-  let x: number, y: number;
-
-  // Check horizontal edges first
-  if (Math.abs(cosAngle) > Math.abs(sinAngle * hw / hh)) {
-    // Intersects left or right edge
-    x = center.x + (cosAngle > 0 ? hw : -hw);
-    y = center.y + (cosAngle > 0 ? hw : -hw) * tanAngle;
-  } else {
-    // Intersects top or bottom edge
-    y = center.y + (sinAngle > 0 ? hh : -hh);
-    x = center.x + (sinAngle > 0 ? hh : -hh) / tanAngle;
+  if (points.length < 4) {
+    return { x: points[0] || 0, y: points[1] || 0 };
   }
 
-  // Clamp to element bounds
-  x = Math.max(el.position.x, Math.min(el.position.x + el.size.width, x));
-  y = Math.max(el.position.y, Math.min(el.position.y + el.size.height, y));
+  // Calculate total length
+  let totalLength = 0;
+  const segments: { start: { x: number; y: number }; end: { x: number; y: number }; length: number }[] = [];
 
-  return { x, y };
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const start = { x: points[i], y: points[i + 1] };
+    const end = { x: points[i + 2], y: points[i + 3] };
+    const length = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2);
+    segments.push({ start, end, length });
+    totalLength += length;
+  }
+
+  // Find the point at position t
+  const targetLength = t * totalLength;
+  let accLength = 0;
+
+  for (const seg of segments) {
+    if (accLength + seg.length >= targetLength) {
+      const segT = (targetLength - accLength) / seg.length;
+      return {
+        x: seg.start.x + (seg.end.x - seg.start.x) * segT,
+        y: seg.start.y + (seg.end.y - seg.start.y) * segT,
+      };
+    }
+    accLength += seg.length;
+  }
+
+  // Return end point
+  return { x: points[points.length - 2], y: points[points.length - 1] };
 }
 
-// Find the connection points for a standard element-to-element connection
-function getConnectionPoints(
+// Determine the best edge to exit/enter an element based on target position
+// Returns the edge point and which edge was chosen
+type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
+
+// Check if a Y-coordinate is within an element's vertical span
+function isYWithinElement(el: DiagramElement, y: number): boolean {
+  return y >= el.position.y && y <= el.position.y + el.size.height;
+}
+
+// Check if an X-coordinate is within an element's horizontal span
+function isXWithinElement(el: DiagramElement, x: number): boolean {
+  return x >= el.position.x && x <= el.position.x + el.size.width;
+}
+
+function getBestEdgePoint(
+  el: DiagramElement,
+  target: { x: number; y: number },
+  preferHorizontal: boolean = false
+): { x: number; y: number; side: EdgeSide } {
+  const center = getElementCenter(el);
+  const dx = target.x - center.x;
+  const dy = target.y - center.y;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+
+  // Determine which edge to use
+  const useHorizontalEdge = preferHorizontal || absDx > absDy;
+
+  if (useHorizontalEdge) {
+    // Exiting left or right
+    const side: EdgeSide = dx >= 0 ? 'right' : 'left';
+    const edgeX = side === 'right' ? el.position.x + el.size.width : el.position.x;
+
+    // KEY CHANGE: If target's Y is within this element's vertical span,
+    // exit at target's Y level (lane-aligned routing)
+    let edgeY: number;
+    if (isYWithinElement(el, target.y)) {
+      edgeY = target.y;
+    } else {
+      // Target is outside our vertical span, use center
+      edgeY = center.y;
+    }
+
+    return { x: edgeX, y: edgeY, side };
+  } else {
+    // Exiting top or bottom
+    const side: EdgeSide = dy >= 0 ? 'bottom' : 'top';
+    const edgeY = side === 'bottom' ? el.position.y + el.size.height : el.position.y;
+
+    // If target's X is within this element's horizontal span,
+    // exit at target's X level
+    let edgeX: number;
+    if (isXWithinElement(el, target.x)) {
+      edgeX = target.x;
+    } else {
+      edgeX = center.x;
+    }
+
+    return { x: edgeX, y: edgeY, side };
+  }
+}
+
+// Generate flexible orthogonal path between two elements
+// Adapts routing based on relative positions
+// KEY: When source spans target's Y-level, creates lane-aligned horizontal connections
+function getOrthogonalPath(
   fromEl: DiagramElement,
   toEl: DiagramElement
-): { from: { x: number; y: number }; to: { x: number; y: number } } {
+): { points: number[] } {
   const fromCenter = getElementCenter(fromEl);
   const toCenter = getElementCenter(toEl);
 
-  return {
-    from: getEdgePoint(fromEl, toCenter),
-    to: getEdgePoint(toEl, fromCenter),
-  };
+  // Determine primary direction (horizontal or vertical)
+  const dx = toCenter.x - fromCenter.x;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(toCenter.y - fromCenter.y);
+  const preferHorizontal = absDx >= absDy;
+
+  // Get exit and entry points - these now consider lane alignment
+  const fromEdge = getBestEdgePoint(fromEl, toCenter, preferHorizontal);
+  const toEdge = getBestEdgePoint(toEl, fromCenter, preferHorizontal);
+
+  const points: number[] = [fromEdge.x, fromEdge.y];
+
+  // Check if exit and entry points are at the same Y level (lane-aligned)
+  const edgesHorizontallyAligned = Math.abs(fromEdge.y - toEdge.y) < 5;
+  // Check if exit and entry points are at the same X level
+  const edgesVerticallyAligned = Math.abs(fromEdge.x - toEdge.x) < 5;
+
+  // Route based on edge alignment (not center alignment)
+  if (edgesHorizontallyAligned && (fromEdge.side === 'left' || fromEdge.side === 'right')) {
+    // Exit and entry at same Y level, both horizontal edges → straight horizontal line
+    points.push(toEdge.x, toEdge.y);
+  } else if (edgesVerticallyAligned && (fromEdge.side === 'top' || fromEdge.side === 'bottom')) {
+    // Exit and entry at same X level, both vertical edges → straight vertical line
+    points.push(toEdge.x, toEdge.y);
+  } else if (fromEdge.side === 'left' || fromEdge.side === 'right') {
+    // Exiting horizontally
+    if (toEdge.side === 'left' || toEdge.side === 'right') {
+      // Both horizontal edges but different Y levels - Z-shape routing
+      const midX = (fromEdge.x + toEdge.x) / 2;
+      points.push(midX, fromEdge.y);
+      points.push(midX, toEdge.y);
+      points.push(toEdge.x, toEdge.y);
+    } else {
+      // Horizontal exit, vertical entry - L-shape
+      points.push(toEdge.x, fromEdge.y);
+      points.push(toEdge.x, toEdge.y);
+    }
+  } else {
+    // Exiting vertically (top or bottom)
+    if (toEdge.side === 'top' || toEdge.side === 'bottom') {
+      // Both vertical edges but different X levels - Z-shape routing
+      const midY = (fromEdge.y + toEdge.y) / 2;
+      points.push(fromEdge.x, midY);
+      points.push(toEdge.x, midY);
+      points.push(toEdge.x, toEdge.y);
+    } else {
+      // Vertical exit, horizontal entry - L-shape
+      points.push(fromEdge.x, toEdge.y);
+      points.push(toEdge.x, toEdge.y);
+    }
+  }
+
+  return { points };
 }
 
+// Get orthogonal path for arrow attachment (e.g., warrant to data→claim arrow)
+function getOrthogonalPathToArrow(
+  fromEl: DiagramElement,
+  attachPoint: { x: number; y: number }
+): { points: number[] } {
+  const fromEdge = getBestEdgePoint(fromEl, attachPoint);
 
-// Get the actual line points for a connection (recursive for attachments)
-function getConnectionLinePoints(
+  const points: number[] = [fromEdge.x, fromEdge.y];
+
+  // Check if roughly aligned
+  const dx = Math.abs(attachPoint.x - fromEdge.x);
+  const dy = Math.abs(attachPoint.y - fromEdge.y);
+
+  if (dx < 10) {
+    // Vertically aligned - go straight
+    points.push(attachPoint.x, attachPoint.y);
+  } else if (dy < 10) {
+    // Horizontally aligned - go straight
+    points.push(attachPoint.x, attachPoint.y);
+  } else if (fromEdge.side === 'left' || fromEdge.side === 'right') {
+    // L-shape: horizontal then vertical
+    points.push(attachPoint.x, fromEdge.y);
+    points.push(attachPoint.x, attachPoint.y);
+  } else {
+    // L-shape: vertical then horizontal
+    points.push(fromEdge.x, attachPoint.y);
+    points.push(attachPoint.x, attachPoint.y);
+  }
+
+  return { points };
+}
+
+// Get the orthogonal path points for a connection
+function getConnectionPathPoints(
   connection: Connection,
   elements: DiagramElement[],
   connections: Connection[]
-): { from: { x: number; y: number }; to: { x: number; y: number } } | null {
+): { points: number[] } | null {
   const fromEl = elements.find((el) => el.id === connection.from);
   if (!fromEl) return null;
 
@@ -101,19 +237,17 @@ function getConnectionLinePoints(
     const targetConn = connections.find((c) => c.id === attachment.connectionId);
     if (!targetConn) return null;
 
-    const targetPoints = getConnectionLinePoints(targetConn, elements, connections);
-    if (!targetPoints) return null;
+    const targetResult = getConnectionPathPoints(targetConn, elements, connections);
+    if (!targetResult) return null;
 
-    const attachPoint = getPointOnLine(targetPoints.from, targetPoints.to, connection.to.position);
-    const fromPoint = getEdgePoint(fromEl, attachPoint);
-
-    return { from: fromPoint, to: attachPoint };
+    const attachPoint = getPointOnPolyline(targetResult.points, connection.to.position);
+    return getOrthogonalPathToArrow(fromEl, attachPoint);
   } else {
     // Standard element-to-element connection
     const toEl = elements.find((el) => el.id === connection.to);
     if (!toEl) return null;
 
-    return getConnectionPoints(fromEl, toEl);
+    return getOrthogonalPath(fromEl, toEl);
   }
 }
 
@@ -128,13 +262,20 @@ export function ConnectionArrow({
   onArrowClick,
   onHover,
 }: ArrowProps) {
-  const points = getConnectionLinePoints(connection, elements, connections);
-  if (!points) return null;
+  const pathResult = getConnectionPathPoints(connection, elements, connections);
+  if (!pathResult || pathResult.points.length < 4) return null;
 
+  const { points: pathPoints } = pathResult;
   const isAttachment = isArrowAttachment(connection.to);
 
   // Calculate midpoint for click detection
-  const midPoint = getPointOnLine(points.from, points.to, 0.5);
+  const midPoint = getPointOnPolyline(pathPoints, 0.5);
+
+  // Get the last segment for arrow direction
+  const endX = pathPoints[pathPoints.length - 2];
+  const endY = pathPoints[pathPoints.length - 1];
+  const prevX = pathPoints[pathPoints.length - 4];
+  const prevY = pathPoints[pathPoints.length - 3];
 
   // Handle click on arrow line
   const handleArrowClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
@@ -146,18 +287,47 @@ export function ConnectionArrow({
       const pointerPos = stage.getPointerPosition();
       if (!pointerPos) return;
 
-      // Calculate position along line (0-1)
-      const dx = points.to.x - points.from.x;
-      const dy = points.to.y - points.from.y;
-      const lineLength = Math.sqrt(dx * dx + dy * dy);
+      // Find closest point on polyline and its t value
+      let minDist = Infinity;
+      let bestT = 0.5;
+      let totalLength = 0;
+      const segmentLengths: number[] = [];
 
-      // Project click point onto line
-      const t = Math.max(0.1, Math.min(0.9,
-        ((pointerPos.x - points.from.x) * dx + (pointerPos.y - points.from.y) * dy) / (lineLength * lineLength)
-      ));
+      for (let i = 0; i < pathPoints.length - 2; i += 2) {
+        const length = Math.sqrt(
+          (pathPoints[i + 2] - pathPoints[i]) ** 2 +
+          (pathPoints[i + 3] - pathPoints[i + 1]) ** 2
+        );
+        segmentLengths.push(length);
+        totalLength += length;
+      }
 
-      const clickPoint = getPointOnLine(points.from, points.to, t);
-      onArrowClick(connection.id, t, clickPoint);
+      let accLength = 0;
+      for (let i = 0; i < pathPoints.length - 2; i += 2) {
+        const segIdx = i / 2;
+        const segLength = segmentLengths[segIdx];
+        const sx = pathPoints[i], sy = pathPoints[i + 1];
+        const ex = pathPoints[i + 2], ey = pathPoints[i + 3];
+
+        // Project point onto segment
+        const dx = ex - sx, dy = ey - sy;
+        if (segLength > 0) {
+          let t = ((pointerPos.x - sx) * dx + (pointerPos.y - sy) * dy) / (segLength * segLength);
+          t = Math.max(0, Math.min(1, t));
+          const projX = sx + t * dx, projY = sy + t * dy;
+          const dist = Math.sqrt((pointerPos.x - projX) ** 2 + (pointerPos.y - projY) ** 2);
+
+          if (dist < minDist) {
+            minDist = dist;
+            bestT = (accLength + t * segLength) / totalLength;
+          }
+        }
+        accLength += segLength;
+      }
+
+      bestT = Math.max(0.1, Math.min(0.9, bestT));
+      const clickPoint = getPointOnPolyline(pathPoints, bestT);
+      onArrowClick(connection.id, bestT, clickPoint);
     } else {
       onSelect(e);
     }
@@ -176,25 +346,51 @@ export function ConnectionArrow({
   };
 
   // Determine stroke color and width
-  const strokeColor = isSelected ? '#4A90D9' : isHovered ? '#FF6B6B' : '#000000';
+  let strokeColor: string;
+  if (isSelected) {
+    strokeColor = '#4A90D9';
+  } else if (isHovered) {
+    strokeColor = '#FF6B6B';
+  } else {
+    strokeColor = '#000000';
+  }
   const strokeWidth = isSelected || isHovered ? 3 : 2;
+
+  // Calculate arrow angle for the last segment
+  const arrowAngle = Math.atan2(endY - prevY, endX - prevX);
+  const arrowLength = isAttachment ? 0 : 10;
 
   return (
     <>
-      {/* Main arrow */}
-      <KonvaArrow
-        points={[points.from.x, points.from.y, points.to.x, points.to.y]}
+      {/* Orthogonal path line */}
+      <Line
+        points={pathPoints}
         stroke={strokeColor}
         strokeWidth={strokeWidth}
-        fill={strokeColor}
-        pointerLength={isAttachment ? 0 : 10}
-        pointerWidth={isAttachment ? 0 : 8}
         onClick={handleArrowClick}
         onTap={handleArrowClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         hitStrokeWidth={20}
       />
+
+      {/* Arrow head at the end */}
+      {!isAttachment && (
+        <Line
+          points={[
+            endX - arrowLength * Math.cos(arrowAngle - Math.PI / 6),
+            endY - arrowLength * Math.sin(arrowAngle - Math.PI / 6),
+            endX,
+            endY,
+            endX - arrowLength * Math.cos(arrowAngle + Math.PI / 6),
+            endY - arrowLength * Math.sin(arrowAngle + Math.PI / 6),
+          ]}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          fill={strokeColor}
+          closed
+        />
+      )}
 
       {/* Show attachment point indicator when hovered in connect mode */}
       {isHovered && connectModeActive && (
@@ -211,8 +407,8 @@ export function ConnectionArrow({
       {/* For arrow attachments, show a small perpendicular indicator */}
       {isAttachment && (
         <Circle
-          x={points.to.x}
-          y={points.to.y}
+          x={endX}
+          y={endY}
           radius={4}
           fill="#000000"
         />

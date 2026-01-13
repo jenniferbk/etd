@@ -5,11 +5,13 @@ export const COLORS = {
   // Contributor border colors
   given: '#228B22',      // Forest green
   student: '#0000CD',    // Medium blue
+  teacher: '#CC0000',    // Red
   joint: '#800080',      // Purple
   implicit: '#000000',   // Black
 
-  // Teacher Support Colors
-  teacherAction: '#CC0000',     // Red
+  // Support Colors
+  teacherAction: '#CC0000',     // Red (teacher action)
+  studentAction: '#0000CD',     // Blue (student action)
   question: '#00CED1',          // Dark cyan/aqua
   questionFill: '#E0FFFF',      // Light cyan
   otherSupport: '#DAA520',      // Goldenrod
@@ -28,6 +30,8 @@ export function getContributorColor(contributor: string): string {
       return COLORS.given;
     case 'student':
       return COLORS.student;
+    case 'teacher':
+      return COLORS.teacher;
     case 'joint':
       return COLORS.joint;
     case 'implicit':
@@ -37,16 +41,27 @@ export function getContributorColor(contributor: string): string {
   }
 }
 
-// Get colors for teacher support type
-export function getTeacherSupportColors(supportType: string): { border: string; fill: string } {
+// Get colors for support type based on contributor
+export function getSupportColors(supportType: string, contributor: 'teacher' | 'student' = 'teacher'): { border: string; fill: string } {
   switch (supportType) {
     case 'action':
-      return { border: COLORS.teacherAction, fill: '#FFFFFF' };
+      return {
+        border: contributor === 'teacher' ? COLORS.teacherAction : COLORS.studentAction,
+        fill: '#FFFFFF'
+      };
     case 'question':
       return { border: COLORS.question, fill: COLORS.questionFill };
     case 'other':
       return { border: COLORS.otherSupport, fill: COLORS.otherSupportFill };
     default:
-      return { border: COLORS.teacherAction, fill: '#FFFFFF' };
+      return {
+        border: contributor === 'teacher' ? COLORS.teacherAction : COLORS.studentAction,
+        fill: '#FFFFFF'
+      };
   }
+}
+
+// Deprecated - use getSupportColors instead
+export function getTeacherSupportColors(supportType: string): { border: string; fill: string } {
+  return getSupportColors(supportType, 'teacher');
 }

@@ -14,7 +14,7 @@ interface ContextMenuProps {
   x: number;
   y: number;
   elementId: string;
-  elementType: 'argument' | 'teacherSupport' | 'infoBox' | 'connection';
+  elementType: 'argument' | 'support' | 'teacherSupport' | 'infoBox' | 'connection';
   onClose: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
