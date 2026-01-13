@@ -48,3 +48,24 @@ These visual details matter for research accuracy — refer to REQUIREMENTS.md S
 2. Build incrementally — get one element type working before adding more
 3. Test in browser with Claude for Chrome after each major change
 4. Verify visual accuracy against reference screenshots in docs/
+
+## Deployment to jenkleiman.com
+
+**IMPORTANT:** This project uses TWO repositories. After pushing changes to the ETD repo, you must also update jenkleiman.com:
+
+1. Commit and push changes to this repo (`jenniferbk/etd`)
+2. Build the project: `npm run build`
+3. Copy built files to jenkleiman.com repo:
+   ```bash
+   rm -rf ~/Documents/GitHub/jenkleiman.com/public/tools/etd/*
+   cp -r dist/* ~/Documents/GitHub/jenkleiman.com/public/tools/etd/
+   ```
+4. Commit and push jenkleiman.com repo:
+   ```bash
+   cd ~/Documents/GitHub/jenkleiman.com
+   git add public/tools/etd/
+   git commit -m "Update ETD tool: [description of changes]"
+   git push
+   ```
+
+The site deploys automatically via Netlify when jenkleiman.com repo is pushed.
