@@ -21,6 +21,7 @@ import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
 import { exportToPdf } from '../../utils/pdfExport';
 import { Tooltip } from '../ui/Tooltip';
+import { importDrawingFile } from '../../utils/drawingImporter';
 
 // Helper to create a safe filename from diagram name
 function toFilename(name: string): string {
@@ -68,33 +69,34 @@ export function Toolbar() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Handle .drawing files - show conversion instructions
-    if (file.name.endsWith('.drawing')) {
-      alert(
-        'DiagramMix .drawing files need to be converted first.\n\n' +
-        'Run this command in Terminal:\n' +
-        `python scripts/convert-drawing.py "${file.name}"\n\n` +
-        'Then load the resulting .json file.'
-      );
-      e.target.value = '';
-      return;
-    }
-
-    // Handle .json files
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections, data.name);
-        } else {
-          alert('Invalid diagram file format');
-        }
-      } catch {
-        alert('Failed to parse diagram file');
+    try {
+      // Handle .drawing files (DiagramMix binary plist)
+      if (file.name.endsWith('.drawing')) {
+        const result = await importDrawingFile(file);
+        loadDiagram(result.elements, result.connections, result.name);
+        e.target.value = '';
+        return;
       }
-    };
-    reader.readAsText(file);
+
+      // Handle .json files
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = JSON.parse(event.target?.result as string);
+          if (data.elements && data.connections) {
+            loadDiagram(data.elements, data.connections, data.name);
+          } else {
+            alert('Invalid diagram file format');
+          }
+        } catch {
+          alert('Failed to parse diagram file');
+        }
+      };
+      reader.readAsText(file);
+    } catch (err) {
+      console.error('Failed to load file:', err);
+      alert(err instanceof Error ? err.message : 'Failed to load file');
+    }
     // Reset input so same file can be loaded again
     e.target.value = '';
   };

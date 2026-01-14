@@ -5,14 +5,20 @@
  * and converts to ETD diagram elements and connections.
  */
 
-import plist from 'plist';
+import { Buffer } from 'buffer';
+import bplist from 'bplist-parser';
 import type { DiagramElement, ArgumentElement, Connection, ContributorType } from '../types';
+
+// Make Buffer available globally for bplist-parser
+if (typeof window !== 'undefined') {
+  (window as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
+}
 
 interface PlistUID {
   UID: number;
 }
 
-type PlistObject = Record<string, unknown> | string | number | boolean | null | Uint8Array | PlistUID | unknown[];
+type PlistObject = Record<string, unknown> | string | number | boolean | null | Buffer | PlistUID | unknown[];
 
 interface ParsedElement {
   id: string;
@@ -71,12 +77,6 @@ function parsePointString(s: unknown): { x: number; y: number } | null {
   return null;
 }
 
-// Read big-endian float32 from Uint8Array at offset
-function readFloatBE(data: Uint8Array, offset: number): number {
-  const view = new DataView(data.buffer, data.byteOffset + offset, 4);
-  return view.getFloat32(0, false); // false = big-endian
-}
-
 // Decode NSBezierPath binary segments to get start/end points
 function decodeBezierPath(pathObj: PlistObject): { start: { x: number; y: number } | null; end: { x: number; y: number } | null } {
   if (!pathObj || typeof pathObj !== 'object' || Array.isArray(pathObj)) {
@@ -84,7 +84,7 @@ function decodeBezierPath(pathObj: PlistObject): { start: { x: number; y: number
   }
 
   const segments = (pathObj as Record<string, unknown>)['NSSegments'];
-  if (!segments || !(segments instanceof Uint8Array)) {
+  if (!segments || !Buffer.isBuffer(segments)) {
     return { start: null, end: null };
   }
 
@@ -95,15 +95,15 @@ function decodeBezierPath(pathObj: PlistObject): { start: { x: number; y: number
 
   try {
     // Parse first point (skip type byte, read big-endian float32 pair)
-    const x1 = readFloatBE(data, 1);
-    const y1 = readFloatBE(data, 5);
+    const x1 = data.readFloatBE(1);
+    const y1 = data.readFloatBE(5);
     const start = { x: x1, y: y1 };
 
     // Parse last point if we have enough data
     let end = start;
     if (data.length >= 18) {
-      const x2 = readFloatBE(data, 10);
-      const y2 = readFloatBE(data, 14);
+      const x2 = data.readFloatBE(10);
+      const y2 = data.readFloatBE(14);
       end = { x: x2, y: y2 };
     }
 
@@ -153,13 +153,17 @@ function findNearestElement(
 
 // Main import function
 export async function importDrawingFile(file: File): Promise<ImportResult> {
-  const buffer = await file.arrayBuffer();
-  const textContent = new TextDecoder('latin1').decode(buffer);
+  const arrayBuffer = await file.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
 
-  // Parse plist (handles both binary and XML formats)
+  // Parse binary plist
   let plistData: Record<string, unknown>;
   try {
-    plistData = plist.parse(textContent) as Record<string, unknown>;
+    const parsed = bplist.parseBuffer(buffer);
+    if (!parsed || !parsed[0]) {
+      throw new Error('Empty plist');
+    }
+    plistData = parsed[0] as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to parse plist:', err);
     throw new Error('Failed to parse .drawing file. The file may be corrupted or in an unsupported format.');
@@ -181,11 +185,11 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
 
   // Helper to get class name
   const getClassName = (obj: unknown): string | null => {
-    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+    if (obj && typeof obj === 'object' && !Array.isArray(obj) && !Buffer.isBuffer(obj)) {
       const dict = obj as Record<string, unknown>;
       if ('$class' in dict) {
         const classRef = resolveUID(dict['$class']);
-        if (classRef && typeof classRef === 'object' && !Array.isArray(classRef)) {
+        if (classRef && typeof classRef === 'object' && !Array.isArray(classRef) && !Buffer.isBuffer(classRef)) {
           return (classRef as Record<string, unknown>)['$classname'] as string || null;
         }
       }
@@ -197,20 +201,20 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
   const getElementText = (elemObj: Record<string, unknown>): string | null => {
     try {
       const textObj = resolveUID(elemObj['text']);
-      if (!textObj || typeof textObj !== 'object' || Array.isArray(textObj)) return null;
+      if (!textObj || typeof textObj !== 'object' || Array.isArray(textObj) || Buffer.isBuffer(textObj)) return null;
 
       const adorn = resolveUID((textObj as Record<string, unknown>)['DKTextShape_textAdornment']);
-      if (!adorn || typeof adorn !== 'object' || Array.isArray(adorn)) return null;
+      if (!adorn || typeof adorn !== 'object' || Array.isArray(adorn) || Buffer.isBuffer(adorn)) return null;
 
       const subst = resolveUID((adorn as Record<string, unknown>)['DKTextAdornment_substitutor']);
-      if (!subst || typeof subst !== 'object' || Array.isArray(subst)) return null;
+      if (!subst || typeof subst !== 'object' || Array.isArray(subst) || Buffer.isBuffer(subst)) return null;
 
       const attrStr = resolveUID((subst as Record<string, unknown>)['DKOTextSubstitutor_attributedString']);
-      if (!attrStr || typeof attrStr !== 'object' || Array.isArray(attrStr)) return null;
+      if (!attrStr || typeof attrStr !== 'object' || Array.isArray(attrStr) || Buffer.isBuffer(attrStr)) return null;
 
       const nsStr = resolveUID((attrStr as Record<string, unknown>)['NSString']);
       if (typeof nsStr === 'string') return nsStr;
-      if (nsStr && typeof nsStr === 'object' && !Array.isArray(nsStr)) {
+      if (nsStr && typeof nsStr === 'object' && !Array.isArray(nsStr) && !Buffer.isBuffer(nsStr)) {
         const strDict = nsStr as Record<string, unknown>;
         if ('NS.string' in strDict) {
           return strDict['NS.string'] as string;
@@ -304,7 +308,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
       const containerRef = connObj['container'];
       if (containerRef) {
         const container = resolveUID(containerRef);
-        if (container && typeof container === 'object' && !Array.isArray(container)) {
+        if (container && typeof container === 'object' && !Array.isArray(container) && !Buffer.isBuffer(container)) {
           const locRef = (container as Record<string, unknown>)['location'];
           if (locRef) {
             const loc = resolveUID(locRef);
