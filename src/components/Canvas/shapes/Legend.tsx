@@ -1,7 +1,7 @@
 import { Group, Rect, Text, Line } from 'react-konva';
 import type Konva from 'konva';
-import type { DiagramElement, ArgumentElement, TeacherSupportElement } from '../../../types';
-import { COLORS, getTeacherSupportColors } from '../../../utils/colors';
+import type { DiagramElement, ArgumentElement, TeacherSupportElement, SupportElement } from '../../../types';
+import { COLORS, getTeacherSupportColors, getSupportColors } from '../../../utils/colors';
 
 interface LegendProps {
   elements: DiagramElement[];
@@ -25,6 +25,7 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
   // Track what types are used
   const usedContributors = new Set<string>();
   const usedTeacherSupport = new Set<string>();
+  const usedStudentSupport = new Set<string>();
   let hasInfoBox = false;
 
   elements.forEach((el) => {
@@ -32,8 +33,22 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
       const argEl = el as ArgumentElement;
       usedContributors.add(argEl.contributor);
     } else if (el.type === 'teacherSupport') {
+      // Deprecated TeacherSupportElement - implies teacher
       const tsEl = el as TeacherSupportElement;
       usedTeacherSupport.add(tsEl.supportType);
+      // Teacher support means we should show the Teacher legend entry
+      usedContributors.add('teacher');
+    } else if (el.type === 'support') {
+      // New SupportElement with explicit contributor
+      const sEl = el as SupportElement;
+      if (sEl.contributor === 'teacher') {
+        usedTeacherSupport.add(sEl.supportType);
+        usedContributors.add('teacher');
+      } else {
+        usedStudentSupport.add(sEl.supportType);
+        // Student support doesn't automatically add 'student' to contributors
+        // since that's for argument elements with dashed borders
+      }
     } else if (el.type === 'infoBox') {
       hasInfoBox = true;
     }
@@ -88,7 +103,7 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
   if (usedTeacherSupport.has('question')) {
     const colors = getTeacherSupportColors('question');
     legendItems.push({
-      label: 'Question',
+      label: 'Teacher Question',
       color: colors.border,
       fill: colors.fill,
     });
@@ -96,7 +111,33 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
   if (usedTeacherSupport.has('other')) {
     const colors = getTeacherSupportColors('other');
     legendItems.push({
-      label: 'Other Support',
+      label: 'Teacher Other',
+      color: colors.border,
+      fill: colors.fill,
+    });
+  }
+
+  // Add student support types
+  if (usedStudentSupport.has('action')) {
+    const colors = getSupportColors('action', 'student');
+    legendItems.push({
+      label: 'Student Action',
+      color: colors.border,
+      isEllipse: true,
+    });
+  }
+  if (usedStudentSupport.has('question')) {
+    const colors = getSupportColors('question', 'student');
+    legendItems.push({
+      label: 'Student Question',
+      color: colors.border,
+      fill: colors.fill,
+    });
+  }
+  if (usedStudentSupport.has('other')) {
+    const colors = getSupportColors('other', 'student');
+    legendItems.push({
+      label: 'Student Other',
       color: colors.border,
       fill: colors.fill,
     });
