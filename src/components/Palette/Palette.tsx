@@ -233,22 +233,27 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
         />
         {expandedSections.arguments && (
           <div className="grid grid-cols-2 gap-2 px-1">
-            {ARGUMENT_TYPES.map(({ type, label }) => (
-              <button
-                key={type}
-                onClick={() => handleAddArgument(type)}
-                className="px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98]"
-                style={{
-                  backgroundColor: theme.sidebar.surface,
-                  color: theme.sidebar.text,
-                  borderWidth: '2px',
-                  borderColor: CONTRIBUTOR_TYPES.find((c) => c.type === selectedContributor)?.color,
-                  borderStyle: selectedContributor === 'student' ? 'dashed' : 'solid',
-                }}
-              >
-                {label}
-              </button>
-            ))}
+            {ARGUMENT_TYPES.map(({ type, label }) => {
+              // Implicit contributor can only create warrants
+              const isDisabled = selectedContributor === 'implicit' && type !== 'warrant';
+              return (
+                <button
+                  key={type}
+                  onClick={() => !isDisabled && handleAddArgument(type)}
+                  disabled={isDisabled}
+                  className="px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  style={{
+                    backgroundColor: theme.sidebar.surface,
+                    color: theme.sidebar.text,
+                    borderWidth: '2px',
+                    borderColor: CONTRIBUTOR_TYPES.find((c) => c.type === selectedContributor)?.color,
+                    borderStyle: selectedContributor === 'student' ? 'dashed' : 'solid',
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

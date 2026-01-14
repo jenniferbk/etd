@@ -1,0 +1,90 @@
+{
+  "version": "1.0",
+  "name": "Imported Diagram",
+  "elements": [
+    {
+      "id": "5beb62eb-d097-4163-9fa4-e490a62559bc",
+      "type": "argument",
+      "argumentType": "data",
+      "contributor": "given",
+      "label": "Data 1",
+      "position": {
+        "x": 199.6484375,
+        "y": 243.6875
+      },
+      "size": {
+        "width": 159.93799,
+        "height": 92.874985
+      },
+      "content": "How to get an area 54 square feet with different combinations of grass seed packages?"
+    },
+    {
+      "id": "6392f4d6-b945-4ab9-8f53-a8836e857030",
+      "type": "argument",
+      "argumentType": "data",
+      "contributor": "given",
+      "label": "Data 2",
+      "position": {
+        "x": 782.109375,
+        "y": 233.7109375
+      },
+      "size": {
+        "width": 159.93799,
+        "height": 92.874985
+      },
+      "content": "3 greens + 1 yellow + 1 red"
+    },
+    {
+      "id": "872df43e-7084-4194-83a9-3ee1cb034d06",
+      "type": "argument",
+      "argumentType": "warrant",
+      "contributor": "given",
+      "label": "Warrant 1",
+      "position": {
+        "x": 466.83203125,
+        "y": 420.703125
+      },
+      "size": {
+        "width": 159.93799,
+        "height": 92.874985
+      },
+      "content": "30+20+4=54"
+    },
+    {
+      "id": "06e3652f-26cd-4a3f-b5c4-9f3002906991",
+      "type": "infoBox",
+      "label": "Info 1",
+      "position": {
+        "x": 149.58984375,
+        "y": 88.9375
+      },
+      "size": {
+        "width": 253.2876458574483,
+        "height": 109.0
+      },
+      "content": "Argumentation-1: Combining different areas to get one. \n(17:46-17:56)"
+    }
+  ],
+  "connections": [
+    {
+      "id": "b81e7c53-6cd2-443f-9dc3-7aaea5556172",
+      "from": "5beb62eb-d097-4163-9fa4-e490a62559bc",
+      "to": "6392f4d6-b945-4ab9-8f53-a8836e857030",
+      "type": "support"
+    },
+    {
+      "id": "7d9beb94-586a-44f8-845d-3253d241d562",
+      "from": "872df43e-7084-4194-83a9-3ee1cb034d06",
+      "to": {
+        "connectionId": "b81e7c53-6cd2-443f-9dc3-7aaea5556172",
+        "position": 0.430429395988806
+      },
+      "type": "support"
+    }
+  ],
+  "legendPosition": {
+    "x": 50,
+    "y": 50
+  },
+  "showLegend": true
+}

@@ -115,6 +115,11 @@ export function PropertiesPanel() {
   }
 
   const handleChange = (field: string, value: string) => {
+    // When changing contributor to implicit, force argumentType to warrant
+    if (field === 'contributor' && value === 'implicit' && isArgumentElement(selectedElement)) {
+      updateElement(selectedElement.id, { contributor: 'implicit', argumentType: 'warrant' } as Partial<DiagramElement>);
+      return;
+    }
     updateElement(selectedElement.id, { [field]: value } as Partial<DiagramElement>);
   };
 
@@ -162,7 +167,11 @@ export function PropertiesPanel() {
                   style={selectStyle}
                 >
                   {ARGUMENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
+                    <option
+                      key={type.value}
+                      value={type.value}
+                      disabled={selectedElement.contributor === 'implicit' && type.value !== 'warrant'}
+                    >
                       {type.label}
                     </option>
                   ))}
