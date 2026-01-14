@@ -20,11 +20,16 @@ interface PlistUID {
 
 type PlistObject = Record<string, unknown> | string | number | boolean | null | Buffer | PlistUID | unknown[];
 
+interface StyleInfo {
+  strokeColor: { r: number; g: number; b: number } | null;
+  hasDash: boolean;
+}
+
 interface ParsedElement {
   id: string;
   index: number;
   text: string | null;
-  colorSchemeId: number;
+  styleInfo: StyleInfo;
   position: { x: number; y: number };
   size: { width: number; height: number };
 }
@@ -35,22 +40,43 @@ interface ImportResult {
   name: string;
 }
 
-// Map DiagramMix colorSchemeId to ETD contributor types
-function mapColorSchemeToContributor(colorSchemeId: number): ContributorType {
-  switch (colorSchemeId) {
-    case 1:
-      return 'given';      // Green - provided/given info
-    case 10:
-      return 'student';    // Purple dashed - student contribution
-    case 2:
-      return 'teacher';    // Red - teacher
-    case 3:
-      return 'joint';      // Joint contribution
-    case 4:
-      return 'implicit';   // Implicit/unstated
-    default:
-      return 'student';    // Default to student
+// Map stroke color + dash to ETD contributor types
+function mapStyleToContributor(styleInfo: StyleInfo): ContributorType {
+  const { strokeColor, hasDash } = styleInfo;
+
+  if (!strokeColor) {
+    return 'student'; // Default
   }
+
+  const { r, g, b } = strokeColor;
+
+  // Red stroke = teacher (r=1, g=0, b=0)
+  if (r > 0.8 && g < 0.2 && b < 0.2) {
+    return 'teacher';
+  }
+
+  // Green stroke = given (r=0, g=1, b=0)
+  if (r < 0.2 && g > 0.8 && b < 0.2) {
+    return 'given';
+  }
+
+  // Blue stroke with dash = student (r=0, g=0, b=1)
+  if (r < 0.2 && g < 0.2 && b > 0.8) {
+    return hasDash ? 'student' : 'student';
+  }
+
+  // Purple/magenta = could be student or joint
+  if (r > 0.4 && g < 0.2 && b > 0.4) {
+    return hasDash ? 'student' : 'joint';
+  }
+
+  // Gray or other = implicit
+  if (Math.abs(r - g) < 0.1 && Math.abs(g - b) < 0.1 && r > 0.3 && r < 0.7) {
+    return 'implicit';
+  }
+
+  // Default based on dash
+  return hasDash ? 'student' : 'given';
 }
 
 // Determine argument type from text content (heuristics)
@@ -226,6 +252,72 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     return null;
   };
 
+  // Helper to extract style info (stroke color and dash) from element
+  const getStyleInfo = (elemObj: Record<string, unknown>): StyleInfo => {
+    const defaultStyle: StyleInfo = { strokeColor: null, hasDash: false };
+
+    try {
+      const styleObj = resolveUID(elemObj['style']);
+      if (!styleObj || typeof styleObj !== 'object' || Array.isArray(styleObj) || Buffer.isBuffer(styleObj)) {
+        return defaultStyle;
+      }
+
+      const renderlistObj = resolveUID((styleObj as Record<string, unknown>)['renderlist']);
+      if (!renderlistObj || typeof renderlistObj !== 'object' || Array.isArray(renderlistObj) || Buffer.isBuffer(renderlistObj)) {
+        return defaultStyle;
+      }
+
+      // Get array of renderers from NS.objects
+      const renderers = (renderlistObj as Record<string, unknown>)['NS.objects'];
+      if (!Array.isArray(renderers)) {
+        return defaultStyle;
+      }
+
+      // Find DKStroke in renderlist
+      for (const rendererRef of renderers) {
+        const renderer = resolveUID(rendererRef);
+        const cn = getClassName(renderer);
+
+        if (cn === 'DKStroke' && renderer && typeof renderer === 'object' && !Array.isArray(renderer) && !Buffer.isBuffer(renderer)) {
+          const strokeObj = renderer as Record<string, unknown>;
+
+          // Check for dash
+          const dashRef = strokeObj['dash'];
+          const hasDash = dashRef && typeof dashRef === 'object' && 'UID' in (dashRef as Record<string, unknown>) && (dashRef as PlistUID).UID !== 0;
+
+          // Get color
+          const colorObj = resolveUID(strokeObj['colour']);
+          if (colorObj && typeof colorObj === 'object' && !Array.isArray(colorObj) && !Buffer.isBuffer(colorObj)) {
+            const colorDict = colorObj as Record<string, unknown>;
+            const nsrgb = colorDict['NSRGB'];
+
+            if (Buffer.isBuffer(nsrgb)) {
+              // Parse "R G B\0" format
+              const colorStr = nsrgb.toString('utf8').replace(/\0/g, '').trim();
+              const parts = colorStr.split(/\s+/);
+              if (parts.length >= 3) {
+                return {
+                  strokeColor: {
+                    r: parseFloat(parts[0]),
+                    g: parseFloat(parts[1]),
+                    b: parseFloat(parts[2]),
+                  },
+                  hasDash: !!hasDash,
+                };
+              }
+            }
+          }
+
+          return { strokeColor: null, hasDash: !!hasDash };
+        }
+      }
+    } catch {
+      // Ignore errors, return default
+    }
+
+    return defaultStyle;
+  };
+
   // Extract elements
   const parsedElements: ParsedElement[] = [];
   const labelCounts: Record<string, number> = {
@@ -247,13 +339,13 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
 
       if (position && sizePoint) {
         const text = getElementText(elemObj) || '';
-        const colorSchemeId = (elemObj['colorSchemeId'] as number) || 0;
+        const styleInfo = getStyleInfo(elemObj);
 
         parsedElements.push({
           id: crypto.randomUUID(),
           index: i,
           text,
-          colorSchemeId,
+          styleInfo,
           position,
           size: { width: sizePoint.x, height: sizePoint.y },
         });
@@ -265,7 +357,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
   const etdElements: DiagramElement[] = parsedElements.map((pe) => {
     const text = pe.text || '';
     const argumentType = inferArgumentType(text);
-    const contributor = mapColorSchemeToContributor(pe.colorSchemeId);
+    const contributor = mapStyleToContributor(pe.styleInfo);
 
     labelCounts[argumentType]++;
     const label = `${argumentType.charAt(0).toUpperCase() + argumentType.slice(1)} ${labelCounts[argumentType]}`;
