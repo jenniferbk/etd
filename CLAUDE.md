@@ -69,3 +69,21 @@ These visual details matter for research accuracy — refer to REQUIREMENTS.md S
    ```
 
 The site deploys automatically via Netlify when jenkleiman.com repo is pushed.
+
+## Importing DiagramMix .drawing Files
+
+DiagramMix files can be imported using the conversion script:
+
+```bash
+# Convert .drawing to .json
+python scripts/convert-drawing.py input.drawing output.json
+
+# Then use "Load diagram" in the app to import the .json
+```
+
+The converter extracts:
+- Element positions and sizes
+- Text content (including timestamps like "(0:09:13.2)")
+- Color schemes → contributor types (colorSchemeId 1=given, 10=student)
+
+Note: Connections are not currently imported (DiagramMix uses complex connection structures).
