@@ -42,9 +42,16 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
   // Add contributor types
   if (usedContributors.has('given')) {
     legendItems.push({
-      label: 'Given (Teacher/Text)',
+      label: 'Given',
       color: COLORS.given,
       fill: '#F0FFF0',
+    });
+  }
+  if (usedContributors.has('teacher')) {
+    legendItems.push({
+      label: 'Teacher',
+      color: COLORS.teacher,
+      isEllipse: true,
     });
   }
   if (usedContributors.has('student')) {
