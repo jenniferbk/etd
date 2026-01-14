@@ -5,7 +5,7 @@
  * and converts to ETD diagram elements.
  */
 
-import type { DiagramElement, ArgumentElement, Position, Size, ContributorType } from '../types';
+import type { DiagramElement, ArgumentElement, Position, ContributorType } from '../types';
 
 interface ParsedElement {
   index: number;
