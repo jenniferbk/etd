@@ -7,7 +7,7 @@
 
 import { Buffer } from 'buffer';
 import bplist from 'bplist-parser';
-import type { DiagramElement, ArgumentElement, InfoBoxElement, Connection, ContributorType } from '../types';
+import type { DiagramElement, ArgumentElement, InfoBoxElement, Connection, ContributorType, ConnectionTarget } from '../types';
 
 // Make Buffer available globally for bplist-parser
 if (typeof window !== 'undefined') {
@@ -32,6 +32,19 @@ interface ParsedElement {
   styleInfo: StyleInfo;
   position: { x: number; y: number };
   size: { width: number; height: number };
+}
+
+interface TeeSegment {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  isHorizontal: boolean;
+}
+
+interface TeeConnector {
+  index: number;
+  mainSegment: TeeSegment | null;
+  attachmentSegments: TeeSegment[];
+  separatorIndices: number[];
 }
 
 interface ImportResult {
@@ -194,6 +207,72 @@ function findNearestElement(
   return bestMatch;
 }
 
+// Find element in a specific direction from point (for tee connector matching)
+function findNearestElementInDirection(
+  point: { x: number; y: number } | null,
+  elements: ParsedElement[],
+  direction: 'left' | 'right' | 'up' | 'down',
+  threshold = 500,
+  alignmentThreshold = 30
+): string | null {
+  if (!point) return null;
+
+  let bestMatch: string | null = null;
+  let bestDist = Infinity;
+
+  for (const elem of elements) {
+    const { position, size } = elem;
+    const elemTop = position.y;
+    const elemBottom = position.y + size.height;
+    const elemLeft = position.x;
+    const elemRight = position.x + size.width;
+
+    let dist: number;
+    let isValid = false;
+
+    if (direction === 'left') {
+      // Element should be to the left of point AND vertically aligned
+      if (elemRight <= point.x &&
+          point.y >= elemTop - alignmentThreshold &&
+          point.y <= elemBottom + alignmentThreshold) {
+        dist = point.x - elemRight;
+        isValid = true;
+      }
+    } else if (direction === 'right') {
+      // Element should be to the right of point AND vertically aligned
+      if (elemLeft >= point.x &&
+          point.y >= elemTop - alignmentThreshold &&
+          point.y <= elemBottom + alignmentThreshold) {
+        dist = elemLeft - point.x;
+        isValid = true;
+      }
+    } else if (direction === 'up') {
+      // Element should be above point AND horizontally aligned
+      if (elemBottom <= point.y &&
+          point.x >= elemLeft - alignmentThreshold &&
+          point.x <= elemRight + alignmentThreshold) {
+        dist = point.y - elemBottom;
+        isValid = true;
+      }
+    } else if (direction === 'down') {
+      // Element should be below point AND horizontally aligned
+      if (elemTop >= point.y &&
+          point.x >= elemLeft - alignmentThreshold &&
+          point.x <= elemRight + alignmentThreshold) {
+        dist = elemTop - point.y;
+        isValid = true;
+      }
+    }
+
+    if (isValid && dist! < bestDist && dist! <= threshold) {
+      bestDist = dist!;
+      bestMatch = elem.id;
+    }
+  }
+
+  return bestMatch;
+}
+
 // Main import function
 export async function importDrawingFile(file: File): Promise<ImportResult> {
   const arrayBuffer = await file.arrayBuffer();
@@ -343,6 +422,130 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     return defaultStyle;
   };
 
+  // Helper to check if a DiaElement is a tee connector (group with multiple separator segments)
+  const isTeeConnector = (elemObj: Record<string, unknown>): boolean => {
+    const groupedRef = elemObj['groupedobjects'];
+    if (!groupedRef) return false;
+
+    const grouped = resolveUID(groupedRef);
+    if (!grouped || typeof grouped !== 'object' || Array.isArray(grouped) || Buffer.isBuffer(grouped)) {
+      return false;
+    }
+
+    const groupedDict = grouped as Record<string, unknown>;
+    const nsObjects = groupedDict['NS.objects'];
+    if (!Array.isArray(nsObjects)) return false;
+
+    // Count DiaDecoratedSeparator children
+    let separatorCount = 0;
+    for (const uid of nsObjects) {
+      const child = resolveUID(uid);
+      const childCn = getClassName(child);
+      if (childCn === 'DiaDecoratedSeparator') {
+        separatorCount++;
+      }
+    }
+
+    // It's a tee connector if it has 2+ separator segments
+    return separatorCount >= 2;
+  };
+
+  // Extract tee connectors (DiaElement groups with multiple separator segments)
+  const teeConnectors: TeeConnector[] = [];
+  const teeSeparatorIndices = new Set<number>();
+
+  for (let i = 0; i < objects.length; i++) {
+    const obj = objects[i];
+    const className = getClassName(obj);
+
+    if (className === 'DiaElement') {
+      const elemObj = obj as Record<string, unknown>;
+
+      if (!isTeeConnector(elemObj)) continue;
+
+      // Get the group's location (used as offset for relative coordinates)
+      let offset = { x: 0, y: 0 };
+      const locRef = elemObj['location'];
+      if (locRef) {
+        const loc = resolveUID(locRef);
+        const locPoint = parsePointString(loc);
+        if (locPoint) offset = locPoint;
+      }
+
+      // Get grouped objects
+      const grouped = resolveUID(elemObj['groupedobjects']) as Record<string, unknown>;
+      const nsObjects = (grouped['NS.objects'] as unknown[]) || [];
+
+      // Extract bezier path endpoints from each separator segment
+      const segments: TeeSegment[] = [];
+      const separatorIndices: number[] = [];
+
+      for (const uid of nsObjects) {
+        const childIdx = (uid as PlistUID).UID;
+        const child = objects[childIdx];
+        const childCn = getClassName(child);
+
+        if (childCn === 'DiaDecoratedSeparator') {
+          separatorIndices.push(childIdx);
+          teeSeparatorIndices.add(childIdx);
+
+          const sepObj = child as Record<string, unknown>;
+          const pathRef = sepObj['path'];
+          if (!pathRef) continue;
+
+          const pathObj = resolveUID(pathRef);
+          const { start, end } = decodeBezierPath(pathObj);
+
+          if (start && end) {
+            // Convert to absolute coordinates
+            const absStart = { x: start.x + offset.x, y: start.y + offset.y };
+            const absEnd = { x: end.x + offset.x, y: end.y + offset.y };
+
+            // Classify as horizontal or vertical
+            const dx = Math.abs(absEnd.x - absStart.x);
+            const dy = Math.abs(absEnd.y - absStart.y);
+            const isHorizontal = dx > dy;
+
+            segments.push({ start: absStart, end: absEnd, isHorizontal });
+          }
+        }
+      }
+
+      if (segments.length >= 2) {
+        // Classify segments: horizontal = main connection, vertical = warrant attachment
+        let mainSegment: TeeSegment | null = null;
+        const attachmentSegments: TeeSegment[] = [];
+
+        for (const seg of segments) {
+          if (seg.isHorizontal && !mainSegment) {
+            mainSegment = seg;
+          } else {
+            attachmentSegments.push(seg);
+          }
+        }
+
+        // If no clear horizontal, use the longer segment as main
+        if (!mainSegment && segments.length > 0) {
+          const sortedByLength = [...segments].sort((a, b) => {
+            const lenA = Math.sqrt((a.end.x - a.start.x) ** 2 + (a.end.y - a.start.y) ** 2);
+            const lenB = Math.sqrt((b.end.x - b.start.x) ** 2 + (b.end.y - b.start.y) ** 2);
+            return lenB - lenA;
+          });
+          mainSegment = sortedByLength[0];
+          attachmentSegments.length = 0;
+          attachmentSegments.push(...sortedByLength.slice(1));
+        }
+
+        teeConnectors.push({
+          index: i,
+          mainSegment,
+          attachmentSegments,
+          separatorIndices,
+        });
+      }
+    }
+  }
+
   // Extract DiaElements (argument boxes)
   const parsedElements: ParsedElement[] = [];
   const labelCounts: Record<string, number> = {
@@ -477,6 +680,9 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     const className = getClassName(obj);
 
     if (className === 'DiaDecoratedSeparator') {
+      // Skip separators that are part of tee connectors (handled separately)
+      if (teeSeparatorIndices.has(i)) continue;
+
       const connObj = obj as Record<string, unknown>;
 
       // Get container to find offset
@@ -583,6 +789,101 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
           }
         }
       }
+    }
+  }
+
+  // Process tee connectors - create main connection and warrant attachments
+  const warrantElementIds = new Set<string>();
+
+  for (const tee of teeConnectors) {
+    const mainSeg = tee.mainSegment;
+    if (!mainSeg) continue;
+
+    // Find source and target for main segment (horizontal connection)
+    const leftPt = mainSeg.start.x < mainSeg.end.x ? mainSeg.start : mainSeg.end;
+    const rightPt = mainSeg.start.x < mainSeg.end.x ? mainSeg.end : mainSeg.start;
+
+    const sourceElem = findNearestElementInDirection(leftPt, parsedElements, 'left');
+    const targetElem = findNearestElementInDirection(rightPt, parsedElements, 'right');
+
+    if (sourceElem && targetElem) {
+      // Create main connection
+      const mainConnId = crypto.randomUUID();
+      const key = `${sourceElem}->${targetElem}`;
+      const reverseKey = `${targetElem}->${sourceElem}`;
+
+      if (!seenConnections.has(key) && !seenConnections.has(reverseKey)) {
+        seenConnections.add(key);
+        connections.push({
+          id: mainConnId,
+          from: sourceElem,
+          to: targetElem,
+          type: 'support',
+        });
+
+        // Process attachment segments (warrants)
+        for (const attSeg of tee.attachmentSegments) {
+          // Find element at the far end of the attachment (away from junction)
+          const mainMidY = (mainSeg.start.y + mainSeg.end.y) / 2;
+
+          // For vertical attachments, find element above or below
+          const topPt = attSeg.start.y < attSeg.end.y ? attSeg.start : attSeg.end;
+          const bottomPt = attSeg.start.y < attSeg.end.y ? attSeg.end : attSeg.start;
+
+          // The warrant element is at the far end from the junction
+          let warrantElem: string | null = null;
+          if (Math.abs(topPt.y - mainMidY) < Math.abs(bottomPt.y - mainMidY)) {
+            // Junction is near top, warrant is at bottom
+            warrantElem = findNearestElementInDirection(bottomPt, parsedElements, 'down');
+          } else {
+            // Junction is near bottom, warrant is at top
+            warrantElem = findNearestElementInDirection(topPt, parsedElements, 'up');
+          }
+
+          if (warrantElem) {
+            warrantElementIds.add(warrantElem);
+
+            // Calculate position along main connection (0-1)
+            const attJunctionX = (attSeg.start.x + attSeg.end.x) / 2;
+            const mainStartX = Math.min(mainSeg.start.x, mainSeg.end.x);
+            const mainEndX = Math.max(mainSeg.start.x, mainSeg.end.x);
+            const mainLength = mainEndX - mainStartX;
+
+            let position = 0.5;
+            if (mainLength > 0) {
+              position = (attJunctionX - mainStartX) / mainLength;
+              position = Math.max(0.1, Math.min(0.9, position)); // Clamp to reasonable range
+            }
+
+            // Create warrant attachment connection with ConnectionTarget
+            const warrantConnKey = `${warrantElem}->conn:${mainConnId}`;
+            if (!seenConnections.has(warrantConnKey)) {
+              seenConnections.add(warrantConnKey);
+              connections.push({
+                id: crypto.randomUUID(),
+                from: warrantElem,
+                to: {
+                  connectionId: mainConnId,
+                  position,
+                } as ConnectionTarget,
+                type: 'support',
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Update warrant elements to have correct argumentType
+  for (const elem of etdElements) {
+    if (elem.type === 'argument' && warrantElementIds.has(elem.id)) {
+      (elem as ArgumentElement).argumentType = 'warrant';
+      // Update label to reflect warrant type
+      const warrantCount = etdElements.filter(
+        e => e.type === 'argument' && (e as ArgumentElement).argumentType === 'warrant'
+      ).length;
+      elem.label = `Warrant ${warrantCount}`;
     }
   }
 
