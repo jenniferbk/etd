@@ -341,6 +341,12 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
         const text = getElementText(elemObj) || '';
         const styleInfo = getStyleInfo(elemObj);
 
+        // Skip elements with no text (likely decorative lines/separators)
+        // These have mode != 0 or canUngroup: true with no text
+        if (!text.trim()) {
+          continue;
+        }
+
         parsedElements.push({
           id: crypto.randomUUID(),
           index: i,
