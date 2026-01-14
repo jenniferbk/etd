@@ -7,7 +7,7 @@
 
 import { Buffer } from 'buffer';
 import bplist from 'bplist-parser';
-import type { DiagramElement, ArgumentElement, Connection, ContributorType } from '../types';
+import type { DiagramElement, ArgumentElement, InfoBoxElement, Connection, ContributorType } from '../types';
 
 // Make Buffer available globally for bplist-parser
 if (typeof window !== 'undefined') {
@@ -139,11 +139,41 @@ function decodeBezierPath(pathObj: PlistObject): { start: { x: number; y: number
   }
 }
 
-// Find element nearest to a point within threshold
+// Calculate minimum distance from a point to an element's bounding box edge
+function distanceToElementBounds(
+  point: { x: number; y: number },
+  elem: ParsedElement
+): number {
+  const { x, y } = point;
+  const { position, size } = elem;
+  const left = position.x;
+  const right = position.x + size.width;
+  const top = position.y;
+  const bottom = position.y + size.height;
+
+  // Check if point is inside element bounds
+  if (x >= left && x <= right && y >= top && y <= bottom) {
+    return 0;
+  }
+
+  // Calculate horizontal distance
+  let dx = 0;
+  if (x < left) dx = left - x;
+  else if (x > right) dx = x - right;
+
+  // Calculate vertical distance
+  let dy = 0;
+  if (y < top) dy = top - y;
+  else if (y > bottom) dy = y - bottom;
+
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Find element nearest to a point using distance to bounds (not centers)
 function findNearestElement(
   point: { x: number; y: number } | null,
   elements: ParsedElement[],
-  threshold = 250
+  threshold = 300
 ): string | null {
   if (!point || (point.x === 0 && point.y === 0)) {
     return null;
@@ -153,20 +183,7 @@ function findNearestElement(
   let bestDist = Infinity;
 
   for (const elem of elements) {
-    const cx = elem.position.x + elem.size.width / 2;
-    const cy = elem.position.y + elem.size.height / 2;
-    let dist = Math.sqrt((point.x - cx) ** 2 + (point.y - cy) ** 2);
-
-    // Check if point is within element bounds
-    const inBounds =
-      point.x >= elem.position.x &&
-      point.x <= elem.position.x + elem.size.width &&
-      point.y >= elem.position.y &&
-      point.y <= elem.position.y + elem.size.height;
-
-    if (inBounds) {
-      dist = 0;
-    }
+    const dist = distanceToElementBounds(point, elem);
 
     if (dist < bestDist && dist <= threshold) {
       bestDist = dist;
@@ -223,13 +240,10 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     return null;
   };
 
-  // Helper to get element text through the reference chain
-  const getElementText = (elemObj: Record<string, unknown>): string | null => {
+  // Helper to get text through the adornment reference chain
+  const getTextFromAdornmentChain = (textObj: Record<string, unknown>): string | null => {
     try {
-      const textObj = resolveUID(elemObj['text']);
-      if (!textObj || typeof textObj !== 'object' || Array.isArray(textObj) || Buffer.isBuffer(textObj)) return null;
-
-      const adorn = resolveUID((textObj as Record<string, unknown>)['DKTextShape_textAdornment']);
+      const adorn = resolveUID(textObj['DKTextShape_textAdornment']);
       if (!adorn || typeof adorn !== 'object' || Array.isArray(adorn) || Buffer.isBuffer(adorn)) return null;
 
       const subst = resolveUID((adorn as Record<string, unknown>)['DKTextAdornment_substitutor']);
@@ -250,6 +264,17 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
       return null;
     }
     return null;
+  };
+
+  // Helper to get element text through the reference chain
+  const getElementText = (elemObj: Record<string, unknown>): string | null => {
+    try {
+      const textObj = resolveUID(elemObj['text']);
+      if (!textObj || typeof textObj !== 'object' || Array.isArray(textObj) || Buffer.isBuffer(textObj)) return null;
+      return getTextFromAdornmentChain(textObj as Record<string, unknown>);
+    } catch {
+      return null;
+    }
   };
 
   // Helper to extract style info (stroke color and dash) from element
@@ -318,7 +343,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     return defaultStyle;
   };
 
-  // Extract elements
+  // Extract DiaElements (argument boxes)
   const parsedElements: ParsedElement[] = [];
   const labelCounts: Record<string, number> = {
     data: 0, claim: 0, warrant: 0, backing: 0, qualifier: 0, rebuttal: 0,
@@ -342,7 +367,6 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
         const styleInfo = getStyleInfo(elemObj);
 
         // Skip elements with no text (likely decorative lines/separators)
-        // These have mode != 0 or canUngroup: true with no text
         if (!text.trim()) {
           continue;
         }
@@ -359,8 +383,51 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     }
   }
 
-  // Convert to ETD elements
-  const etdElements: DiagramElement[] = parsedElements.map((pe) => {
+  // Extract DiaText objects (loose text -> Info Box)
+  const infoBoxElements: InfoBoxElement[] = [];
+  let infoBoxCount = 0;
+
+  for (let i = 0; i < objects.length; i++) {
+    const obj = objects[i];
+    const className = getClassName(obj);
+
+    if (className === 'DiaText') {
+      const textObj = obj as Record<string, unknown>;
+
+      const loc = resolveUID(textObj['location']);
+      const sz = resolveUID(textObj['size']);
+
+      const position = parsePointString(loc);
+      const sizePoint = parsePointString(sz);
+
+      if (position && sizePoint) {
+        // Get text through the text reference
+        let text: string | null = null;
+        const textRef = textObj['text'];
+        if (textRef) {
+          const innerTextObj = resolveUID(textRef);
+          if (innerTextObj && typeof innerTextObj === 'object' && !Array.isArray(innerTextObj) && !Buffer.isBuffer(innerTextObj)) {
+            text = getTextFromAdornmentChain(innerTextObj as Record<string, unknown>);
+          }
+        }
+
+        if (text && text.trim()) {
+          infoBoxCount++;
+          infoBoxElements.push({
+            id: crypto.randomUUID(),
+            type: 'infoBox',
+            label: `Info ${infoBoxCount}`,
+            position,
+            size: { width: sizePoint.x, height: sizePoint.y },
+            content: text.trim(),
+          });
+        }
+      }
+    }
+  }
+
+  // Convert DiaElements to ETD ArgumentElements
+  const argumentElements: DiagramElement[] = parsedElements.map((pe) => {
     const text = pe.text || '';
     const argumentType = inferArgumentType(text);
     const contributor = mapStyleToContributor(pe.styleInfo);
@@ -390,9 +457,20 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     return element;
   });
 
-  // Extract connections
+  // Combine all elements (info boxes first, then arguments)
+  const etdElements: DiagramElement[] = [...infoBoxElements, ...argumentElements];
+
+  // Extract connections from DiaDecoratedSeparator objects
+  // These can be at top level or inside DiaElement groups
   const connections: Connection[] = [];
   const seenConnections = new Set<string>();
+
+  // First, find all connection segments and their absolute positions
+  interface ConnectionSegment {
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  }
+  const allSegments: ConnectionSegment[] = [];
 
   for (let i = 0; i < objects.length; i++) {
     const obj = objects[i];
@@ -401,18 +479,23 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     if (className === 'DiaDecoratedSeparator') {
       const connObj = obj as Record<string, unknown>;
 
-      // Get container offset (path coordinates are relative to container)
+      // Get container to find offset
       let offset = { x: 0, y: 0 };
       const containerRef = connObj['container'];
       if (containerRef) {
         const container = resolveUID(containerRef);
         if (container && typeof container === 'object' && !Array.isArray(container) && !Buffer.isBuffer(container)) {
-          const locRef = (container as Record<string, unknown>)['location'];
-          if (locRef) {
-            const loc = resolveUID(locRef);
-            const locPoint = parsePointString(loc);
-            if (locPoint) {
-              offset = locPoint;
+          const containerCn = getClassName(container);
+
+          // If container is a DiaElement (group), get its location
+          if (containerCn === 'DiaElement' || containerCn === 'DKObjectDrawingLayer') {
+            const locRef = (container as Record<string, unknown>)['location'];
+            if (locRef) {
+              const loc = resolveUID(locRef);
+              const locPoint = parsePointString(loc);
+              if (locPoint) {
+                offset = locPoint;
+              }
             }
           }
         }
@@ -425,25 +508,79 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
       const pathObj = resolveUID(pathRef);
       const { start, end } = decodeBezierPath(pathObj);
 
-      // Apply offset to convert to absolute coordinates
-      const absStart = start ? { x: start.x + offset.x, y: start.y + offset.y } : null;
-      const absEnd = end ? { x: end.x + offset.x, y: end.y + offset.y } : null;
+      if (start && end) {
+        // Apply offset to convert to absolute coordinates
+        allSegments.push({
+          start: { x: start.x + offset.x, y: start.y + offset.y },
+          end: { x: end.x + offset.x, y: end.y + offset.y },
+        });
+      }
+    }
+  }
 
-      // Find nearest elements
-      const fromElem = findNearestElement(absStart, parsedElements);
-      const toElem = findNearestElement(absEnd, parsedElements);
+  // Now try to find connections by matching segment endpoints to elements
+  // Also try to chain segments together for multi-segment connections
+  for (const segment of allSegments) {
+    const fromElem = findNearestElement(segment.start, parsedElements);
+    const toElem = findNearestElement(segment.end, parsedElements);
 
-      // Create connection if both ends matched and they're different elements
-      if (fromElem && toElem && fromElem !== toElem) {
-        const key = `${fromElem}->${toElem}`;
-        if (!seenConnections.has(key)) {
-          seenConnections.add(key);
-          connections.push({
-            id: crypto.randomUUID(),
-            from: fromElem,
-            to: toElem,
-            type: 'support',
-          });
+    // Create connection if both ends matched and they're different elements
+    if (fromElem && toElem && fromElem !== toElem) {
+      const key = `${fromElem}->${toElem}`;
+      const reverseKey = `${toElem}->${fromElem}`;
+      if (!seenConnections.has(key) && !seenConnections.has(reverseKey)) {
+        seenConnections.add(key);
+        connections.push({
+          id: crypto.randomUUID(),
+          from: fromElem,
+          to: toElem,
+          type: 'support',
+        });
+      }
+    }
+  }
+
+  // If we have segments but few connections, try to chain segments together
+  // This handles cases where connections are made of multiple short segments
+  if (allSegments.length > 0 && connections.length < allSegments.length / 2) {
+    // Find segment chains: segments whose endpoints are close together
+    const CHAIN_THRESHOLD = 20; // pixels
+
+    for (let i = 0; i < allSegments.length; i++) {
+      for (let j = i + 1; j < allSegments.length; j++) {
+        const seg1 = allSegments[i];
+        const seg2 = allSegments[j];
+
+        // Check if end of seg1 is close to start of seg2
+        const dist1 = Math.sqrt(
+          (seg1.end.x - seg2.start.x) ** 2 + (seg1.end.y - seg2.start.y) ** 2
+        );
+        // Check if end of seg2 is close to start of seg1
+        const dist2 = Math.sqrt(
+          (seg2.end.x - seg1.start.x) ** 2 + (seg2.end.y - seg1.start.y) ** 2
+        );
+
+        if (dist1 < CHAIN_THRESHOLD || dist2 < CHAIN_THRESHOLD) {
+          // These segments are chained, create connection from outer endpoints
+          const chainStart = dist1 < CHAIN_THRESHOLD ? seg1.start : seg2.start;
+          const chainEnd = dist1 < CHAIN_THRESHOLD ? seg2.end : seg1.end;
+
+          const fromElem = findNearestElement(chainStart, parsedElements);
+          const toElem = findNearestElement(chainEnd, parsedElements);
+
+          if (fromElem && toElem && fromElem !== toElem) {
+            const key = `${fromElem}->${toElem}`;
+            const reverseKey = `${toElem}->${fromElem}`;
+            if (!seenConnections.has(key) && !seenConnections.has(reverseKey)) {
+              seenConnections.add(key);
+              connections.push({
+                id: crypto.randomUUID(),
+                from: fromElem,
+                to: toElem,
+                type: 'support',
+              });
+            }
+          }
         }
       }
     }
