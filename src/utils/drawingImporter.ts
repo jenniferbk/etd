@@ -586,14 +586,9 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
     }
   }
 
-  // Use the first info box content as diagram name, or fall back to filename
-  const diagramName = infoBoxElements.length > 0
-    ? infoBoxElements[0].content.split('\n')[0].trim() // First line of first info box
-    : file.name.replace(/\.drawing$/, '');
-
   return {
     elements: etdElements,
     connections,
-    name: diagramName,
+    name: file.name.replace(/\.drawing$/, ''),
   };
 }
