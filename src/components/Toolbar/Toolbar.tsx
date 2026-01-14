@@ -64,10 +64,23 @@ export function Toolbar() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Handle .drawing files - show conversion instructions
+    if (file.name.endsWith('.drawing')) {
+      alert(
+        'DiagramMix .drawing files need to be converted first.\n\n' +
+        'Run this command in Terminal:\n' +
+        `python scripts/convert-drawing.py "${file.name}"\n\n` +
+        'Then load the resulting .json file.'
+      );
+      e.target.value = '';
+      return;
+    }
+
+    // Handle .json files
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
@@ -280,7 +293,7 @@ export function Toolbar() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json"
+              accept=".json,.drawing"
               onChange={handleFileChange}
               className="hidden"
             />

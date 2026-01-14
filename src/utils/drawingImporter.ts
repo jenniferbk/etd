@@ -2,28 +2,31 @@
  * DiagramMix .drawing file importer
  *
  * Parses Apple binary plist (NSKeyedArchiver) format from DiagramMix app
- * and converts to ETD diagram elements.
+ * and converts to ETD diagram elements and connections.
  */
 
-import type { DiagramElement, ArgumentElement, Position, ContributorType } from '../types';
+import plist from 'plist';
+import type { DiagramElement, ArgumentElement, Connection, ContributorType } from '../types';
+
+interface PlistUID {
+  UID: number;
+}
+
+type PlistObject = Record<string, unknown> | string | number | boolean | null | Uint8Array | PlistUID | unknown[];
 
 interface ParsedElement {
+  id: string;
   index: number;
   text: string | null;
   colorSchemeId: number;
-  position: Position | null;
-  size: { width: number; height: number } | null;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
 }
 
-interface ParsedConnection {
-  index: number;
-  from?: number;
-  to?: number;
-}
-
-interface ParsedDrawing {
-  elements: ParsedElement[];
-  connections: ParsedConnection[];
+interface ImportResult {
+  elements: DiagramElement[];
+  connections: Connection[];
+  name: string;
 }
 
 // Map DiagramMix colorSchemeId to ETD contributor types
@@ -48,138 +51,143 @@ function mapColorSchemeToContributor(colorSchemeId: number): ContributorType {
 function inferArgumentType(text: string): 'data' | 'claim' | 'warrant' | 'backing' | 'qualifier' | 'rebuttal' {
   const lower = text.toLowerCase();
 
-  // Look for explicit labels
   if (lower.includes('claim')) return 'claim';
   if (lower.includes('warrant')) return 'warrant';
   if (lower.includes('backing')) return 'backing';
   if (lower.includes('qualifier') || lower.includes('probably') || lower.includes('likely')) return 'qualifier';
-  if (lower.includes('rebuttal') || lower.includes('unless') || lower.includes('but')) return 'rebuttal';
+  if (lower.includes('rebuttal') || lower.includes('unless')) return 'rebuttal';
 
-  // Default to data
   return 'data';
 }
 
-// Parse a binary plist file (runs in browser using plist.js or similar)
-export async function parseDrawingFile(file: File): Promise<ParsedDrawing> {
+// Parse point string like "{x, y}"
+function parsePointString(s: unknown): { x: number; y: number } | null {
+  if (typeof s === 'string' && s.startsWith('{')) {
+    const parts = s.replace(/[{}]/g, '').split(',');
+    if (parts.length === 2) {
+      return { x: parseFloat(parts[0].trim()), y: parseFloat(parts[1].trim()) };
+    }
+  }
+  return null;
+}
+
+// Read big-endian float32 from Uint8Array at offset
+function readFloatBE(data: Uint8Array, offset: number): number {
+  const view = new DataView(data.buffer, data.byteOffset + offset, 4);
+  return view.getFloat32(0, false); // false = big-endian
+}
+
+// Decode NSBezierPath binary segments to get start/end points
+function decodeBezierPath(pathObj: PlistObject): { start: { x: number; y: number } | null; end: { x: number; y: number } | null } {
+  if (!pathObj || typeof pathObj !== 'object' || Array.isArray(pathObj)) {
+    return { start: null, end: null };
+  }
+
+  const segments = (pathObj as Record<string, unknown>)['NSSegments'];
+  if (!segments || !(segments instanceof Uint8Array)) {
+    return { start: null, end: null };
+  }
+
+  const data = segments;
+  if (data.length < 9) {
+    return { start: null, end: null };
+  }
+
+  try {
+    // Parse first point (skip type byte, read big-endian float32 pair)
+    const x1 = readFloatBE(data, 1);
+    const y1 = readFloatBE(data, 5);
+    const start = { x: x1, y: y1 };
+
+    // Parse last point if we have enough data
+    let end = start;
+    if (data.length >= 18) {
+      const x2 = readFloatBE(data, 10);
+      const y2 = readFloatBE(data, 14);
+      end = { x: x2, y: y2 };
+    }
+
+    return { start, end };
+  } catch {
+    return { start: null, end: null };
+  }
+}
+
+// Find element nearest to a point within threshold
+function findNearestElement(
+  point: { x: number; y: number } | null,
+  elements: ParsedElement[],
+  threshold = 250
+): string | null {
+  if (!point || (point.x === 0 && point.y === 0)) {
+    return null;
+  }
+
+  let bestMatch: string | null = null;
+  let bestDist = Infinity;
+
+  for (const elem of elements) {
+    const cx = elem.position.x + elem.size.width / 2;
+    const cy = elem.position.y + elem.size.height / 2;
+    let dist = Math.sqrt((point.x - cx) ** 2 + (point.y - cy) ** 2);
+
+    // Check if point is within element bounds
+    const inBounds =
+      point.x >= elem.position.x &&
+      point.x <= elem.position.x + elem.size.width &&
+      point.y >= elem.position.y &&
+      point.y <= elem.position.y + elem.size.height;
+
+    if (inBounds) {
+      dist = 0;
+    }
+
+    if (dist < bestDist && dist <= threshold) {
+      bestDist = dist;
+      bestMatch = elem.id;
+    }
+  }
+
+  return bestMatch;
+}
+
+// Main import function
+export async function importDrawingFile(file: File): Promise<ImportResult> {
   const buffer = await file.arrayBuffer();
-  const data = new Uint8Array(buffer);
+  const textContent = new TextDecoder('latin1').decode(buffer);
 
-  // Check for binary plist magic bytes
-  if (data[0] === 0x62 && data[1] === 0x70 && data[2] === 0x6c && data[3] === 0x69 &&
-      data[4] === 0x73 && data[5] === 0x74) {
-    // Binary plist - need to convert
-    // For now, we'll need to use a server-side converter or plist library
-    throw new Error('Binary plist format detected. Please convert to XML first using: plutil -convert xml1 yourfile.drawing');
+  // Parse plist (handles both binary and XML formats)
+  let plistData: Record<string, unknown>;
+  try {
+    plistData = plist.parse(textContent) as Record<string, unknown>;
+  } catch (err) {
+    console.error('Failed to parse plist:', err);
+    throw new Error('Failed to parse .drawing file. The file may be corrupted or in an unsupported format.');
   }
 
-  // Try to parse as XML plist
-  const text = new TextDecoder().decode(data);
-  return parseXMLPlist(text);
-}
-
-// Parse XML plist format
-function parseXMLPlist(xmlText: string): ParsedDrawing {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'text/xml');
-
-  // Get the objects array from NSKeyedArchiver format
-  const plistRoot = doc.querySelector('plist > dict');
-  if (!plistRoot) {
-    throw new Error('Invalid plist format');
+  const objects = plistData['$objects'] as PlistObject[];
+  if (!objects || !Array.isArray(objects)) {
+    throw new Error('Invalid .drawing file: missing $objects array');
   }
-
-  // Parse the $objects array
-  const objects = parseNSKeyedArchiver(plistRoot);
-
-  return extractDiagramData(objects);
-}
-
-// Parse NSKeyedArchiver structure
-function parseNSKeyedArchiver(dictElement: Element): unknown[] {
-  const objects: unknown[] = [];
-
-  // Find the $objects key and its array
-  const keys = dictElement.querySelectorAll(':scope > key');
-  for (const key of keys) {
-    if (key.textContent === '$objects') {
-      const array = key.nextElementSibling;
-      if (array?.tagName === 'array') {
-        for (const child of array.children) {
-          objects.push(parseValue(child));
-        }
-      }
-    }
-  }
-
-  return objects;
-}
-
-// Parse a plist value element
-function parseValue(element: Element): unknown {
-  switch (element.tagName) {
-    case 'string':
-      return element.textContent || '';
-    case 'integer':
-      return parseInt(element.textContent || '0', 10);
-    case 'real':
-      return parseFloat(element.textContent || '0');
-    case 'true':
-      return true;
-    case 'false':
-      return false;
-    case 'data':
-      return { _type: 'data', value: element.textContent };
-    case 'dict': {
-      const dict: Record<string, unknown> = {};
-      const children = Array.from(element.children);
-      for (let i = 0; i < children.length; i += 2) {
-        const key = children[i];
-        const value = children[i + 1];
-        if (key?.tagName === 'key' && value) {
-          dict[key.textContent || ''] = parseValue(value);
-        }
-      }
-      return dict;
-    }
-    case 'array': {
-      return Array.from(element.children).map(parseValue);
-    }
-    default:
-      return null;
-  }
-}
-
-// Extract diagram data from parsed objects
-function extractDiagramData(objects: unknown[]): ParsedDrawing {
-  const elements: ParsedElement[] = [];
-  const connections: ParsedConnection[] = [];
 
   // Helper to resolve UID references
-  const resolve = (obj: unknown): unknown => {
-    if (obj && typeof obj === 'object' && 'CF$UID' in (obj as Record<string, unknown>)) {
-      const uid = (obj as { 'CF$UID': number })['CF$UID'];
+  const resolveUID = (obj: unknown): PlistObject => {
+    if (obj && typeof obj === 'object' && 'UID' in (obj as Record<string, unknown>)) {
+      const uid = (obj as PlistUID).UID;
       return objects[uid];
     }
-    return obj;
+    return obj as PlistObject;
   };
 
   // Helper to get class name
   const getClassName = (obj: unknown): string | null => {
-    if (obj && typeof obj === 'object' && '$class' in (obj as Record<string, unknown>)) {
-      const classRef = resolve((obj as Record<string, unknown>)['$class']);
-      if (classRef && typeof classRef === 'object' && '$classname' in (classRef as Record<string, unknown>)) {
-        return (classRef as Record<string, unknown>)['$classname'] as string;
-      }
-    }
-    return null;
-  };
-
-  // Helper to parse point string
-  const parsePoint = (s: unknown): { x: number; y: number } | null => {
-    if (typeof s === 'string' && s.startsWith('{')) {
-      const match = s.match(/\{([^,]+),\s*([^}]+)\}/);
-      if (match) {
-        return { x: parseFloat(match[1]), y: parseFloat(match[2]) };
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      const dict = obj as Record<string, unknown>;
+      if ('$class' in dict) {
+        const classRef = resolveUID(dict['$class']);
+        if (classRef && typeof classRef === 'object' && !Array.isArray(classRef)) {
+          return (classRef as Record<string, unknown>)['$classname'] as string || null;
+        }
       }
     }
     return null;
@@ -188,22 +196,25 @@ function extractDiagramData(objects: unknown[]): ParsedDrawing {
   // Helper to get element text through the reference chain
   const getElementText = (elemObj: Record<string, unknown>): string | null => {
     try {
-      const textObj = resolve(elemObj['text']) as Record<string, unknown>;
-      if (!textObj) return null;
+      const textObj = resolveUID(elemObj['text']);
+      if (!textObj || typeof textObj !== 'object' || Array.isArray(textObj)) return null;
 
-      const adorn = resolve(textObj['DKTextShape_textAdornment']) as Record<string, unknown>;
-      if (!adorn) return null;
+      const adorn = resolveUID((textObj as Record<string, unknown>)['DKTextShape_textAdornment']);
+      if (!adorn || typeof adorn !== 'object' || Array.isArray(adorn)) return null;
 
-      const subst = resolve(adorn['DKTextAdornment_substitutor']) as Record<string, unknown>;
-      if (!subst) return null;
+      const subst = resolveUID((adorn as Record<string, unknown>)['DKTextAdornment_substitutor']);
+      if (!subst || typeof subst !== 'object' || Array.isArray(subst)) return null;
 
-      const attrStr = resolve(subst['DKOTextSubstitutor_attributedString']) as Record<string, unknown>;
-      if (!attrStr) return null;
+      const attrStr = resolveUID((subst as Record<string, unknown>)['DKOTextSubstitutor_attributedString']);
+      if (!attrStr || typeof attrStr !== 'object' || Array.isArray(attrStr)) return null;
 
-      const nsStr = resolve(attrStr['NSString']);
+      const nsStr = resolveUID((attrStr as Record<string, unknown>)['NSString']);
       if (typeof nsStr === 'string') return nsStr;
-      if (nsStr && typeof nsStr === 'object' && 'NS.string' in (nsStr as Record<string, unknown>)) {
-        return (nsStr as Record<string, string>)['NS.string'];
+      if (nsStr && typeof nsStr === 'object' && !Array.isArray(nsStr)) {
+        const strDict = nsStr as Record<string, unknown>;
+        if ('NS.string' in strDict) {
+          return strDict['NS.string'] as string;
+        }
       }
     } catch {
       return null;
@@ -211,7 +222,12 @@ function extractDiagramData(objects: unknown[]): ParsedDrawing {
     return null;
   };
 
-  // Find DiaElement objects
+  // Extract elements
+  const parsedElements: ParsedElement[] = [];
+  const labelCounts: Record<string, number> = {
+    data: 0, claim: 0, warrant: 0, backing: 0, qualifier: 0, rebuttal: 0,
+  };
+
   for (let i = 0; i < objects.length; i++) {
     const obj = objects[i];
     const className = getClassName(obj);
@@ -219,59 +235,30 @@ function extractDiagramData(objects: unknown[]): ParsedDrawing {
     if (className === 'DiaElement') {
       const elemObj = obj as Record<string, unknown>;
 
-      const element: ParsedElement = {
-        index: i,
-        text: getElementText(elemObj),
-        colorSchemeId: (elemObj['colorSchemeId'] as number) || 0,
-        position: null,
-        size: null,
-      };
+      const loc = resolveUID(elemObj['location']);
+      const sz = resolveUID(elemObj['size']);
 
-      // Get position
-      const loc = resolve(elemObj['location']);
-      if (typeof loc === 'string') {
-        element.position = parsePoint(loc);
+      const position = parsePointString(loc);
+      const sizePoint = parsePointString(sz);
+
+      if (position && sizePoint) {
+        const text = getElementText(elemObj) || '';
+        const colorSchemeId = (elemObj['colorSchemeId'] as number) || 0;
+
+        parsedElements.push({
+          id: crypto.randomUUID(),
+          index: i,
+          text,
+          colorSchemeId,
+          position,
+          size: { width: sizePoint.x, height: sizePoint.y },
+        });
       }
-
-      // Get size
-      const size = resolve(elemObj['size']);
-      if (typeof size === 'string') {
-        const p = parsePoint(size);
-        if (p) {
-          element.size = { width: p.x, height: p.y };
-        }
-      }
-
-      elements.push(element);
-    }
-
-    // Find connections (DiaDecoratedSeparator)
-    if (className === 'DiaDecoratedSeparator') {
-      connections.push({ index: i });
-      // Connection endpoints would need more complex parsing
     }
   }
 
-  return { elements, connections };
-}
-
-// Convert parsed drawing to ETD elements
-export function convertToETDElements(parsed: ParsedDrawing): DiagramElement[] {
-  const elements: DiagramElement[] = [];
-
-  // Track labels by type for numbering
-  const labelCounts: Record<string, number> = {
-    data: 0,
-    claim: 0,
-    warrant: 0,
-    backing: 0,
-    qualifier: 0,
-    rebuttal: 0,
-  };
-
-  for (const pe of parsed.elements) {
-    if (!pe.position || !pe.size) continue;
-
+  // Convert to ETD elements
+  const etdElements: DiagramElement[] = parsedElements.map((pe) => {
     const text = pe.text || '';
     const argumentType = inferArgumentType(text);
     const contributor = mapColorSchemeToContributor(pe.colorSchemeId);
@@ -283,14 +270,11 @@ export function convertToETDElements(parsed: ParsedDrawing): DiagramElement[] {
     let attribution: { speaker: string; timestamp: string } | undefined;
     const timestampMatch = text.match(/^\((\d+:\d+(?::\d+)?(?:\.\d+)?)\)\s*/);
     if (timestampMatch) {
-      attribution = {
-        speaker: '',
-        timestamp: timestampMatch[1],
-      };
+      attribution = { speaker: '', timestamp: timestampMatch[1] };
     }
 
     const element: ArgumentElement = {
-      id: crypto.randomUUID(),
+      id: pe.id,
       type: 'argument',
       argumentType,
       contributor,
@@ -301,8 +285,71 @@ export function convertToETDElements(parsed: ParsedDrawing): DiagramElement[] {
       attribution,
     };
 
-    elements.push(element);
+    return element;
+  });
+
+  // Extract connections
+  const connections: Connection[] = [];
+  const seenConnections = new Set<string>();
+
+  for (let i = 0; i < objects.length; i++) {
+    const obj = objects[i];
+    const className = getClassName(obj);
+
+    if (className === 'DiaDecoratedSeparator') {
+      const connObj = obj as Record<string, unknown>;
+
+      // Get container offset (path coordinates are relative to container)
+      let offset = { x: 0, y: 0 };
+      const containerRef = connObj['container'];
+      if (containerRef) {
+        const container = resolveUID(containerRef);
+        if (container && typeof container === 'object' && !Array.isArray(container)) {
+          const locRef = (container as Record<string, unknown>)['location'];
+          if (locRef) {
+            const loc = resolveUID(locRef);
+            const locPoint = parsePointString(loc);
+            if (locPoint) {
+              offset = locPoint;
+            }
+          }
+        }
+      }
+
+      // Get path coordinates
+      const pathRef = connObj['path'];
+      if (!pathRef) continue;
+
+      const pathObj = resolveUID(pathRef);
+      const { start, end } = decodeBezierPath(pathObj);
+
+      // Apply offset to convert to absolute coordinates
+      const absStart = start ? { x: start.x + offset.x, y: start.y + offset.y } : null;
+      const absEnd = end ? { x: end.x + offset.x, y: end.y + offset.y } : null;
+
+      // Find nearest elements
+      const fromElem = findNearestElement(absStart, parsedElements);
+      const toElem = findNearestElement(absEnd, parsedElements);
+
+      // Create connection if both ends matched and they're different elements
+      if (fromElem && toElem && fromElem !== toElem) {
+        const key = `${fromElem}->${toElem}`;
+        if (!seenConnections.has(key)) {
+          seenConnections.add(key);
+          connections.push({
+            id: crypto.randomUUID(),
+            from: fromElem,
+            to: toElem,
+            type: 'support',
+          });
+        }
+      }
+    }
   }
 
-  return elements;
+  return {
+    elements: etdElements,
+    connections,
+    name: file.name.replace(/\.drawing$/, ''),
+  };
 }
