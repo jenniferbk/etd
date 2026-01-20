@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { useDiagramStore } from '../../store';
-import type { DiagramElement, CropArea, ArgumentType, ContributorType } from '../../types';
-import { isArgumentElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
+import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype } from '../../types';
+import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
 import { useImagePaste } from '../../hooks/useImagePaste';
@@ -24,8 +24,25 @@ const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
   { value: 'implicit', label: 'Implicit' },
 ];
 
+// Support type options
+const SUPPORT_TYPES: { value: SupportType; label: string }[] = [
+  { value: 'action', label: 'Action' },
+  { value: 'question', label: 'Question' },
+  { value: 'other', label: 'Other Support' },
+];
+
+// Support subtype options (for 'other' type)
+const SUPPORT_SUBTYPES: { value: SupportSubtype; label: string }[] = [
+  { value: 'displays', label: 'Displays' },
+  { value: 'suggests', label: 'Suggests' },
+  { value: 'summarizes', label: 'Summarizes' },
+  { value: 'restates', label: 'Restates' },
+  { value: 'highlights', label: 'Highlights' },
+  { value: 'validates', label: 'Validates' },
+];
+
 export function PropertiesPanel() {
-  const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings } = useDiagramStore();
+  const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings, changeSupportType, convertToArgument, convertToSupport } = useDiagramStore();
 
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
@@ -192,38 +209,87 @@ export function PropertiesPanel() {
                   ))}
                 </select>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <label style={labelStyle}>Convert</label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const [supportType, subtype] = e.target.value.split(':') as [SupportType, SupportSubtype?];
+                      convertToSupport(selectedElement.id, supportType, subtype);
+                    }
+                  }}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2"
+                  style={selectStyle}
+                >
+                  <option value="">To Support...</option>
+                  <option value="action">Action</option>
+                  <option value="question">Question</option>
+                  <optgroup label="Other Support">
+                    {SUPPORT_SUBTYPES.map((subtype) => (
+                      <option key={subtype.value} value={`other:${subtype.value}`}>
+                        {subtype.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
+              </div>
             </>
           )}
-          {isTeacherSupportElement(selectedElement) && (
+          {(isSupportElement(selectedElement) || isTeacherSupportElement(selectedElement)) && (
             <>
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Type</label>
-                <span
-                  className="px-3 py-2 text-sm rounded-lg capitalize font-medium"
-                  style={{
-                    backgroundColor: theme.sidebar.surface,
-                    color: theme.sidebar.text,
-                    border: `1px solid ${theme.sidebar.border}`,
-                  }}
+                <select
+                  value={selectedElement.supportType}
+                  onChange={(e) => changeSupportType(selectedElement.id, e.target.value as SupportType)}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                  style={selectStyle}
                 >
-                  {selectedElement.supportType}
-                </span>
+                  {SUPPORT_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {selectedElement.subtype && (
+              {selectedElement.supportType === 'other' && (
                 <div className="flex flex-col gap-1.5">
                   <label style={labelStyle}>Subtype</label>
-                  <span
-                    className="px-3 py-2 text-sm rounded-lg capitalize font-medium"
-                    style={{
-                      backgroundColor: theme.sidebar.surface,
-                      color: theme.sidebar.text,
-                      border: `1px solid ${theme.sidebar.border}`,
-                    }}
+                  <select
+                    value={selectedElement.subtype || 'displays'}
+                    onChange={(e) => changeSupportType(selectedElement.id, 'other', e.target.value as SupportSubtype)}
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                    style={selectStyle}
                   >
-                    {selectedElement.subtype}
-                  </span>
+                    {SUPPORT_SUBTYPES.map((subtype) => (
+                      <option key={subtype.value} value={subtype.value}>
+                        {subtype.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
+              <div className="flex flex-col gap-1.5">
+                <label style={labelStyle}>Convert</label>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      convertToArgument(selectedElement.id, e.target.value as ArgumentType);
+                    }
+                  }}
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2"
+                  style={selectStyle}
+                >
+                  <option value="">To Argument...</option>
+                  {ARGUMENT_TYPES.map((type) => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </>
           )}
           {isInfoBoxElement(selectedElement) && (

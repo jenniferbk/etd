@@ -85,27 +85,30 @@ export function SupportShape({
           fontStyle="bold"
           fill={border}
         />
+        {/* Content - positioned in upper portion of ellipse */}
         <Text
-          x={padding}
-          y={size.height / 2 - 12}
-          width={size.width - padding * 2}
+          x={padding * 2}
+          y={size.height * 0.15}
+          width={size.width - padding * 4}
+          height={attributionText ? size.height * 0.55 : size.height * 0.7}
           text={content}
           fontSize={11}
           fill={border}
           align="center"
+          verticalAlign="middle"
           wrap="word"
         />
-        {/* Attribution */}
+        {/* Attribution - fixed position near bottom of ellipse */}
         {attributionText && (
           <Text
-            x={padding}
-            y={size.height - 16}
-            width={size.width - padding * 2}
+            x={padding * 2}
+            y={size.height * 0.72}
+            width={size.width - padding * 4}
             text={attributionText}
             fontSize={9}
-            fill="#666666"
+            fill={border}
             fontStyle="italic"
-            align="right"
+            align="center"
           />
         )}
       </Group>

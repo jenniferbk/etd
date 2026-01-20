@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { DiagramElement, Connection, Position, Size, ContributorType, ImageSettings } from '../types';
-import { isArgumentElement, isInfoBoxElement } from '../types';
+import type { DiagramElement, Connection, Position, Size, ContributorType, ImageSettings, SupportType, SupportSubtype, ArgumentType, SupportContributor, ArgumentElement, SupportElement } from '../types';
+import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
 
 interface LegendConfig {
@@ -70,6 +70,9 @@ interface DiagramState {
   bringToFront: (id: string) => void;
   sendToBack: (id: string) => void;
   changeContributor: (id: string, contributor: ContributorType) => void;
+  changeSupportType: (id: string, supportType: SupportType, subtype?: SupportSubtype) => void;
+  convertToArgument: (id: string, argumentType: ArgumentType) => void;
+  convertToSupport: (id: string, supportType: SupportType, subtype?: SupportSubtype) => void;
 
   // Actions - Connections
   addConnection: (connection: Connection) => void;
@@ -251,6 +254,84 @@ export const useDiagramStore = create<DiagramState>()(
               ? { ...el, contributor } as typeof el
               : el
           ),
+        })),
+
+      changeSupportType: (id, supportType, subtype) =>
+        set((state) => ({
+          elements: state.elements.map((el) => {
+            if (el.id !== id) return el;
+            if (!isSupportElement(el) && !isTeacherSupportElement(el)) return el;
+
+            // Clear subtype if not 'other', otherwise use provided subtype
+            const newSubtype = supportType === 'other' ? (subtype || 'displays') : undefined;
+
+            return {
+              ...el,
+              supportType,
+              subtype: newSubtype,
+            } as typeof el;
+          }),
+        })),
+
+      convertToArgument: (id, argumentType) =>
+        set((state) => {
+          // Count existing elements of this argument type to generate label
+          const existingCount = state.elements.filter(
+            (el) => isArgumentElement(el) && el.argumentType === argumentType
+          ).length;
+          const label = `${argumentType.charAt(0).toUpperCase() + argumentType.slice(1)} ${existingCount + 1}`;
+
+          return {
+            elements: state.elements.map((el) => {
+              if (el.id !== id) return el;
+              if (!isSupportElement(el) && !isTeacherSupportElement(el)) return el;
+
+              // Map support contributor to argument contributor
+              const supportContributor = isSupportElement(el) ? el.contributor : 'teacher';
+              const contributor: ContributorType = supportContributor === 'teacher' ? 'teacher' : 'student';
+
+              const newElement: ArgumentElement = {
+                id: el.id,
+                type: 'argument',
+                argumentType,
+                contributor,
+                label,
+                position: el.position,
+                size: el.size,
+                content: el.content,
+                attribution: el.attribution,
+              };
+
+              return newElement;
+            }),
+          };
+        }),
+
+      convertToSupport: (id, supportType, subtype) =>
+        set((state) => ({
+          elements: state.elements.map((el) => {
+            if (el.id !== id) return el;
+            if (!isArgumentElement(el)) return el;
+
+            // Map argument contributor to support contributor
+            // teacher, given -> teacher; student, joint, implicit -> student
+            const contributor: SupportContributor =
+              (el.contributor === 'teacher' || el.contributor === 'given') ? 'teacher' : 'student';
+
+            const newElement: SupportElement = {
+              id: el.id,
+              type: 'support',
+              supportType,
+              contributor,
+              subtype: supportType === 'other' ? (subtype || 'displays') : undefined,
+              position: el.position,
+              size: el.size,
+              content: el.content,
+              attribution: el.attribution,
+            };
+
+            return newElement;
+          }),
         })),
 
       addConnection: (connection) =>
