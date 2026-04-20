@@ -74,6 +74,7 @@ export interface BaseElement {
   attribution?: Attribution;
   image?: string | null;       // Base64 or URL
   imageSettings?: ImageSettings; // Resize/crop settings
+  sourceTranscript?: { transcriptId: string; lineIndex: number };
 }
 
 export interface ArgumentElement extends BaseElement {

@@ -1,6 +1,11 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import type { DiagramElement, Connection, Position, Size, ContributorType, ImageSettings, SupportType, SupportSubtype, ArgumentType, SupportContributor, ArgumentElement, SupportElement } from '../types';
+import type {
+  DiagramElement, Connection, Position, Size, ContributorType,
+  ImageSettings, SupportType, SupportSubtype, ArgumentType,
+  SupportContributor, ArgumentElement, SupportElement,
+  Transcript, TranscriptLine,
+} from '../types';
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
 
@@ -58,6 +63,9 @@ interface DiagramState {
   // Legend
   legendConfig: LegendConfig;
 
+  // Transcript
+  transcript: Transcript | null;
+
   // Actions - Elements
   addElement: (element: DiagramElement) => void;
   updateElement: (id: string, updates: Partial<DiagramElement>) => void;
@@ -95,8 +103,17 @@ interface DiagramState {
   // Actions - Metadata
   setDiagramName: (name: string) => void;
 
+  // Actions - Transcript
+  setTranscript: (transcript: Transcript | null) => void;
+  updateTranscriptLine: (lineIndex: number, patch: Partial<TranscriptLine>) => void;
+
   // Actions - File operations
-  loadDiagram: (elements: DiagramElement[], connections: Connection[], name?: string) => void;
+  loadDiagram: (
+    elements: DiagramElement[],
+    connections: Connection[],
+    name?: string,
+    transcript?: Transcript | null,
+  ) => void;
   clearDiagram: () => void;
 }
 
@@ -114,6 +131,7 @@ export const useDiagramStore = create<DiagramState>()(
         visible: false,
         position: { x: 50, y: 50 },
       },
+      transcript: null,
 
       addElement: (element) =>
         set((state) => {
@@ -410,9 +428,24 @@ export const useDiagramStore = create<DiagramState>()(
           },
         })),
 
+      setTranscript: (transcript) => set({ transcript }),
+
+      updateTranscriptLine: (lineIndex, patch) =>
+        set((state) => {
+          if (!state.transcript) return state;
+          return {
+            transcript: {
+              ...state.transcript,
+              lines: state.transcript.lines.map((line) =>
+                line.index === lineIndex ? { ...line, ...patch } : line,
+              ),
+            },
+          };
+        }),
+
       setDiagramName: (name) => set({ diagramName: name }),
 
-      loadDiagram: (elements, connections, name) => {
+      loadDiagram: (elements, connections, name, transcript) => {
         // Auto-size all elements on load to ensure content fits
         const sizedElements = elements.map((el) => {
           const autoSize = getAutoSize(el);
@@ -423,11 +456,12 @@ export const useDiagramStore = create<DiagramState>()(
           connections,
           selectedIds: [],
           diagramName: name || 'Untitled Diagram',
+          transcript: transcript ?? null,
         });
       },
 
       clearDiagram: () =>
-        set({
+        set((state) => ({
           diagramName: 'Untitled Diagram',
           elements: [],
           connections: [],
@@ -436,7 +470,8 @@ export const useDiagramStore = create<DiagramState>()(
           panX: 0,
           panY: 0,
           legendConfig: { visible: false, position: { x: 50, y: 50 } },
-        }),
+          transcript: state.transcript, // preserved intentionally
+        })),
     }),
     {
       // Only track elements and connections for undo/redo
