@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { GripVertical } from 'lucide-react';
 import type { ContributorType, SupportSubtype } from '../../types/elements';
 import type { TranscriptLine, TranscriptObjectType } from '../../types/transcript';
 import { theme } from '../../utils/theme';
@@ -63,6 +65,7 @@ export interface TranscriptPanelItemProps {
   line: TranscriptLine;
   transcriptId: string;
   used: boolean;
+  altRow: boolean;
   onContributorChange: (value: ContributorType | null) => void;
   onObjectTypeChange: (objectType: TranscriptObjectType | null, subtype?: SupportSubtype) => void;
 }
@@ -71,9 +74,11 @@ export function TranscriptPanelItem({
   line,
   transcriptId,
   used,
+  altRow,
   onContributorChange,
   onObjectTypeChange,
 }: TranscriptPanelItemProps) {
+  const [isHovered, setIsHovered] = useState(false);
   const incompatible = isIncompatible(line.contributor, line.objectType);
   const canDrag = line.contributor !== null && line.objectType !== null && !incompatible;
 
@@ -106,39 +111,57 @@ export function TranscriptPanelItem({
 
   const borderColor = line.contributor ? getContributorColor(line.contributor) : theme.sidebar.border;
 
-  // Dropdowns styled with accent border + input bg so they visually pop against the card surface.
+  // Alternating row backgrounds for scannability — subtle difference, not zebra-harsh.
+  // Hover lifts the card to make the grab target obvious.
+  const baseBg = altRow ? '#10141c' : theme.sidebar.surface;
+  const cardBg = isHovered && canDrag ? theme.sidebar.surfaceHover : baseBg;
+
+  // Dropdowns: accent cyan border + input bg — readable but not drag-initiating.
   const dropdownStyle: React.CSSProperties = {
     backgroundColor: theme.input.bg,
     color: theme.input.text,
     borderColor: theme.sidebar.accent,
     borderWidth: '1px',
     fontWeight: 500,
-    boxShadow: `0 0 0 1px ${theme.colors.accent.glow}`,
   };
 
   return (
     <div
       draggable={canDrag}
       onDragStart={handleDragStart}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       title={dragTooltip || undefined}
-      className="rounded-lg p-3 mb-2 transition-all duration-150"
+      className="p-3 transition-colors duration-100"
       style={{
-        backgroundColor: theme.sidebar.surface,
+        backgroundColor: cardBg,
         borderLeft: `3px solid ${borderColor}`,
+        borderBottom: `1px solid ${theme.sidebar.border}`,
         opacity: used ? 0.55 : 1,
         cursor: canDrag ? 'grab' : 'not-allowed',
       }}
     >
-      <div className="flex items-baseline justify-between mb-1">
-        <div
-          className="text-xs font-mono"
-          style={{ color: theme.sidebar.muted }}
-        >
-          {line.timestamp}  <span style={{ color: theme.sidebar.textSecondary }}>{line.speaker}</span>
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <GripVertical
+            size={12}
+            style={{
+              color: canDrag ? theme.sidebar.muted : theme.sidebar.border,
+              opacity: isHovered && canDrag ? 1 : 0.5,
+              flexShrink: 0,
+            }}
+          />
+          <div
+            className="text-xs font-mono truncate"
+            style={{ color: theme.sidebar.muted }}
+          >
+            {line.timestamp}{' '}
+            <span style={{ color: theme.sidebar.textSecondary }}>{line.speaker}</span>
+          </div>
         </div>
         {used && (
           <span
-            className="text-[10px] font-semibold uppercase tracking-wider"
+            className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
             style={{ color: theme.sidebar.accent }}
           >
             ✓ used

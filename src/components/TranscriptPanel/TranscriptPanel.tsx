@@ -146,13 +146,14 @@ export function TranscriptPanel() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-3 py-3">
-            {transcript.lines.map((line) => (
+          <div className="flex-1 overflow-y-auto">
+            {transcript.lines.map((line, idx) => (
               <TranscriptPanelItem
                 key={line.index}
                 line={line}
                 transcriptId={transcript.id}
                 used={usedLineIndexes.has(line.index)}
+                altRow={idx % 2 === 1}
                 onContributorChange={(value) =>
                   updateTranscriptLine(line.index, { contributor: value })
                 }
