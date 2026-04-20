@@ -7,6 +7,10 @@ import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType, type DiagramElement } from '../../types';
+import type {
+  ArgumentType, SupportType, SupportContributor,
+  ArgumentElement, SupportElement,
+} from '../../types';
 import { InfoBoxShape } from './shapes/InfoBoxShape';
 import { ContextMenu } from './ContextMenu';
 import { Legend } from './shapes/Legend';
@@ -140,6 +144,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     sendToBack,
     changeContributor,
     moveLegend,
+    addElement,
   } = useDiagramStore();
 
   // Update stage size on resize
@@ -493,6 +498,118 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     setEditingElement(null);
   }, []);
 
+  // Convert a browser-pixel drop location to Konva canvas coordinates.
+  const clientPointToCanvas = useCallback(
+    (clientX: number, clientY: number): { x: number; y: number } => {
+      if (!containerRef.current) return { x: 0, y: 0 };
+      const rect = containerRef.current.getBoundingClientRect();
+      const stageX = clientX - rect.left;
+      const stageY = clientY - rect.top;
+      return {
+        x: (stageX - panX) / zoom,
+        y: (stageY - panY) / zoom,
+      };
+    },
+    [panX, panY, zoom],
+  );
+
+  const generateId = () =>
+    `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (e.dataTransfer.types.includes('application/x-etd-transcript-line')) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      const raw = e.dataTransfer.getData('application/x-etd-transcript-line');
+      if (!raw) return;
+      e.preventDefault();
+
+      let payload: {
+        kind: string;
+        transcriptId: string;
+        lineIndex: number;
+        speaker: string;
+        timestamp: string;
+        text: string;
+        contributor: string;
+        objectType: string;
+      };
+      try {
+        payload = JSON.parse(raw);
+      } catch {
+        return;
+      }
+      if (payload.kind !== 'transcript-line') return;
+
+      const pos = clientPointToCanvas(e.clientX, e.clientY);
+      const attribution = { speaker: payload.speaker, timestamp: payload.timestamp };
+      const sourceTranscript = {
+        transcriptId: payload.transcriptId,
+        lineIndex: payload.lineIndex,
+      };
+
+      const isSupport =
+        payload.objectType === 'action' ||
+        payload.objectType === 'question' ||
+        payload.objectType === 'other';
+
+      if (isSupport) {
+        // Spec: drag is blocked for support+given/joint/implicit at panel level;
+        // defense-in-depth here rejects any stray case.
+        if (payload.contributor !== 'teacher' && payload.contributor !== 'student') {
+          return;
+        }
+        const supportType = payload.objectType as SupportType;
+        const contributor = payload.contributor as SupportContributor;
+        const newElement: SupportElement = {
+          id: generateId(),
+          type: 'support',
+          contributor,
+          supportType,
+          subtype: supportType === 'other' ? 'displays' : undefined,
+          content: payload.text,
+          attribution,
+          position: pos,
+          size: supportType === 'action' ? { width: 140, height: 60 } : { width: 160, height: 50 },
+          sourceTranscript,
+        };
+        addElement(newElement);
+        return;
+      }
+
+      // Argument path
+      const argumentType = payload.objectType as ArgumentType;
+      // Count existing elements of this type for the auto-label, matching Palette's pattern.
+      const existingCount = elements.filter(
+        (el) => el.type === 'argument' && (el as ArgumentElement).argumentType === argumentType,
+      ).length;
+      const label = `${argumentType.charAt(0).toUpperCase() + argumentType.slice(1)} ${existingCount + 1}`;
+
+      const newElement: ArgumentElement = {
+        id: generateId(),
+        type: 'argument',
+        argumentType,
+        contributor: payload.contributor as ArgumentElement['contributor'],
+        label,
+        content: payload.text,
+        attribution,
+        position: pos,
+        size:
+          payload.contributor === 'implicit'
+            ? { width: 140, height: 60 }
+            : { width: 180, height: 80 },
+        sourceTranscript,
+      };
+      addElement(newElement);
+    },
+    [clientPointToCanvas, addElement, elements],
+  );
+
   // Determine if we're connecting from a warrant-type element
   const connectingFromElement = connectingFrom
     ? elements.find((el) => el.id === connectingFrom)
@@ -508,6 +625,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       ref={containerRef}
       className={`flex-1 overflow-hidden relative ${connectMode ? 'cursor-crosshair' : isPanMode ? 'cursor-grab' : ''}`}
       style={{ backgroundColor: '#f8f9fa' }}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       {/* Status bar for connect mode */}
       {connectMode && (
