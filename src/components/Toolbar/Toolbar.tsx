@@ -6,6 +6,7 @@ import {
   Download,
   Image,
   FileText,
+  FileJson,
   Trash2,
   ZoomIn,
   ZoomOut,
@@ -24,6 +25,11 @@ import { theme } from '../../utils/theme';
 import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
 import { exportToPdf } from '../../utils/pdfExport';
+import {
+  downloadDiagramx,
+  exportToDiagramx,
+  hasEmbeddedImages,
+} from '../../utils/diagramxExport';
 import { Tooltip } from '../ui/Tooltip';
 import { importDrawingFile } from '../../utils/drawingImporter';
 
@@ -57,7 +63,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
-  const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | null>(null);
+  const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | 'diagramx' | null>(null);
   const temporal = useTemporalStore();
 
   const canUndo = temporal.pastStates.length > 0;
@@ -160,6 +166,27 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
       }
       const svgContent = exportToSvg(elements, connections);
       downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  // Export diagram as DiagramMix .diagramx (Level A MVP)
+  const handleExportDiagramx = async () => {
+    setExporting('diagramx');
+    try {
+      if (elements.length === 0) {
+        alert('No elements to export');
+        return;
+      }
+      const json = exportToDiagramx(elements, connections, diagramName);
+      downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
+      if (hasEmbeddedImages(elements)) {
+        alert('Embedded images were dropped — DiagramMix does not support inline images.');
+      }
+    } catch (err) {
+      console.error('.diagramx export failed:', err);
+      alert('Failed to export .diagramx');
     } finally {
       setExporting(null);
     }
@@ -344,6 +371,12 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               icon={FileText}
               tooltip="Export as PDF"
               isLoading={exporting === 'pdf'}
+            />
+            <IconButton
+              onClick={handleExportDiagramx}
+              icon={FileJson}
+              tooltip="Export as DiagramMix (.diagramx)"
+              isLoading={exporting === 'diagramx'}
             />
           </div>
 
