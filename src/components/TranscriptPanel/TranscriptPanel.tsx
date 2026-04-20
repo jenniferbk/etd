@@ -156,8 +156,8 @@ export function TranscriptPanel() {
                 onContributorChange={(value) =>
                   updateTranscriptLine(line.index, { contributor: value })
                 }
-                onObjectTypeChange={(value) =>
-                  updateTranscriptLine(line.index, { objectType: value })
+                onObjectTypeChange={(objectType, subtype) =>
+                  updateTranscriptLine(line.index, { objectType, subtype })
                 }
               />
             ))}

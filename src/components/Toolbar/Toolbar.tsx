@@ -16,6 +16,8 @@ import {
   Loader2,
   FileInput,
   PanelRight,
+  Crosshair,
+  Maximize2,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { theme } from '../../utils/theme';
@@ -42,10 +44,17 @@ interface ToolbarProps {
 
 export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscriptPanel }: ToolbarProps) {
   const {
-    zoom, setZoom, elements, connections, loadDiagram, clearDiagram,
+    zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
     transcript,
   } = useDiagramStore();
+
+  // Reset view: zoom to 100% and pan back to origin — rescues the user when they've
+  // panned/zoomed off the canvas and lost the diagram.
+  const handleResetView = () => {
+    setZoom(1);
+    setPan(0, 0);
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | null>(null);
@@ -382,6 +391,17 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               icon={ZoomIn}
               tooltip="Zoom in"
               shortcut="Ctrl+="
+            />
+            <IconButton
+              onClick={handleResetView}
+              icon={Crosshair}
+              tooltip="Reset view (100%, centered)"
+            />
+            <IconButton
+              onClick={fitToView}
+              icon={Maximize2}
+              tooltip="Fit to window"
+              shortcut="Ctrl+0"
             />
           </div>
 

@@ -35,13 +35,12 @@ function normalizeObjectType(raw: string | undefined): TranscriptObjectType | nu
 // Rules (case-insensitive):
 //   starts with "Teacher"  -> "teacher"
 //   starts with "Student"  -> "student" (also matches "Students", "Students (chorus)")
-//   otherwise              -> null
-// NEVER infers joint/given/implicit.
-function inferContributor(speaker: string): ContributorType | null {
+//   otherwise              -> "student" (sensible default for unknown speakers)
+// NEVER infers joint/given/implicit — those must be explicitly tagged.
+function inferContributor(speaker: string): ContributorType {
   const lower = speaker.trim().toLowerCase();
   if (lower.startsWith('teacher')) return 'teacher';
-  if (lower.startsWith('student')) return 'student';
-  return null;
+  return 'student';
 }
 
 function generateTranscriptId(): string {
@@ -84,6 +83,9 @@ export function parseTranscript(text: string, filename: string): Transcript {
 
     // Tag takes precedence over inference; inference fills in when tag is missing/blank.
     const contributor = contribFromTag ?? inferContributor(speaker);
+    // Default object type to 'claim' when no tag was provided, so every line is
+    // draggable by default. User can change via the dropdown before dragging.
+    const objectType: TranscriptObjectType = typeFromTag ?? 'claim';
 
     lines.push({
       index: index++,
@@ -91,7 +93,7 @@ export function parseTranscript(text: string, filename: string): Transcript {
       speaker,
       text: textRaw.trim(),
       contributor,
-      objectType: typeFromTag,
+      objectType,
     });
   });
 

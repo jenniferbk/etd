@@ -1,5 +1,5 @@
 // Transcript types for the ingester panel
-import type { ContributorType, ArgumentType, SupportType } from './elements';
+import type { ContributorType, ArgumentType, SupportType, SupportSubtype } from './elements';
 
 // Object type on a transcript line is either an argument type or a support type
 export type TranscriptObjectType = ArgumentType | SupportType;
@@ -11,6 +11,7 @@ export interface TranscriptLine {
   text: string;               // the utterance body, trimmed
   contributor: ContributorType | null;
   objectType: TranscriptObjectType | null;
+  subtype?: SupportSubtype;   // only meaningful when objectType === 'other'
 }
 
 export interface Transcript {

@@ -1,4 +1,4 @@
-import type { ContributorType } from '../../types/elements';
+import type { ContributorType, SupportSubtype } from '../../types/elements';
 import type { TranscriptLine, TranscriptObjectType } from '../../types/transcript';
 import { theme } from '../../utils/theme';
 import { getContributorColor } from '../../utils/colors';
@@ -12,18 +12,44 @@ const CONTRIBUTOR_OPTIONS: { value: ContributorType | ''; label: string }[] = [
   { value: 'implicit', label: 'Implicit' },
 ];
 
-const OBJECT_TYPE_OPTIONS: { value: TranscriptObjectType | ''; label: string }[] = [
-  { value: '', label: '—' },
-  { value: 'data', label: 'Data' },
-  { value: 'claim', label: 'Claim' },
-  { value: 'warrant', label: 'Warrant' },
-  { value: 'backing', label: 'Backing' },
-  { value: 'qualifier', label: 'Qualifier' },
-  { value: 'rebuttal', label: 'Rebuttal' },
-  { value: 'action', label: 'Action' },
-  { value: 'question', label: 'Question' },
-  { value: 'other', label: 'Other Support' },
+// Composite dropdown values. For "other" supports, the value encodes the subtype as
+// "other:displays" / "other:suggests" / etc. All other entries are just the objectType.
+type ObjectTypeOption = {
+  value: string;               // "" | "claim" | "action" | "other:displays" | ...
+  label: string;
+  objectType: TranscriptObjectType | null;
+  subtype?: SupportSubtype;
+};
+
+const OBJECT_TYPE_OPTIONS: ObjectTypeOption[] = [
+  { value: '', label: '—', objectType: null },
+  { value: 'data', label: 'Data', objectType: 'data' },
+  { value: 'claim', label: 'Claim', objectType: 'claim' },
+  { value: 'warrant', label: 'Warrant', objectType: 'warrant' },
+  { value: 'backing', label: 'Backing', objectType: 'backing' },
+  { value: 'qualifier', label: 'Qualifier', objectType: 'qualifier' },
+  { value: 'rebuttal', label: 'Rebuttal', objectType: 'rebuttal' },
+  { value: 'action', label: 'Action', objectType: 'action' },
+  { value: 'question', label: 'Question', objectType: 'question' },
+  { value: 'other:displays', label: 'Other Support: Displays', objectType: 'other', subtype: 'displays' },
+  { value: 'other:suggests', label: 'Other Support: Suggests', objectType: 'other', subtype: 'suggests' },
+  { value: 'other:summarizes', label: 'Other Support: Summarizes', objectType: 'other', subtype: 'summarizes' },
+  { value: 'other:restates', label: 'Other Support: Restates', objectType: 'other', subtype: 'restates' },
+  { value: 'other:highlights', label: 'Other Support: Highlights', objectType: 'other', subtype: 'highlights' },
+  { value: 'other:validates', label: 'Other Support: Validates', objectType: 'other', subtype: 'validates' },
 ];
+
+function encodeObjectTypeValue(objectType: TranscriptObjectType | null, subtype?: SupportSubtype): string {
+  if (objectType === null) return '';
+  if (objectType === 'other') return `other:${subtype ?? 'displays'}`;
+  return objectType;
+}
+
+function decodeObjectTypeValue(value: string): { objectType: TranscriptObjectType | null; subtype?: SupportSubtype } {
+  const match = OBJECT_TYPE_OPTIONS.find((opt) => opt.value === value);
+  if (!match) return { objectType: null };
+  return { objectType: match.objectType, subtype: match.subtype };
+}
 
 // Support elements are limited to teacher|student contributors.
 function isIncompatible(contributor: ContributorType | null, objectType: TranscriptObjectType | null): boolean {
@@ -38,7 +64,7 @@ export interface TranscriptPanelItemProps {
   transcriptId: string;
   used: boolean;
   onContributorChange: (value: ContributorType | null) => void;
-  onObjectTypeChange: (value: TranscriptObjectType | null) => void;
+  onObjectTypeChange: (objectType: TranscriptObjectType | null, subtype?: SupportSubtype) => void;
 }
 
 export function TranscriptPanelItem({
@@ -72,12 +98,23 @@ export function TranscriptPanelItem({
       text: line.text,
       contributor: line.contributor,
       objectType: line.objectType,
+      subtype: line.subtype,
     };
     e.dataTransfer.setData('application/x-etd-transcript-line', JSON.stringify(payload));
     e.dataTransfer.effectAllowed = 'copy';
   };
 
   const borderColor = line.contributor ? getContributorColor(line.contributor) : theme.sidebar.border;
+
+  // Dropdowns styled with accent border + input bg so they visually pop against the card surface.
+  const dropdownStyle: React.CSSProperties = {
+    backgroundColor: theme.input.bg,
+    color: theme.input.text,
+    borderColor: theme.sidebar.accent,
+    borderWidth: '1px',
+    fontWeight: 500,
+    boxShadow: `0 0 0 1px ${theme.colors.accent.glow}`,
+  };
 
   return (
     <div
@@ -127,12 +164,8 @@ export function TranscriptPanelItem({
         <select
           value={line.contributor ?? ''}
           onChange={(e) => onContributorChange(e.target.value === '' ? null : (e.target.value as ContributorType))}
-          className="flex-1 px-2 py-1 text-xs rounded border"
-          style={{
-            backgroundColor: theme.sidebar.bg,
-            color: theme.sidebar.text,
-            borderColor: theme.sidebar.border,
-          }}
+          className="flex-1 px-2 py-1 text-xs rounded"
+          style={dropdownStyle}
         >
           {CONTRIBUTOR_OPTIONS.map((opt) => (
             <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>
@@ -140,14 +173,13 @@ export function TranscriptPanelItem({
         </select>
 
         <select
-          value={line.objectType ?? ''}
-          onChange={(e) => onObjectTypeChange(e.target.value === '' ? null : (e.target.value as TranscriptObjectType))}
-          className="flex-1 px-2 py-1 text-xs rounded border"
-          style={{
-            backgroundColor: theme.sidebar.bg,
-            color: theme.sidebar.text,
-            borderColor: theme.sidebar.border,
+          value={encodeObjectTypeValue(line.objectType, line.subtype)}
+          onChange={(e) => {
+            const { objectType, subtype } = decodeObjectTypeValue(e.target.value);
+            onObjectTypeChange(objectType, subtype);
           }}
+          className="flex-1 px-2 py-1 text-xs rounded"
+          style={dropdownStyle}
         >
           {OBJECT_TYPE_OPTIONS.map((opt) => (
             <option key={opt.value || 'none'} value={opt.value}>{opt.label}</option>

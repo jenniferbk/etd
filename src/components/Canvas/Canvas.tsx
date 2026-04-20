@@ -8,7 +8,7 @@ import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType, type DiagramElement } from '../../types';
 import type {
-  ArgumentType, SupportType, SupportContributor,
+  ArgumentType, SupportType, SupportSubtype, SupportContributor,
   ArgumentElement, SupportElement,
 } from '../../types';
 import { InfoBoxShape } from './shapes/InfoBoxShape';
@@ -538,6 +538,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         text: string;
         contributor: string;
         objectType: string;
+        subtype?: string;
       };
       try {
         payload = JSON.parse(raw);
@@ -571,7 +572,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           type: 'support',
           contributor,
           supportType,
-          subtype: supportType === 'other' ? 'displays' : undefined,
+          subtype: supportType === 'other' ? ((payload.subtype as SupportSubtype | undefined) ?? 'displays') : undefined,
           content: payload.text,
           attribution,
           position: pos,
