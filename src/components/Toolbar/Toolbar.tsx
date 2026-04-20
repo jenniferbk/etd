@@ -14,6 +14,8 @@ import {
   Info,
   LayoutGrid,
   Loader2,
+  FileInput,
+  PanelRight,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { theme } from '../../utils/theme';
@@ -32,7 +34,13 @@ function toFilename(name: string): string {
     || 'diagram';
 }
 
-export function Toolbar() {
+interface ToolbarProps {
+  onLoadTranscript: () => void;
+  transcriptPanelOpen: boolean;
+  onToggleTranscriptPanel: () => void;
+}
+
+export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscriptPanel }: ToolbarProps) {
   const {
     zoom, setZoom, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
@@ -339,6 +347,17 @@ export function Toolbar() {
               icon={LayoutGrid}
               tooltip="Toggle Legend"
               isActive={legendConfig.visible}
+            />
+            <IconButton
+              onClick={onLoadTranscript}
+              icon={FileInput}
+              tooltip="Load transcript"
+            />
+            <IconButton
+              onClick={onToggleTranscriptPanel}
+              icon={PanelRight}
+              tooltip="Toggle transcript panel"
+              isActive={transcriptPanelOpen}
             />
           </div>
 

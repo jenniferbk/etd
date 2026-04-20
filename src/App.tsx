@@ -7,12 +7,16 @@ import { RecoveryPrompt } from './components/RecoveryPrompt';
 import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
+import { parseTranscript } from './utils/transcriptParser';
+import { TranscriptPanel } from './components/TranscriptPanel';
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [recoveryData, setRecoveryData] = useState<{ timestamp: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [transcriptPanelOpen, setTranscriptPanelOpen] = useState(false);
+  const transcriptFileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-save hook
   useAutoSave();
@@ -100,6 +104,57 @@ function App() {
   // Load handler for keyboard shortcut
   const handleLoad = useCallback(() => {
     fileInputRef.current?.click();
+  }, []);
+
+  const setTranscript = useDiagramStore((s) => s.setTranscript);
+
+  const handleLoadTranscriptClick = useCallback(() => {
+    transcriptFileInputRef.current?.click();
+  }, []);
+
+  const handleTranscriptFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Orphan-confirm using current store state
+      const current = useDiagramStore.getState();
+      if (current.transcript) {
+        const orphanCount = current.elements.filter(
+          (el) => el.sourceTranscript?.transcriptId === current.transcript!.id,
+        ).length;
+        if (orphanCount > 0) {
+          const proceed = confirm(
+            `Loading a new transcript will orphan ${orphanCount} existing element reference(s). Proceed?`,
+          );
+          if (!proceed) {
+            e.target.value = '';
+            return;
+          }
+        }
+      }
+
+      try {
+        const text = await file.text();
+        const parsed = parseTranscript(text, file.name);
+        if (parsed.lines.length === 0) {
+          alert(`No valid transcript lines found in ${file.name}.`);
+          e.target.value = '';
+          return;
+        }
+        setTranscript(parsed);
+        setTranscriptPanelOpen(true);
+      } catch (err) {
+        console.error('Failed to read transcript file:', err);
+        alert('Failed to read transcript file.');
+      }
+      e.target.value = '';
+    },
+    [setTranscript],
+  );
+
+  const toggleTranscriptPanel = useCallback(() => {
+    setTranscriptPanelOpen((v) => !v);
   }, []);
 
   const handleFileLoad = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -255,7 +310,18 @@ function App() {
         onChange={handleFileLoad}
         className="hidden"
       />
-      <Toolbar />
+      <input
+        ref={transcriptFileInputRef}
+        type="file"
+        accept=".txt"
+        onChange={handleTranscriptFileChange}
+        className="hidden"
+      />
+      <Toolbar
+        onLoadTranscript={handleLoadTranscriptClick}
+        transcriptPanelOpen={transcriptPanelOpen}
+        onToggleTranscriptPanel={toggleTranscriptPanel}
+      />
       <div className="flex flex-1 overflow-hidden">
         <Palette
           connectMode={connectMode}
@@ -266,6 +332,7 @@ function App() {
           onConnectionStart={handleConnectionStart}
           connectingFrom={connectingFrom}
         />
+        {transcriptPanelOpen && <TranscriptPanel />}
       </div>
       <PropertiesPanel />
 
