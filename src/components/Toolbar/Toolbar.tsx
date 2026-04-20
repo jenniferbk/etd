@@ -33,7 +33,11 @@ function toFilename(name: string): string {
 }
 
 export function Toolbar() {
-  const { zoom, setZoom, elements, connections, loadDiagram, clearDiagram, toggleLegend, legendConfig, diagramName, setDiagramName } = useDiagramStore();
+  const {
+    zoom, setZoom, elements, connections, loadDiagram, clearDiagram,
+    toggleLegend, legendConfig, diagramName, setDiagramName,
+    transcript,
+  } = useDiagramStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | null>(null);
@@ -45,10 +49,11 @@ export function Toolbar() {
   // Save diagram as JSON
   const handleSave = () => {
     const data = {
-      version: '1.0',
+      version: '1.1',
       name: diagramName,
       elements,
       connections,
+      transcript,
     };
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
@@ -84,7 +89,7 @@ export function Toolbar() {
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
-            loadDiagram(data.elements, data.connections, data.name);
+            loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null);
           } else {
             alert('Invalid diagram file format');
           }

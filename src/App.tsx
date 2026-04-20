@@ -30,6 +30,7 @@ function App() {
     fitToView,
     loadDiagram,
     diagramName,
+    transcript,
   } = useDiagramStore();
 
   const { isOpen: lightboxOpen, imageData: lightboxImage, elementLabel: lightboxLabel, closeLightbox } = useLightboxStore();
@@ -81,10 +82,11 @@ function App() {
       name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'diagram';
 
     const data = {
-      version: '1.0',
+      version: '1.1',
       name: diagramName,
       elements,
       connections,
+      transcript,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -93,7 +95,7 @@ function App() {
     a.download = `${toFilename(diagramName)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [elements, connections, diagramName]);
+  }, [elements, connections, diagramName, transcript]);
 
   // Load handler for keyboard shortcut
   const handleLoad = useCallback(() => {
@@ -109,7 +111,7 @@ function App() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections, data.name);
+          loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null);
         }
       } catch (err) {
         console.error('Failed to parse diagram file:', err);
