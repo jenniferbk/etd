@@ -10,6 +10,8 @@ import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSav
 import { parseTranscript } from './utils/transcriptParser';
 import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel } from './components/TranscriptPanel';
+import { PanelRightOpen } from 'lucide-react';
+import { theme } from './utils/theme';
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
@@ -346,8 +348,23 @@ function App() {
           onConnectionStart={handleConnectionStart}
           connectingFrom={connectingFrom}
         />
-        {transcriptPanelOpen && (
+        {transcriptPanelOpen ? (
           <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setTranscriptPanelOpen(true)}
+            title="Show transcript panel"
+            aria-label="Show transcript panel"
+            className="w-8 border-l flex items-start justify-center pt-4 hover:opacity-80"
+            style={{
+              background: theme.sidebar.bgGradient,
+              borderColor: theme.sidebar.border,
+              color: theme.sidebar.textSecondary,
+            }}
+          >
+            <PanelRightOpen size={16} />
+          </button>
         )}
       </div>
       <PropertiesPanel />
