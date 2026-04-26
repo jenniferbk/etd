@@ -123,14 +123,16 @@ export function SupportShape({
     >
       {shapeNode}
       {/* Contributor indicator */}
-      <Text
-        x={4}
-        y={4}
-        text={contributorLabel}
-        fontSize={10}
-        fontStyle="bold"
-        fill={style.borderColor}
-      />
+      {style.borderShape === 'ellipse' && (
+        <Text
+          x={4}
+          y={4}
+          text={contributorLabel}
+          fontSize={10}
+          fontStyle="bold"
+          fill={style.borderColor}
+        />
+      )}
       {/* Header label (empty for action) */}
       {headerLabel !== '' && (
         <Text
