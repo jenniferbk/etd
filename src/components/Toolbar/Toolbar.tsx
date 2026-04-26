@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { theme } from '../../utils/theme';
+import { SAVE_SCHEMA_VERSION } from '../../utils/schema';
 import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
 import { exportToPdf } from '../../utils/pdfExport';
@@ -72,7 +73,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   // Save diagram as JSON
   const handleSave = () => {
     const data = {
-      version: '1.1',
+      version: SAVE_SCHEMA_VERSION,
       name: diagramName,
       elements,
       connections,

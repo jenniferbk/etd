@@ -8,6 +8,7 @@ import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 import { parseTranscript } from './utils/transcriptParser';
+import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel } from './components/TranscriptPanel';
 
 function App() {
@@ -86,7 +87,7 @@ function App() {
       name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'diagram';
 
     const data = {
-      version: '1.1',
+      version: SAVE_SCHEMA_VERSION,
       name: diagramName,
       elements,
       connections,
