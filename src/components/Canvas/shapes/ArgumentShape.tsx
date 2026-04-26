@@ -1,8 +1,9 @@
-import { Group, Rect, Text, Line } from 'react-konva';
+import { Group, Rect, Ellipse, Text, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { ArgumentElement } from '../../../types';
-import { getContributorColor } from '../../../utils/colors';
 import { EmbeddedImage } from './EmbeddedImage';
+import { useDiagramStore } from '../../../store';
+import { resolveArgumentStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
 
 interface ArgumentShapeProps {
   element: ArgumentElement;
@@ -27,19 +28,20 @@ export function ArgumentShape({
   onTransformEnd,
   onContextMenu,
 }: ArgumentShapeProps) {
-  const { position, size, label, content, contributor, attribution, image, imageSettings } = element;
-  const borderColor = getContributorColor(contributor);
+  const { position, size, label, content, attribution, image, imageSettings } = element;
+  const styleConfig = useDiagramStore((s) => s.styleConfig);
+  const style = resolveArgumentStyle(element, styleConfig);
 
   // Format attribution text
   const attributionText = attribution?.speaker || attribution?.timestamp
     ? `${attribution.speaker || ''}${attribution.speaker && attribution.timestamp ? ' @ ' : ''}${attribution.timestamp || ''}`
     : '';
 
-  // Determine border style
-  const isDashed = contributor === 'student';
-  const isDotDash = contributor === 'joint';  // dot-dash-dot-dash pattern
-  const isCloud = contributor === 'implicit';
-  const strokeWidth = contributor === 'implicit' ? 2 : 3;
+  // Determine border style from resolver
+  const borderColor = style.borderColor;
+  const isCloud = style.borderShape === 'cloud';
+  const strokeWidth = style.borderWidth;
+  const dashArray = dashArrayForBorderStyle(style.borderStyle);
 
   // Calculate text positioning
   // Cloud shapes need more padding because the elliptical boundary curves inward
@@ -145,27 +147,54 @@ export function ArgumentShape({
       onContextMenu={onContextMenu}
     >
       {/* Background */}
-      <Rect
-        width={size.width}
-        height={size.height}
-        fill={contributor === 'given' ? '#F0FFF0' : '#FFFFFF'}
-        stroke={borderColor}
-        strokeWidth={strokeWidth}
-        dash={isDotDash ? [10, 5, 2, 5] : isDashed ? [10, 5] : undefined}
-        cornerRadius={0}
-      />
+      {style.borderShape === 'ellipse' ? (
+        <Ellipse
+          x={size.width / 2}
+          y={size.height / 2}
+          radiusX={size.width / 2}
+          radiusY={size.height / 2}
+          fill={style.backgroundColor}
+          stroke={borderColor}
+          strokeWidth={strokeWidth}
+          dash={dashArray}
+        />
+      ) : (
+        <Rect
+          width={size.width}
+          height={size.height}
+          fill={style.backgroundColor}
+          stroke={borderColor}
+          strokeWidth={strokeWidth}
+          dash={dashArray}
+          cornerRadius={style.borderShape === 'rounded' ? 8 : 0}
+        />
+      )}
       {/* Selection indicator */}
       {isSelected && (
-        <Rect
-          width={size.width + 6}
-          height={size.height + 6}
-          x={-3}
-          y={-3}
-          stroke="#4A90D9"
-          strokeWidth={2}
-          fill="transparent"
-          dash={[5, 3]}
-        />
+        style.borderShape === 'ellipse' ? (
+          <Ellipse
+            x={size.width / 2}
+            y={size.height / 2}
+            radiusX={size.width / 2 + 4}
+            radiusY={size.height / 2 + 4}
+            stroke="#4A90D9"
+            strokeWidth={2}
+            fill="transparent"
+            dash={[5, 3]}
+          />
+        ) : (
+          <Rect
+            width={size.width + 6}
+            height={size.height + 6}
+            x={-3}
+            y={-3}
+            stroke="#4A90D9"
+            strokeWidth={2}
+            fill="transparent"
+            dash={[5, 3]}
+            cornerRadius={style.borderShape === 'rounded' ? 10 : 0}
+          />
+        )
       )}
       {/* Label - underlined */}
       <Text
