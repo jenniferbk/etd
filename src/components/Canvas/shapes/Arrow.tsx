@@ -295,7 +295,7 @@ export function ConnectionArrow({
 
   return (
     <>
-      {/* Orthogonal path line */}
+      {/* Connector line */}
       <Line
         points={pathPoints}
         stroke={strokeColor}
