@@ -76,5 +76,11 @@ export function dashArrayForBorderStyle(style: ResolvedBorderStyle): number[] | 
     case 'dashed':  return [10, 5];
     case 'dotted':  return [2, 4];
     case 'dotdash': return [10, 5, 2, 5];
+    default: {
+      // Exhaustiveness guard: if a new ResolvedBorderStyle variant is added,
+      // TypeScript will error here because `style` will no longer narrow to `never`.
+      const _exhaustive: never = style;
+      return _exhaustive;
+    }
   }
 }
