@@ -135,6 +135,10 @@ export function TranscriptPanelItem({
     <div
       draggable={canDrag}
       onDragStart={handleDragStart}
+      onClick={() => {
+        if (used) return;
+        onDismissChange(!dismissed);
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       title={dragTooltip || undefined}
@@ -144,24 +148,12 @@ export function TranscriptPanelItem({
         backgroundColor: cardBg,
         borderLeft: `3px solid ${borderColor}`,
         borderBottom: `1px solid ${theme.sidebar.border}`,
-        opacity: used ? 0.55 : (dismissed ? 0.75 : 1),
-        cursor: canDrag ? 'grab' : 'not-allowed',
+        opacity: dismissed ? 0.75 : 1,
+        cursor: canDrag ? 'grab' : (used ? 'default' : 'pointer'),
       }}
     >
       <div className="flex items-center justify-between mb-1 gap-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          {!used && (
-            <input
-              type="checkbox"
-              checked={dismissed}
-              onChange={(e) => onDismissChange(e.target.checked)}
-              onMouseDown={(e) => e.stopPropagation()}
-              title={dismissed ? 'Restore: marked not relevant' : 'Mark as not relevant'}
-              aria-label={dismissed ? 'Restore: not relevant' : 'Mark as not relevant'}
-              className="cursor-pointer flex-shrink-0"
-              style={{ accentColor: theme.sidebar.accent }}
-            />
-          )}
           <GripVertical
             size={12}
             style={{
@@ -178,21 +170,14 @@ export function TranscriptPanelItem({
             <span style={{ color: theme.sidebar.textSecondary }}>{line.speaker}</span>
           </div>
         </div>
-        {used ? (
+        {used && (
           <span
             className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
             style={{ color: theme.sidebar.accent }}
           >
             ✓ used
           </span>
-        ) : dismissed ? (
-          <span
-            className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
-            style={{ color: theme.sidebar.muted }}
-          >
-            — not relevant
-          </span>
-        ) : null}
+        )}
       </div>
 
       <div
@@ -204,6 +189,7 @@ export function TranscriptPanelItem({
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
           textDecoration: (dismissed && !used) ? 'line-through' : 'none',
+          fontStyle: used ? 'italic' : 'normal',
         }}
         title={line.text}
       >
@@ -214,6 +200,7 @@ export function TranscriptPanelItem({
         <select
           value={line.contributor ?? ''}
           onChange={(e) => onContributorChange(e.target.value === '' ? null : (e.target.value as ContributorType))}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex-1 px-2 py-1 text-xs rounded"
           style={dropdownStyle}
         >
@@ -228,6 +215,7 @@ export function TranscriptPanelItem({
             const { objectType, subtype } = decodeObjectTypeValue(e.target.value);
             onObjectTypeChange(objectType, subtype);
           }}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex-1 px-2 py-1 text-xs rounded"
           style={dropdownStyle}
         >

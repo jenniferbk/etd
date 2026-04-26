@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react';
-import { X } from 'lucide-react';
+import { PanelRightClose } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import { parseTranscript } from '../../utils/transcriptParser';
@@ -100,10 +100,10 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
           <button
             onClick={handleClose}
             className="p-1 rounded hover:opacity-80"
-            title="Close transcript"
+            title="Hide panel"
             style={{ color: theme.sidebar.textSecondary }}
           >
-            <X size={16} />
+            <PanelRightClose size={16} />
           </button>
         )}
       </div>
