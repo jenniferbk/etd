@@ -71,7 +71,7 @@ export function ArgumentShape({
           height={size.height}
           stroke={borderColor}
           strokeWidth={strokeWidth}
-          fill="#FFFFFF"
+          fill={style.backgroundColor}
           isSelected={isSelected}
         />
         {/* Label - underlined */}
