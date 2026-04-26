@@ -5,12 +5,18 @@
 
 **Revision history:**
 - v1 (initial): five sections written and approved interactively, committed at 2d7a917.
-- v2 (this revision): adversarial review folded in. Changes:
-  - Subtype IDs: new ones use `crypto.randomUUID()`; six v1.2 defaults keep their slug ids for backwards compat. Re-adding a deleted subtype gets a fresh id (no ghost-resurrection of orphaned references).
-  - Orphan subtypes: visible error state (`[deleted subtype]` placeholder + red dashed outline + warning icon) instead of silent fallback to raw id.
-  - Defaults split into two functions: `createV1_2_MigrationDefaults()` (frozen forever) and `createCurrentDefaults()` (may evolve). Loading v1.2 always uses the frozen one.
-  - Resolver: `student` → dashed border now applies to supports too (was arguments-only). Joint/implicit/given overlays still arguments-only (those contributors don't exist for supports).
-  - Per-export-path coverage made explicit: PDF needs no change (live-stage snapshot); SVG needs full resolver plumbing; `.diagramx` propagates renamed labels only.
+- v2: first adversarial review folded in. Subtype IDs use UUIDs; orphan subtypes get visible error state; defaults split into frozen v1.2 + evolvable current; student=dashed extended to supports; per-export-path coverage made explicit. Committed at 366a371.
+- v3 (this revision): second adversarial review folded in. Changes:
+  - **Settings UI moved from direct-write-to-store to Apply/Cancel pattern with a local working copy.** Reverses the v1 decision after the undo-buffer-flooding hit was framed: each Apply is one undo entry instead of 50 per session.
+  - **"Reset all" scoped.** Modal-footer reset only touches `argumentTypes` and `supportTypes`; subtype reset has its own button inside the Subtypes editor. Eliminates silent data loss of custom subtypes.
+  - **Subtype delete in use** now requires confirmation showing the affected element count.
+  - **Orphan visual marker simplified** to a single warning icon (⚠) at top-right of the bounding box. Border color, dash, shape preserved — no collision with student-dashed-blue, joint dot-dash, implicit cloud, or selection highlight.
+  - **`createCurrentDefaults` is now an independent literal**, not a pass-through to `createV1_2_MigrationDefaults` — prevents future-developer footgun.
+  - **Preview pane gets a contributor toggle** so the user can see how each type style composes with student-dashed, implicit-cloud, given-tint, etc.
+  - **Text inputs commit `onBlur`**, not `onChange` — eliminates per-keystroke flicker.
+  - **Default modal selection:** first argument type (`Data`).
+  - **SVG orphan rendering specified:** inline `<text>⚠` at top-right; placeholder label in body. No external icon dependency.
+  - **Per-subtype styling explicitly punted** — added "Out of scope" section.
 
 ## Background
 
@@ -71,7 +77,7 @@ Key choices:
 - **Internal keys are immutable.** `argumentType` and `supportType` discriminators on `DiagramElement` never change at runtime. Only `TypeStyle.label` (display) varies. This protects connections, the four export paths (PNG/SVG/PDF/.diagramx), the schema, the resolver branches, and any future analysis pipelines.
 - **`otherSubtypes` is an ordered array, not a `Record`.** Order matters in the dropdown UI, and entries can be added/removed at runtime. The element-side field `subtype?: SupportSubtype` (already a `string` type with custom-value support per `src/types/elements.ts:30`) stores the `id`.
 - **Subtype IDs are stable and never label-derived.** The six v1.2 defaults keep their slug ids (`'displays'`, `'suggests'`, etc.) so existing diagrams' `subtype: 'displays'` references still resolve. Every subtype added through the UI gets `crypto.randomUUID()`. Decoupling id from label means renaming a subtype never breaks references, and re-adding a previously-deleted subtype gets a fresh id (it does *not* reattach orphaned elements — that would be silent ghost-resurrection).
-- **Orphan subtypes show a visible error state.** If an element's `subtype` id is not present in `config.otherSubtypes`, the element renders with a placeholder label `"[deleted subtype]"`, a red dashed outline, and a small warning icon. The Properties panel for that element shows the subtype dropdown in error state with `"[Deleted Subtype — pick a new one]"` as the current value, forcing the user to assign a valid subtype to clear the error. Silent fallback to the raw id is rejected — UUIDs as on-canvas labels would leak meaningless data.
+- **Orphan subtypes show a visible error state.** If an element's `subtype` id is not present in `config.otherSubtypes`, the element renders with a placeholder label `"[deleted subtype]"` and a single visual marker: a small warning icon (⚠) drawn at the top-right corner of the element's bounding box (8px outside the border). The element's **shape, border style, border color, dash pattern, and background are unchanged** — orphan-state does NOT recolor the border or alter the dash, because that would collide with the existing student-dashed-blue convention, the joint dot-dash convention, the implicit cloud silhouette, and the selection-highlight `#4A90D9` dashed outline. The Properties panel for an orphaned element shows the subtype dropdown in error state with `"[Deleted Subtype — pick a new one]"` as the current value (in red text), forcing the user to assign a valid subtype to clear the warning. Silent fallback to the raw id is rejected — UUIDs as on-canvas labels would leak meaningless data.
 - **Backwards compatibility on load.** A v1.2 diagram has no `styleConfig` field. The loader applies `createV1_2_MigrationDefaults()` (a frozen function — see "Defaults and migration") so the diagram renders identically to before. Saving always writes v1.3.
 
 The save schema constant in `src/utils/schema.ts` bumps:
@@ -175,31 +181,46 @@ src/components/Settings/
   index.ts
 ```
 
-**State approach.** Edits write directly to the Zustand store via new actions on `useDiagramStore`:
+**State approach.** The modal holds a **local working copy** of `styleConfig` in component state, seeded from the store on open. Edits mutate the working copy, not the store. The live preview reads from the working copy (so it updates instantly), but the canvas behind the modal stays on the committed store config until Apply is clicked.
 
-```ts
-updateArgumentTypeStyle: (type: ArgumentType, patch: Partial<TypeStyle>) => void;
-updateSupportTypeStyle:  (type: SupportType,  patch: Partial<TypeStyle>) => void;
-addSubtype:      (label: string) => void;          // generates id
-updateSubtype:   (id: string, patch: Partial<OtherSubtype>) => void;
-removeSubtype:   (id: string) => void;
-reorderSubtypes: (orderedIds: string[]) => void;
-resetStyleConfig: (
-  scope: 'all'
-       | { kind: 'argument'; type: ArgumentType }
-       | { kind: 'support';  type: SupportType }
-) => void;
+```
+Open modal:
+  workingConfig := { ...store.styleConfig }   // shallow + deep clone
+
+Edits within modal:
+  workingConfig.argumentTypes.claim.borderShape = 'ellipse'
+  // preview re-renders; canvas does not
+
+Apply:
+  store.replaceStyleConfig(workingConfig)     // single store write -> single undo entry
+  close modal
+
+Cancel (or Esc, or backdrop click):
+  discard workingConfig
+  close modal
 ```
 
-No "Save"/"Cancel" buttons — edits apply immediately and the canvas behind the modal updates as you tweak. Mistakes are recovered via undo (`temporal` middleware in `src/store/diagramStore.ts:476-484` needs `styleConfig` added to its `partialize`).
+The store gets **one** new action: `replaceStyleConfig(config: StyleConfig)`. The granular per-type setters (`updateArgumentTypeStyle`, etc.) are not needed — all mutation happens locally in the modal until Apply. Subtype add/remove/rename also operates on the working copy.
 
-**Live preview pane.** A small Konva `<Stage>` (~220×120) inside `TypeStyleEditor` renders the actual `ArgumentShape` or `SupportShape` for a representative element of the type being edited (sample contributor: `given` for arguments, `teacher` for supports; sample content: `"Sample {label} text"`). Same renderer, same code path → preview cannot drift from canvas reality.
+This pattern means a 30-second tweaking session produces exactly one undo entry, not 50. `styleConfig` is added to the temporal `partialize` (`src/store/diagramStore.ts:476-484`); each Apply is one undo step.
 
-**Subtype editor.** Reorderable list — each row has a drag handle, text input for the label, and a delete button. "+ Add subtype" button at the bottom generates a new entry with a random `id`.
+**Text input commit policy.** Label edits in `TypeStyleEditor` and `SubtypeListEditor` commit to `workingConfig` on `onBlur`, not on every `onChange`. This avoids per-keystroke flicker in the preview pane and matches conventional form behavior. Color picker (`<input type="color">`) commits on `onChange` since it doesn't have intermediate states.
 
-**Reset.** Each editor pane has a small "Reset" link. Modal footer has "Reset all to defaults" with a confirm step.
+**Default selection on open.** The right pane defaults to the **first argument type (`Data`)** when the modal opens. Sidebar selection state lives in the modal's local state, reset on each open.
 
-**Accessibility.** Esc closes. Tab cycles inputs. Color picker uses native `<input type="color">`. The sidebar list is keyboard-navigable (arrow keys move selection).
+**Live preview pane.** A small Konva `<Stage>` (~220×120) inside `TypeStyleEditor` renders the actual `ArgumentShape` or `SupportShape` for a representative element of the type being edited. The preview reads from `workingConfig`. Same renderer, same code path → preview cannot drift from canvas reality.
+
+The preview pane has a **contributor toggle** above the rendered shape — a row of small buttons letting the user flip the previewed contributor between all valid options (`given`/`student`/`teacher`/`joint`/`implicit` for arguments; `teacher`/`student` for supports). This is the only way to see how the chosen type style composes with the contributor overlays (`student=dashed`, `implicit=cloud`, `given=green tint`) without leaving the modal. Default contributor: `given` for arguments, `teacher` for supports.
+
+**Subtype editor.** Reorderable list — each row has a drag handle, text input for the label (commit on blur), and a delete button. "+ Add subtype" button at the bottom generates a new entry with `crypto.randomUUID()` as the `id` and a default label of `"New subtype"` for the user to rename.
+
+**Destructive-action confirmations.**
+- **Deleting a subtype that is in use by elements:** confirm dialog reads `"This subtype is used by N elements. Deleting it will leave them with no assigned subtype. Continue?"` Computed by counting `elements` whose `subtype === id`. Deleting an unused subtype skips confirmation.
+- **"Reset all type styles" (modal footer):** confirms with `"Reset all argument and support type styles to defaults? This does NOT affect your custom subtypes."` This action only resets `argumentTypes` and `supportTypes` — `otherSubtypes` is preserved.
+- **"Reset subtypes to defaults" (button inside `SubtypeListEditor`):** scoped subtype reset. Confirms with `"Replace your custom subtypes with the six defaults? Elements using removed subtypes will be orphaned."` Only this action touches `otherSubtypes`.
+- **Per-type "Reset" link** in `TypeStyleEditor`: no confirm — single-type reset is small enough to undo.
+
+**Accessibility.** Esc cancels (discards working copy + closes). Tab cycles inputs. Color picker uses native `<input type="color">`. Sidebar list is keyboard-navigable (arrow keys move selection). Apply is the default button (Enter triggers it when focus is in a non-textarea field).
 
 ## Defaults and migration
 
@@ -241,10 +262,37 @@ export function createV1_2_MigrationDefaults(): StyleConfig {
   };
 }
 
-// Used for new diagrams, "Reset all to defaults", and per-type resets.
-// Safe to evolve in future releases.
+// Used for new diagrams, "Reset all type styles", "Reset subtypes to defaults",
+// and per-type resets. Safe to evolve in future releases.
+//
+// IMPORTANT: this function MUST NOT delegate to createV1_2_MigrationDefaults().
+// They are intentionally independent literal copies at launch so that future
+// edits here cannot accidentally modify the frozen v1.2 contract. Six months
+// from now if Claim's default shape becomes 'ellipse', edit it here only.
 export function createCurrentDefaults(): StyleConfig {
-  return createV1_2_MigrationDefaults();  // identical at launch; will diverge if defaults change later
+  return {
+    argumentTypes: {
+      data:      { label: 'Data',      borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
+      claim:     { label: 'Claim',     borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
+      warrant:   { label: 'Warrant',   borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
+      backing:   { label: 'Backing',   borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
+      qualifier: { label: 'Qualifier', borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
+      rebuttal:  { label: 'Rebuttal',  borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
+    },
+    supportTypes: {
+      action:   { label: 'Action',   borderStyle: 'solid', borderShape: 'ellipse', backgroundColor: '#FFFFFF' },
+      question: { label: 'Question', borderStyle: 'solid', borderShape: 'rounded', backgroundColor: '#E0FFFF' },
+      other:    { label: 'Other',    borderStyle: 'solid', borderShape: 'rounded', backgroundColor: '#FFFACD' },
+    },
+    otherSubtypes: [
+      { id: 'displays',   label: 'Displays' },
+      { id: 'suggests',   label: 'Suggests' },
+      { id: 'summarizes', label: 'Summarizes' },
+      { id: 'restates',   label: 'Restates' },
+      { id: 'highlights', label: 'Highlights' },
+      { id: 'validates',  label: 'Validates' },
+    ],
+  };
 }
 ```
 
@@ -271,7 +319,7 @@ loadDiagram: (elements, connections, name, transcript, styleConfig) => {
 |---|---|---|
 | **JSON save** | Direct serialization | Add `styleConfig` to the saved object; bump schema to 1.3 |
 | **PDF export** (`pdfExport.ts`) | `Konva.stages[0].toDataURL()` snapshot of live stage | **No code changes.** The live canvas already renders from `styleConfig` via the updated shape components, so the PNG/PDF inherits it for free |
-| **SVG export** (`svgExport.ts`) | Independent SVG-string rendering using `getContributorColor` and `getTeacherSupportColors` | **Must be updated.** Read `styleConfig` from `useDiagramStore.getState().styleConfig`; pass to a new `renderArgumentSvg(el, styleConfig)` / `renderSupportSvg(el, styleConfig)` that mirrors the resolver. Use the resolved style values for `stroke`, `stroke-dasharray`, `fill`, and the shape element (`<rect>` vs `<rect rx>` vs `<ellipse>`) |
+| **SVG export** (`svgExport.ts`) | Independent SVG-string rendering using `getContributorColor` and `getTeacherSupportColors` | **Must be updated.** Read `styleConfig` from `useDiagramStore.getState().styleConfig`; pass to `renderArgumentSvg(el, styleConfig)` / `renderSupportSvg(el, styleConfig)` that mirrors the resolver. Use the resolved style values for `stroke`, `stroke-dasharray`, `fill`, and the shape element (`<rect>` vs `<rect rx>` vs `<ellipse>`). **Orphan elements:** render the warning marker as a small inline SVG `<text>` element with `⚠` (single character, no external icon dependency) at top-right corner; element body uses the placeholder label `[deleted subtype]` |
 | **`.diagramx` export** (`diagramxExport.ts`) | Independent — exports to DiagramMix's bplist format with its own shape vocabulary | **Label-only update.** The Level A MVP exports everything as rectangles per its own spec; per-type shape config doesn't translate to DiagramMix's GraphicStyle ids cleanly. But user-renamed labels SHOULD propagate — read `config.argumentTypes[type].label` instead of the hardcoded type name when emitting element text |
 
 Verification step 9 (Export parity) must be exercised on **all three** non-JSON exports, not just one.
@@ -288,7 +336,10 @@ The project has no test framework installed (per `package.json`); verification i
 4. **Contributor overrides still win** — set Claim's `borderShape` to `ellipse`. A `student` claim renders as a dashed ellipse. An `implicit` claim renders as a cloud (shape override). A `given` claim renders as an ellipse with the green tint (bg override).
 5. **Subtype lifecycle** — add a subtype, assign it to an element, then delete the subtype from config. The element keeps rendering with the orphan label until reassigned (no crash).
 6. **Live preview accuracy** — settings preview pane matches what appears on the canvas.
-7. **Undo/redo** — change a type's color, hit Cmd+Z, color reverts. (Verifies `styleConfig` was added to the temporal `partialize`.)
+7. **Undo/redo** — open settings modal, change three different things across multiple types, click Apply. Hit Cmd+Z **once** — all three changes revert together (verifies single-undo-entry-per-Apply behavior). Hit Cmd+Y, all three return.
+7a. **Cancel discards** — open modal, change a type's color, click Cancel. The change is gone; the canvas is unaffected; no undo entry was created.
+7b. **Subtype delete confirmation** — add three elements with `subtype: 'displays'`. Open settings, attempt to delete the `Displays` subtype. Confirmation says "used by 3 elements". Confirm → elements show orphan warning marker (⚠) at top-right.
+7c. **Reset scoping** — modify two type styles AND add a custom subtype, click Apply. Reopen modal, click "Reset all type styles" in modal footer → confirm. Type styles revert to defaults; custom subtype is still present. Then click "Reset subtypes to defaults" inside the Subtypes editor → confirm. Custom subtype removed; any elements using it become orphans.
 8. **Palette / Properties / Transcript labels** — rename "Claim" to "Conclusion"; the palette button, Properties dropdown, and TranscriptPanel object-type dropdown all show "Conclusion".
 9. **Export parity** — exercise *all three* non-JSON exports after customizing styles:
    - **PDF:** verify the snapshot inherits the configured shape and color (no code change should mean automatic inheritance — if not, that's a bug).
@@ -303,8 +354,13 @@ The project has no test framework installed (per `package.json`); verification i
 - **`given` background overlay vs custom per-type background.** The overlay always wins for `given`-contributor elements, intentionally — the green tint is diagnostic. Document this in a comment on `resolveArgumentStyle` so future maintainers don't read it as a bug. If a user reports wanting custom `given` backgrounds per type, the upgrade path is a `contributorBackgrounds` overlay map in `StyleConfig`.
 - **Konva `dash` array values.** `[2, 4]` (dotted) and `[10, 5]` (dashed) need a quick visual check at typical zoom; they should be visually distinct from each other and from solid. CLAUDE.md flags this category of detail explicitly.
 - **Modal `<Stage>` lifecycle.** The preview Konva `<Stage>` is a separate Konva root from the canvas. Verify no event-handler leakage when the modal opens/closes repeatedly.
-- **Temporal `partialize` regression.** Adding `styleConfig` to undo history changes the size of each undo entry. Bounded by the `limit: 50` already in place — fine in practice, but worth noting.
+- **Temporal `partialize` size.** Adding `styleConfig` to undo history grows each entry slightly (a few KB at most). Bounded by `limit: 50`. The Apply/Cancel pattern keeps the entry *count* per session at 1 — no flooding risk.
 - **Schema constant fan-out.** `SAVE_SCHEMA_VERSION` is consumed by every save path; the bump to `1.3` is one line, but loaders should still gracefully handle `1.2` (and earlier) by calling `createV1_2_MigrationDefaults()` when `styleConfig` is absent. No version-gated loader fork needed.
+
+## Out of scope (documented for future work)
+
+- **Per-subtype styling.** All Other-Support subtypes (`Displays`, `Suggests`, custom ones) share the parent `Other` type's style — they differ only in the displayed label text. A user adding "Hedging" and "Restating" as custom subtypes will see them as visually identical goldenrod rounded rectangles distinguished only by label. If a research convention emerges that wants visually distinct subtypes (e.g., "Hedging" as a parallelogram), this would require promoting `OtherSubtype` to a full `TypeStyle`-bearing entity and adding another resolver layer. Punted from MVP because the current brainstorm did not surface it as a need; revisit if the limitation bites.
+- **Configurable contributor border color.** Border color stays speaker-derived per the original brainstorm. If a user customizes a type's background to clash with the contributor color (red bg + blue student border), there is no in-tool fix. Acceptable trade-off for now.
 
 ## Files affected
 
@@ -321,7 +377,7 @@ The project has no test framework installed (per `package.json`); verification i
 
 **Modified:**
 - `src/types/index.ts` — re-export new types
-- `src/store/diagramStore.ts` — add `styleConfig` state field, new action setters, update `partialize`, update `loadDiagram` signature, update `clearDiagram` to seed defaults
+- `src/store/diagramStore.ts` — add `styleConfig` state field, single `replaceStyleConfig(config)` action, add `styleConfig` to temporal `partialize`, update `loadDiagram` signature to accept optional `styleConfig`, update `clearDiagram` to seed `createCurrentDefaults()`
 - `src/components/Canvas/shapes/ArgumentShape.tsx` — config-aware shape branches
 - `src/components/Canvas/shapes/SupportShape.tsx` — config-aware shape branches
 - `src/components/Canvas/shapes/TeacherSupportShape.tsx` — same (or delete if verifiably unreachable)
