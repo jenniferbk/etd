@@ -1,7 +1,12 @@
 import { Circle, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement } from '../../../types';
-import { isArrowAttachment } from '../../../types';
+import {
+  isArgumentElement,
+  isSupportElement,
+  isTeacherSupportElement,
+  isArrowAttachment,
+} from '../../../types';
 
 interface ArrowProps {
   connection: Connection;
@@ -23,7 +28,8 @@ function getElementCenter(el: DiagramElement): { x: number; y: number } {
   };
 }
 
-// Calculate point along a polyline at position t (0-1)
+// Calculate point along a polyline at position t (0-1).
+// Works on any polyline including a single 2-point segment.
 function getPointOnPolyline(
   points: number[],
   t: number
@@ -32,9 +38,12 @@ function getPointOnPolyline(
     return { x: points[0] || 0, y: points[1] || 0 };
   }
 
-  // Calculate total length
   let totalLength = 0;
-  const segments: { start: { x: number; y: number }; end: { x: number; y: number }; length: number }[] = [];
+  const segments: {
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+    length: number;
+  }[] = [];
 
   for (let i = 0; i < points.length - 2; i += 2) {
     const start = { x: points[i], y: points[i + 1] };
@@ -44,7 +53,6 @@ function getPointOnPolyline(
     totalLength += length;
   }
 
-  // Find the point at position t
   const targetLength = t * totalLength;
   let accLength = 0;
 
@@ -59,170 +67,98 @@ function getPointOnPolyline(
     accLength += seg.length;
   }
 
-  // Return end point
   return { x: points[points.length - 2], y: points[points.length - 1] };
 }
 
-// Determine the best edge to exit/enter an element based on target position
-// Returns the edge point and which edge was chosen
-type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
-
-// Check if a Y-coordinate is within an element's vertical span
-function isYWithinElement(el: DiagramElement, y: number): boolean {
-  return y >= el.position.y && y <= el.position.y + el.size.height;
+// Decide which silhouette to clip a connector against for a given element.
+// 'ellipse' = action support shapes and the cloud "implicit" argument shape
+// (clipped to its bounding-box ellipse — the bezier bumps reach roughly to
+// that envelope, so the line ends at the cloud's outer edge).
+// 'rect' = everything else: axis-aligned bounding box.
+type ShapeKind = 'rect' | 'ellipse';
+function getShapeKind(el: DiagramElement): ShapeKind {
+  if (isArgumentElement(el) && el.contributor === 'implicit') return 'ellipse';
+  if (isSupportElement(el) && el.supportType === 'action') return 'ellipse';
+  if (isTeacherSupportElement(el) && el.supportType === 'action') return 'ellipse';
+  return 'rect';
 }
 
-// Check if an X-coordinate is within an element's horizontal span
-function isXWithinElement(el: DiagramElement, x: number): boolean {
-  return x >= el.position.x && x <= el.position.x + el.size.width;
-}
-
-function getBestEdgePoint(
-  el: DiagramElement,
-  target: { x: number; y: number },
-  preferHorizontal: boolean = false
-): { x: number; y: number; side: EdgeSide } {
-  const center = getElementCenter(el);
+// Find the point where a line from `center` toward `target` exits an
+// axis-aligned rectangle of half-width hw and half-height hh centered on `center`.
+function lineRectEdgePoint(
+  center: { x: number; y: number },
+  hw: number,
+  hh: number,
+  target: { x: number; y: number }
+): { x: number; y: number } {
   const dx = target.x - center.x;
   const dy = target.y - center.y;
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(dy);
-
-  // Determine which edge to use
-  const useHorizontalEdge = preferHorizontal || absDx > absDy;
-
-  if (useHorizontalEdge) {
-    // Exiting left or right
-    const side: EdgeSide = dx >= 0 ? 'right' : 'left';
-    const edgeX = side === 'right' ? el.position.x + el.size.width : el.position.x;
-
-    // KEY CHANGE: If target's Y is within this element's vertical span,
-    // exit at target's Y level (lane-aligned routing)
-    let edgeY: number;
-    if (isYWithinElement(el, target.y)) {
-      edgeY = target.y;
-    } else {
-      // Target is outside our vertical span, use center
-      edgeY = center.y;
-    }
-
-    return { x: edgeX, y: edgeY, side };
-  } else {
-    // Exiting top or bottom
-    const side: EdgeSide = dy >= 0 ? 'bottom' : 'top';
-    const edgeY = side === 'bottom' ? el.position.y + el.size.height : el.position.y;
-
-    // If target's X is within this element's horizontal span,
-    // exit at target's X level
-    let edgeX: number;
-    if (isXWithinElement(el, target.x)) {
-      edgeX = target.x;
-    } else {
-      edgeX = center.x;
-    }
-
-    return { x: edgeX, y: edgeY, side };
-  }
+  if (dx === 0 && dy === 0) return { x: center.x, y: center.y };
+  const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
+  const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
+  const t = Math.min(tx, ty);
+  return { x: center.x + t * dx, y: center.y + t * dy };
 }
 
-// Generate flexible orthogonal path between two elements
-// Adapts routing based on relative positions
-// KEY: When source spans target's Y-level, creates lane-aligned horizontal connections
-function getOrthogonalPath(
+// Find the point where a line from `center` toward `target` exits an ellipse
+// centered on `center` with semi-axes (rx, ry). Closed-form solution.
+function lineEllipseEdgePoint(
+  center: { x: number; y: number },
+  rx: number,
+  ry: number,
+  target: { x: number; y: number }
+): { x: number; y: number } {
+  const dx = target.x - center.x;
+  const dy = target.y - center.y;
+  const len = Math.hypot(dx, dy);
+  if (len === 0) return { x: center.x, y: center.y };
+  const ux = dx / len;
+  const uy = dy / len;
+  const s = 1 / Math.sqrt((ux * ux) / (rx * rx) + (uy * uy) / (ry * ry));
+  return { x: center.x + s * ux, y: center.y + s * uy };
+}
+
+// Boundary point of an element along the line from its center toward `target`.
+// Picks rectangle or ellipse silhouette based on element type.
+function getEdgePoint(
+  el: DiagramElement,
+  target: { x: number; y: number }
+): { x: number; y: number } {
+  const center = getElementCenter(el);
+  const hw = el.size.width / 2;
+  const hh = el.size.height / 2;
+  if (getShapeKind(el) === 'ellipse') {
+    return lineEllipseEdgePoint(center, hw, hh, target);
+  }
+  return lineRectEdgePoint(center, hw, hh, target);
+}
+
+// Build a straight 2-point path between two elements. Both endpoints lie on
+// each element's silhouette along the source-center → target-center line.
+function getStraightPath(
   fromEl: DiagramElement,
   toEl: DiagramElement
 ): { points: number[] } {
   const fromCenter = getElementCenter(fromEl);
   const toCenter = getElementCenter(toEl);
-
-  // Determine primary direction (horizontal or vertical)
-  const dx = toCenter.x - fromCenter.x;
-  const absDx = Math.abs(dx);
-  const absDy = Math.abs(toCenter.y - fromCenter.y);
-  const preferHorizontal = absDx >= absDy;
-
-  // Get exit and entry points - these now consider lane alignment
-  const fromEdge = getBestEdgePoint(fromEl, toCenter, preferHorizontal);
-  const toEdge = getBestEdgePoint(toEl, fromCenter, preferHorizontal);
-
-  const points: number[] = [fromEdge.x, fromEdge.y];
-
-  // Check if exit and entry points are at the same Y level (lane-aligned)
-  const edgesHorizontallyAligned = Math.abs(fromEdge.y - toEdge.y) < 5;
-  // Check if exit and entry points are at the same X level
-  const edgesVerticallyAligned = Math.abs(fromEdge.x - toEdge.x) < 5;
-
-  // Route based on edge alignment (not center alignment)
-  if (edgesHorizontallyAligned && (fromEdge.side === 'left' || fromEdge.side === 'right')) {
-    // Exit and entry at same Y level, both horizontal edges → straight horizontal line
-    points.push(toEdge.x, toEdge.y);
-  } else if (edgesVerticallyAligned && (fromEdge.side === 'top' || fromEdge.side === 'bottom')) {
-    // Exit and entry at same X level, both vertical edges → straight vertical line
-    points.push(toEdge.x, toEdge.y);
-  } else if (fromEdge.side === 'left' || fromEdge.side === 'right') {
-    // Exiting horizontally
-    if (toEdge.side === 'left' || toEdge.side === 'right') {
-      // Both horizontal edges but different Y levels - Z-shape routing
-      const midX = (fromEdge.x + toEdge.x) / 2;
-      points.push(midX, fromEdge.y);
-      points.push(midX, toEdge.y);
-      points.push(toEdge.x, toEdge.y);
-    } else {
-      // Horizontal exit, vertical entry - L-shape
-      points.push(toEdge.x, fromEdge.y);
-      points.push(toEdge.x, toEdge.y);
-    }
-  } else {
-    // Exiting vertically (top or bottom)
-    if (toEdge.side === 'top' || toEdge.side === 'bottom') {
-      // Both vertical edges but different X levels - Z-shape routing
-      const midY = (fromEdge.y + toEdge.y) / 2;
-      points.push(fromEdge.x, midY);
-      points.push(toEdge.x, midY);
-      points.push(toEdge.x, toEdge.y);
-    } else {
-      // Vertical exit, horizontal entry - L-shape
-      points.push(fromEdge.x, toEdge.y);
-      points.push(toEdge.x, toEdge.y);
-    }
-  }
-
-  return { points };
+  const fromEdge = getEdgePoint(fromEl, toCenter);
+  const toEdge = getEdgePoint(toEl, fromCenter);
+  return { points: [fromEdge.x, fromEdge.y, toEdge.x, toEdge.y] };
 }
 
-// Get orthogonal path for arrow attachment (e.g., warrant to data→claim arrow)
-function getOrthogonalPathToArrow(
+// Build a straight 2-point path from an element to a point on another
+// connection. Source side is clipped to the element's silhouette; the
+// attachment side terminates exactly at the attachment point.
+function getStraightPathToArrow(
   fromEl: DiagramElement,
   attachPoint: { x: number; y: number }
 ): { points: number[] } {
-  const fromEdge = getBestEdgePoint(fromEl, attachPoint);
-
-  const points: number[] = [fromEdge.x, fromEdge.y];
-
-  // Check if roughly aligned
-  const dx = Math.abs(attachPoint.x - fromEdge.x);
-  const dy = Math.abs(attachPoint.y - fromEdge.y);
-
-  if (dx < 10) {
-    // Vertically aligned - go straight
-    points.push(attachPoint.x, attachPoint.y);
-  } else if (dy < 10) {
-    // Horizontally aligned - go straight
-    points.push(attachPoint.x, attachPoint.y);
-  } else if (fromEdge.side === 'left' || fromEdge.side === 'right') {
-    // L-shape: horizontal then vertical
-    points.push(attachPoint.x, fromEdge.y);
-    points.push(attachPoint.x, attachPoint.y);
-  } else {
-    // L-shape: vertical then horizontal
-    points.push(fromEdge.x, attachPoint.y);
-    points.push(attachPoint.x, attachPoint.y);
-  }
-
-  return { points };
+  const fromEdge = getEdgePoint(fromEl, attachPoint);
+  return { points: [fromEdge.x, fromEdge.y, attachPoint.x, attachPoint.y] };
 }
 
-// Get the orthogonal path points for a connection
+// Resolve a connection to its rendered polyline points. Recursively resolves
+// arrow-attachment connections by computing the parent's path first.
 function getConnectionPathPoints(
   connection: Connection,
   elements: DiagramElement[],
@@ -232,7 +168,6 @@ function getConnectionPathPoints(
   if (!fromEl) return null;
 
   if (isArrowAttachment(connection.to)) {
-    // This connection attaches to another connection
     const attachment = connection.to;
     const targetConn = connections.find((c) => c.id === attachment.connectionId);
     if (!targetConn) return null;
@@ -241,14 +176,12 @@ function getConnectionPathPoints(
     if (!targetResult) return null;
 
     const attachPoint = getPointOnPolyline(targetResult.points, connection.to.position);
-    return getOrthogonalPathToArrow(fromEl, attachPoint);
-  } else {
-    // Standard element-to-element connection
-    const toEl = elements.find((el) => el.id === connection.to);
-    if (!toEl) return null;
-
-    return getOrthogonalPath(fromEl, toEl);
+    return getStraightPathToArrow(fromEl, attachPoint);
   }
+
+  const toEl = elements.find((el) => el.id === connection.to);
+  if (!toEl) return null;
+  return getStraightPath(fromEl, toEl);
 }
 
 export function ConnectionArrow({
@@ -362,7 +295,7 @@ export function ConnectionArrow({
 
   return (
     <>
-      {/* Orthogonal path line */}
+      {/* Connector line */}
       <Line
         points={pathPoints}
         stroke={strokeColor}
