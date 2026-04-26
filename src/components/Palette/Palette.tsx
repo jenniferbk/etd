@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, Link2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import type {
@@ -7,21 +7,12 @@ import type {
   ArgumentElement,
   SupportElement,
   SupportType,
-  SupportSubtype,
   SupportContributor,
   InfoBoxElement,
 } from '../../types';
 import { COLORS, getSupportColors } from '../../utils/colors';
 import { theme } from '../../utils/theme';
 
-const ARGUMENT_TYPES: { type: ArgumentType; label: string }[] = [
-  { type: 'data', label: 'Data' },
-  { type: 'claim', label: 'Claim' },
-  { type: 'warrant', label: 'Warrant' },
-  { type: 'backing', label: 'Backing' },
-  { type: 'qualifier', label: 'Qualifier' },
-  { type: 'rebuttal', label: 'Rebuttal' },
-];
 
 const CONTRIBUTOR_TYPES: { type: ContributorType; label: string; color: string }[] = [
   { type: 'given', label: 'Given', color: COLORS.given },
@@ -31,14 +22,6 @@ const CONTRIBUTOR_TYPES: { type: ContributorType; label: string; color: string }
   { type: 'implicit', label: 'Implicit', color: COLORS.implicit },
 ];
 
-const SUPPORT_SUBTYPES: SupportSubtype[] = [
-  'displays',
-  'suggests',
-  'summarizes',
-  'restates',
-  'highlights',
-  'validates',
-];
 
 const SUPPORT_CONTRIBUTORS: { type: SupportContributor; label: string; color: string }[] = [
   { type: 'teacher', label: 'Teacher', color: COLORS.teacher },
@@ -51,17 +34,39 @@ interface PaletteProps {
 }
 
 export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
+  const addElement = useDiagramStore((state) => state.addElement);
+  const elements = useDiagramStore((state) => state.elements);
+  const styleConfig = useDiagramStore((s) => s.styleConfig);
+
+  const ARGUMENT_TYPES: { type: ArgumentType; label: string }[] = [
+    { type: 'data',      label: styleConfig.argumentTypes.data.label },
+    { type: 'claim',     label: styleConfig.argumentTypes.claim.label },
+    { type: 'warrant',   label: styleConfig.argumentTypes.warrant.label },
+    { type: 'backing',   label: styleConfig.argumentTypes.backing.label },
+    { type: 'qualifier', label: styleConfig.argumentTypes.qualifier.label },
+    { type: 'rebuttal',  label: styleConfig.argumentTypes.rebuttal.label },
+  ];
+
+  const SUPPORT_SUBTYPES = styleConfig.otherSubtypes;
+
   const [selectedContributor, setSelectedContributor] = useState<ContributorType>('student');
   const [selectedSupportContributor, setSelectedSupportContributor] = useState<SupportContributor>('teacher');
-  const [selectedSubtype, setSelectedSubtype] = useState<SupportSubtype>('displays');
+  const [selectedSubtype, setSelectedSubtype] = useState<string>(
+    styleConfig.otherSubtypes[0]?.id ?? 'displays'
+  );
   const [expandedSections, setExpandedSections] = useState({
     arguments: true,
     contributor: true,
     support: true,
     annotations: true,
   });
-  const addElement = useDiagramStore((state) => state.addElement);
-  const elements = useDiagramStore((state) => state.elements);
+
+  useEffect(() => {
+    const exists = styleConfig.otherSubtypes.some((s) => s.id === selectedSubtype);
+    if (!exists && styleConfig.otherSubtypes[0]) {
+      setSelectedSubtype(styleConfig.otherSubtypes[0].id);
+    }
+  }, [styleConfig.otherSubtypes, selectedSubtype]);
 
   const generateId = () => `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -363,14 +368,14 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                 backgroundColor: 'transparent'
               }}
             >
-              Action
+              {styleConfig.supportTypes.action.label}
             </button>
             <button
               onClick={() => handleAddSupport('question')}
               className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
               style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill, color: '#0d7377' }}
             >
-              Question
+              {styleConfig.supportTypes.question.label}
             </button>
             <div className="space-y-2">
               <button
@@ -378,11 +383,11 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                 className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
                 style={{ borderColor: COLORS.otherSupport, backgroundColor: COLORS.otherSupportFill, color: '#9a7b0a' }}
               >
-                Other Support
+                {styleConfig.supportTypes.other.label}
               </button>
               <select
                 value={selectedSubtype}
-                onChange={(e) => setSelectedSubtype(e.target.value as SupportSubtype)}
+                onChange={(e) => setSelectedSubtype(e.target.value)}
                 className="w-full px-3 py-2 text-sm rounded-lg border transition-colors duration-150"
                 style={{
                   backgroundColor: theme.sidebar.surface,
@@ -391,8 +396,8 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                 }}
               >
                 {SUPPORT_SUBTYPES.map((subtype) => (
-                  <option key={subtype} value={subtype}>
-                    {subtype.charAt(0).toUpperCase() + subtype.slice(1)}
+                  <option key={subtype.id} value={subtype.id}>
+                    {subtype.label}
                   </option>
                 ))}
               </select>
