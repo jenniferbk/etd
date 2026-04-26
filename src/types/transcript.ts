@@ -12,6 +12,7 @@ export interface TranscriptLine {
   contributor: ContributorType | null;
   objectType: TranscriptObjectType | null;
   subtype?: SupportSubtype;   // only meaningful when objectType === 'other'
+  dismissed?: boolean;        // explicit "reviewed and not argument-relevant" judgment
 }
 
 export interface Transcript {

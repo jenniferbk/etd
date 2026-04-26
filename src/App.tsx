@@ -8,7 +8,10 @@ import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 import { parseTranscript } from './utils/transcriptParser';
+import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel } from './components/TranscriptPanel';
+import { PanelRightOpen } from 'lucide-react';
+import { theme } from './utils/theme';
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
@@ -42,16 +45,29 @@ function App() {
   // Check for auto-saved data on mount
   useEffect(() => {
     const saved = getAutoSavedData();
-    if (saved && (saved.elements.length > 0 || saved.connections.length > 0)) {
+    if (
+      saved &&
+      (saved.elements.length > 0 ||
+        saved.connections.length > 0 ||
+        saved.transcript != null) // Loose equality: older autosave entries (pre-Task-3) lack `transcript`, so saved.transcript may be undefined rather than null.
+    ) {
       setRecoveryData({ timestamp: saved.timestamp });
     }
   }, []);
+
+  // Auto-open the transcript panel when a transcript becomes loaded in the store.
+  // Triggers on JSON load, autosave recovery, or any future load path. Setting
+  // to true is idempotent if already open. Manual close after auto-open still
+  // works; the next null→non-null transition reopens.
+  useEffect(() => {
+    if (transcript) setTranscriptPanelOpen(true);
+  }, [transcript]);
 
   // Handle recovery
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
     if (saved) {
-      loadDiagram(saved.elements, saved.connections);
+      loadDiagram(saved.elements, saved.connections, undefined /* name: default */, saved.transcript);
       clearAutoSave();
     }
     setRecoveryData(null);
@@ -86,7 +102,7 @@ function App() {
       name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'diagram';
 
     const data = {
-      version: '1.1',
+      version: SAVE_SCHEMA_VERSION,
       name: diagramName,
       elements,
       connections,
@@ -332,7 +348,24 @@ function App() {
           onConnectionStart={handleConnectionStart}
           connectingFrom={connectingFrom}
         />
-        {transcriptPanelOpen && <TranscriptPanel />}
+        {transcriptPanelOpen ? (
+          <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setTranscriptPanelOpen(true)}
+            title="Show transcript panel"
+            aria-label="Show transcript panel"
+            className="w-8 border-l flex items-start justify-center pt-4 hover:opacity-80"
+            style={{
+              background: theme.sidebar.bgGradient,
+              borderColor: theme.sidebar.border,
+              color: theme.sidebar.textSecondary,
+            }}
+          >
+            <PanelRightOpen size={16} />
+          </button>
+        )}
       </div>
       <PropertiesPanel />
 

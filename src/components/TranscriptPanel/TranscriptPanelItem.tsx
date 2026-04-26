@@ -65,18 +65,22 @@ export interface TranscriptPanelItemProps {
   line: TranscriptLine;
   transcriptId: string;
   used: boolean;
+  dismissed: boolean;
   altRow: boolean;
   onContributorChange: (value: ContributorType | null) => void;
   onObjectTypeChange: (objectType: TranscriptObjectType | null, subtype?: SupportSubtype) => void;
+  onDismissChange: (dismissed: boolean) => void;
 }
 
 export function TranscriptPanelItem({
   line,
   transcriptId,
   used,
+  dismissed,
   altRow,
   onContributorChange,
   onObjectTypeChange,
+  onDismissChange,
 }: TranscriptPanelItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const incompatible = isIncompatible(line.contributor, line.objectType);
@@ -125,20 +129,27 @@ export function TranscriptPanelItem({
     fontWeight: 500,
   };
 
+  const ariaLabel = dismissed && !used ? 'Dismissed: not relevant' : undefined;
+
   return (
     <div
       draggable={canDrag}
       onDragStart={handleDragStart}
+      onClick={() => {
+        if (used) return;
+        onDismissChange(!dismissed);
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       title={dragTooltip || undefined}
+      aria-label={ariaLabel}
       className="p-3 transition-colors duration-100"
       style={{
         backgroundColor: cardBg,
         borderLeft: `3px solid ${borderColor}`,
         borderBottom: `1px solid ${theme.sidebar.border}`,
-        opacity: used ? 0.55 : 1,
-        cursor: canDrag ? 'grab' : 'not-allowed',
+        opacity: dismissed ? 0.75 : 1,
+        cursor: canDrag ? 'grab' : (used ? 'default' : 'pointer'),
       }}
     >
       <div className="flex items-center justify-between mb-1 gap-2">
@@ -177,6 +188,8 @@ export function TranscriptPanelItem({
           WebkitLineClamp: 3,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
+          textDecoration: (dismissed && !used) ? 'line-through' : 'none',
+          fontStyle: used ? 'italic' : 'normal',
         }}
         title={line.text}
       >
@@ -187,6 +200,7 @@ export function TranscriptPanelItem({
         <select
           value={line.contributor ?? ''}
           onChange={(e) => onContributorChange(e.target.value === '' ? null : (e.target.value as ContributorType))}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex-1 px-2 py-1 text-xs rounded"
           style={dropdownStyle}
         >
@@ -201,6 +215,7 @@ export function TranscriptPanelItem({
             const { objectType, subtype } = decodeObjectTypeValue(e.target.value);
             onObjectTypeChange(objectType, subtype);
           }}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex-1 px-2 py-1 text-xs rounded"
           style={dropdownStyle}
         >

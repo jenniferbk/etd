@@ -21,12 +21,12 @@ Four persistence/UX bugs and one new feature, all in the transcript-ingester sub
 
 - Add a `dismissed?: boolean` field to `TranscriptLine` and bump the save schema from 1.1 to 1.2.
 - `dismissed` and `used` are **independent flags**. A line can be both. The display layer uses `used` as the priority signal when both are true.
-- Add a checkbox toggle in the transcript panel item, always visible for not-used lines, hidden for used lines.
-- Visually distinguish dismissed lines with a strikethrough, opacity 0.75, and a "— not relevant" label. Add an accessible state indicator for screen readers.
+- Make each transcript-panel row clickable to toggle `dismissed` on not-used rows; clicking is a no-op on used rows.
+- Visually distinguish dismissed (not-used) lines with a strikethrough on the text body and slightly reduced opacity (0.75). Distinguish used lines with italic text and a "✓ used" label, while keeping them at full opacity. Add an accessible state indicator (`aria-label`) for the dismissed state so it's announced to screen readers.
 - Fix Bug A: include `transcript` in autosave; extend the recovery-prompt trigger condition; pass the transcript on recovery.
 - Fix Bug B: auto-open the transcript panel when the store's `transcript` transitions from null to non-null.
 - Fix Bug C: pass `null` as the transcript arg on the `.drawing` import path.
-- Fix Bug D: rewire the panel's X button to just close the panel (toggle local UI state) without touching the transcript store.
+- Fix Bug D: rewire the panel's collapse button to just hide the panel (toggle local UI state) without touching the transcript store, and add an edge expand button so the user can bring the panel back.
 - Consolidate the save schema version to a single exported constant so future bumps don't drift.
 
 ## Non-goals
@@ -35,11 +35,11 @@ Four persistence/UX bugs and one new feature, all in the transcript-ingester sub
 - No new state machine — `used` stays a derived property rather than promoted to a stored status enum.
 - No mass-dismiss / bulk-action UI; per-line toggle only.
 - No filtering/hiding of dismissed lines from the panel — they remain visible (just visually de-emphasized) so researchers can revisit the judgment.
-- No tooltip or disabled-button affordance for the dismiss control on used lines — the checkbox is simply absent (rationale: a used line is by definition argument-relevant; dismissing it would express a contradiction).
+- No tooltip or disabled visual on used lines for the dismiss control — clicking a used row is simply a no-op (rationale: a used line is by definition argument-relevant; dismissing it would express a contradiction).
 - No migration of existing `.json` files; missing `dismissed` field is treated as `false`.
 - No reconciliation when a researcher reloads an edited source transcript: dismissed flags will be lost. (See Risks.)
 - No undo/redo for dismiss-state changes. The store's zundo `partialize` (currently `{elements, connections}`) is not extended; dismissing or un-dismissing a line is a deliberate review action, not an editing action that needs an undo path.
-- No new "Clear transcript" affordance to replace the destructive X behavior. Loading a different transcript or `.drawing` file still replaces the in-store transcript via the existing `loadDiagram` / `setTranscript` paths.
+- No new "Clear transcript" affordance to replace the destructive X behavior. Loading a different transcript or `.drawing` file still replaces the in-store transcript via the existing `loadDiagram` / `setTranscript` paths. (Acknowledged gap: with the collapse button decoupled, there's no in-app way to return to the empty-state panel without loading a different transcript or clearing localStorage. Queued for the follow-up "transcript panel UI cleanup" sub-project, which also handles toolbar de-clutter.)
 
 ## Design
 
@@ -74,34 +74,53 @@ This model has the side benefit of avoiding any cross-store atomic write (no nee
 
 ### 3. Toggle UI
 
-Small checkbox, always visible, in the **top-left corner** of each `TranscriptPanelItem`, before the timestamp. Checked = dismissed.
+**Click anywhere on the row to toggle `dismissed`** — but only on rows where `!used`. The whole `TranscriptPanelItem` root `<div>` carries an `onClick` that calls `onDismissChange(!dismissed)` when the line is not used, and is a no-op on used lines (where dismissal is meaningless).
 
 Toggling dispatches `updateTranscriptLine(index, { dismissed: <new> })` (the action already exists in `diagramStore.ts:433-444`).
 
-**Used lines: checkbox is hidden entirely.** A line already on the canvas is by definition relevant; the dismissed control is moot. If the user wants to record a dismissed judgment on a used line, they delete the corresponding element first and the checkbox reappears. (Rationale stated above; restated here so a future implementor doesn't think it's an oversight.)
+**Why row-click instead of a dedicated checkbox affordance:** an earlier iteration used a small checkbox in the top-left corner. In hands-on use the checkbox was hard to hit; the row is a much larger target and matches a natural "tap-to-mark" interaction for transcript review work.
 
-The checkbox is its own click target — it must call `e.stopPropagation()` (or equivalent) so the click doesn't bubble into the drag-handle or item-select behavior.
+The two `<select>` dropdowns (contributor, objectType) inside the row have `onMouseDown={(e) => e.stopPropagation()}` so opening a dropdown does not also toggle dismissed. No other event-handling dance is required: native form-control mousedowns suppress drag initiation by the browser, and `onClick`/`onChange` events on `<select>` don't bubble in a way that would trigger the row's click handler.
+
+**Used lines: clicking is a no-op.** A line already on the canvas is by definition relevant; toggling dismissed on it is meaningless. The user has to delete the corresponding element first to bring the line out of the `used` bucket; then row-click toggles dismissed normally.
 
 ### 4. Visual treatment
 
-In `TranscriptPanelItem.tsx`, replace the existing two-state styling (`opacity: used ? 0.55 : 1`) with three states:
+In `TranscriptPanelItem.tsx`, replace the existing two-state styling (`opacity: used ? 0.55 : 1`) with this combination of signals:
 
 ```typescript
-const opacity = used ? 0.55 : (dismissed ? 0.75 : 1);
+// Root-div opacity: dismissed (not-used) lines fade slightly; used and unreviewed
+// lines stay full brightness. Used lines are differentiated by italic + label, not
+// by dimming — researchers found dimming used lines made them harder to skim.
+const opacity = dismissed ? 0.75 : 1;
+
+// Text-body strikethrough: dismissed lines (when not used) are crossed out.
+// Used wins display priority, so used+dismissed lines do not render strikethrough.
 const textDecoration = (dismissed && !used) ? 'line-through' : 'none';
-const stateLabel = used ? '✓ used'
-  : (dismissed ? '— not relevant' : null);
+
+// Text-body italic: used lines render in italic to distinguish them at a glance.
+const fontStyle = used ? 'italic' : 'normal';
+
+// Right-side label: only "✓ used" is rendered; dismissed lines have no label —
+// the strikethrough alone is the dismissed signal.
+const stateLabel = used ? '✓ used' : null;
 ```
 
-The strikethrough applies to text content only, not the timestamp or speaker — keeps the metadata legible so the line stays identifiable at a glance.
+Strikethrough and italic apply to the text body only, not to the timestamp or speaker line — keeps metadata legible so the utterance stays identifiable.
 
-**Accessibility.** When a line is dismissed (and not used), set `aria-label` (or a visually-hidden text node) describing the state to screen readers, e.g. `aria-label="Dismissed: not relevant"` on the item container, or include the `stateLabel` text in a `<span className="sr-only">`. Strikethrough is a visual-only signal and does not propagate to assistive tech.
+The cursor on the row reflects what's actionable: `canDrag ? 'grab' : (used ? 'default' : 'pointer')`. Draggable rows show grab (drag is the primary affordance; click-to-dismiss is secondary). Non-draggable not-used rows show pointer (only click works). Used rows that aren't draggable show default.
 
-### 5. Panel auto-open and X-button fix
+**Accessibility.** When a line is dismissed and not used, set `aria-label="Dismissed: not relevant"` on the item container so the dismissed state is announced to screen readers — strikethrough is visual-only and does not propagate to assistive tech. Used lines do not need an aria-label because the visible "✓ used" `<span>` is in the DOM and read aloud as part of the row's accessible name.
 
-Two coupled changes in this section.
+### 5. Panel collapse/expand and auto-open
 
-**X-button decoupling (Bug D fix).** In `TranscriptPanel.tsx`, the panel doesn't currently know how to "close itself" — `handleClose` calls `setTranscript(null)`, which is destructive. Fix by passing a `onClose: () => void` prop from `App.tsx` that flips `setTranscriptPanelOpen(false)`. The component's `handleClose` invokes that prop instead of calling the store. The transcript stays in the store; only the panel hides.
+Three coupled changes in this section.
+
+**Collapse-button decoupling (Bug D fix).** In `TranscriptPanel.tsx`, the panel doesn't currently know how to "close itself" — `handleClose` calls `setTranscript(null)`, which is destructive. Fix by passing an `onClose: () => void` prop from `App.tsx` that flips `setTranscriptPanelOpen(false)`. The component's `handleClose` invokes that prop instead of calling the store. The transcript stays in the store; only the panel hides.
+
+The header icon is a `PanelRightClose` (lucide-react), with `title="Hide panel"` — the prior `<X>` icon and `"Close transcript"` tooltip both implied the action was destructive, which it no longer is.
+
+**Edge expand button.** When `transcriptPanelOpen === false`, render a thin 32px-wide right-edge tab in `App.tsx` in place of the panel. The tab uses the same gradient/border as the panel for visual continuity, shows a `PanelRightOpen` icon at the top, and clicking it sets `transcriptPanelOpen(true)`. Tooltip: "Show transcript panel". This gives the user a dedicated way to bring the panel back without going through the toolbar's panel-toggle button (which is itself queued for removal in a follow-up sub-project).
 
 **Panel auto-open.** In `App.tsx`, add a `useEffect` that watches the store's `transcript` field:
 
@@ -113,7 +132,7 @@ useEffect(() => {
 
 Triggers on every transition where `transcript` becomes non-null — covers JSON load, autosave recovery (after Bug A is fixed), and any future load path. Idempotent on "already open." Manual close after auto-open continues to work; the next load reopens.
 
-This combination resolves the latent bug Gemini and the subagent both flagged: previously, "close panel" was equivalent to "destroy transcript," and a destroyed transcript wouldn't trigger the auto-open `useEffect` — so the destructive behavior was silent. With X decoupled, the user's mental model ("X means hide") matches the code.
+This combination resolves the latent bug both adversarial reviewers flagged: previously, "close panel" was equivalent to "destroy transcript," and a destroyed transcript wouldn't trigger the auto-open `useEffect` — so the destructive behavior was silent. With the collapse button decoupled and a dedicated expand affordance, the user's mental model ("collapse means hide; expand means show") matches the code.
 
 ### 6. Bug A — autosave includes transcript
 
@@ -184,9 +203,9 @@ Replace both literals with imports of the constant. This pulls the consolidation
 ## Files affected
 
 - `src/types/transcript.ts` — add `dismissed?: boolean` field on `TranscriptLine`
-- `src/components/TranscriptPanel/TranscriptPanelItem.tsx` — checkbox UI, three-state opacity/strikethrough/label, `aria-label` for dismissed state
-- `src/components/TranscriptPanel/TranscriptPanel.tsx` — pass `dismissed` through to items; rewire `handleClose` to call a new `onClose` prop instead of `setTranscript(null)`
-- `src/App.tsx` — `useEffect` for panel auto-open; pass `onClose={() => setTranscriptPanelOpen(false)}` to `<TranscriptPanel />`; update recovery-prompt trigger condition; update `handleRecover` to pass transcript
+- `src/components/TranscriptPanel/TranscriptPanelItem.tsx` — row-level click toggles dismissed; three-state visual (used = italic + label, dismissed = strikethrough + 0.75 opacity, neither = default); `aria-label` for dismissed state; `onMouseDown` `stopPropagation` on the two `<select>` dropdowns so they don't toggle dismissed
+- `src/components/TranscriptPanel/TranscriptPanel.tsx` — pass `dismissed` through to items; rewire `handleClose` to call a new `onClose` prop instead of `setTranscript(null)`; replace `<X>` icon with `<PanelRightClose>`; tooltip "Hide panel"
+- `src/App.tsx` — `useEffect` for panel auto-open; pass `onClose={() => setTranscriptPanelOpen(false)}` to `<TranscriptPanel />`; render a thin 32px right-edge expand tab (`<PanelRightOpen>` icon) when `transcriptPanelOpen === false`; update recovery-prompt trigger condition; update `handleRecover` to pass transcript
 - `src/hooks/useAutoSave.ts` — include `transcript` in saved payload; extend save guard
 - `src/components/Toolbar/Toolbar.tsx` — pass `null` on `.drawing` import path; replace `'1.1'` literal at line 75 with the new constant
 - `src/App.tsx` (also) — replace `'1.1'` literal at line 89 with the new constant
@@ -215,27 +234,31 @@ No changes expected in:
 
 Manual browser verification with Claude for Chrome:
 
-- **Dismissed flow.** Load a transcript, check the dismiss checkbox on a line — confirm strikethrough + opacity 0.75 + "— not relevant" label appear; uncheck — confirm restoration.
-- **Used overrides dismissed (display priority).** Dismiss a line. Drag it onto the canvas to create an element. Confirm the line now shows "✓ used" styling and the dismiss checkbox is hidden (line is `used && dismissed` in storage; `used` wins display).
-- **Dismissed reappears after element delete.** Continuing the previous case: delete the element. Confirm the line returns to "— not relevant" display (the stored `dismissed: true` is still there), checkbox visible and checked.
-- **Used-only line.** Drag a non-dismissed line to canvas; confirm checkbox absent and "✓ used" styling shown.
+- **Dismissed flow.** Load a transcript, click anywhere on a non-used row — confirm strikethrough + opacity 0.75 appear (no label); click again — confirm restoration.
+- **Click on dropdown does not toggle dismiss.** Load a transcript. On a non-used row, click the contributor dropdown to open it, then close without changing. Confirm the row's `dismissed` state did NOT change. Same for the objectType dropdown.
+- **Used overrides dismissed (display priority).** Dismiss a line. Drag it onto the canvas to create an element. Confirm the line now shows italic text + "✓ used" label and full opacity (line is `used && dismissed` in storage; `used` wins display, no strikethrough).
+- **Dismissed reappears after element delete.** Continuing the previous case: delete the element. Confirm the line returns to strikethrough + 0.75 opacity (the stored `dismissed: true` is still there).
+- **Used-only line.** Drag a non-dismissed line to canvas; confirm italic + "✓ used" label shown, full opacity, no strikethrough.
+- **Click on used row is a no-op.** With a used line, click it. Confirm `dismissed` does NOT toggle to true.
 - **Save/load round-trip.** Create a diagram with one used line, one dismissed line, one used+dismissed line, one default line; save; reload page; load the JSON; confirm all four states come back correctly. Confirm panel auto-opens on load.
 - **Schema version persisted.** Open the saved JSON in a text editor; confirm version is `'1.2'` (sourced from the new constant) and `dismissed: true` is present on the dismissed lines, absent or `false` on others.
 - **Old-file load.** Load a previously-saved 1.1 file; confirm it loads without errors and no lines appear dismissed.
 - **Autosave recovery — diagram + transcript.** Load a transcript and create a few elements; wait 60 seconds for autosave; reload the page; confirm the recovery prompt appears, accept it, and confirm both the diagram and the transcript come back. Panel auto-opens.
 - **Autosave recovery — transcript only.** Load a transcript, dismiss a few lines, do not create any elements; wait 60 seconds; reload; confirm the recovery prompt appears (this requires the recovery trigger condition to be extended); accept and confirm dismissed flags are restored.
-- **`.drawing` import after JSON.** Load a JSON with a transcript; then load a `.drawing` file; confirm the in-store transcript is cleared and only the new diagram's elements appear. Panel closes (or stays empty).
-- **X-button fix.** Open the transcript panel via load. Click X. Confirm the panel hides but the transcript is still in the store (verifiable by re-opening via the panel-toggle button — transcript reappears, dismissed flags intact).
-- **Auto-open after manual close.** Open via load → click X to close → load a different transcript JSON. Confirm panel auto-opens with the new transcript.
-- **Static checks.** `npm run lint` (Canvas-related lint baseline preserved), `npm run build` (clean `tsc -b`).
+- **`.drawing` import after JSON.** Load a JSON with a transcript; then load a `.drawing` file; confirm the in-store transcript is cleared and only the new diagram's elements appear. Panel hides (transcript-null state).
+- **Collapse/expand affordances.** Open the transcript panel via load. Click the `PanelRightClose` icon in the panel header. Confirm the panel hides AND the in-store transcript is preserved (a thin 32px right-edge tab with `PanelRightOpen` icon should be visible). Click that edge tab; panel reopens with the transcript intact.
+- **Empty-state expand.** From a fresh session (or after clearing localStorage and reloading): without loading any transcript, click the edge expand tab. Confirm the panel opens with the empty state ("No transcript loaded" + "Load transcript (.txt)" button).
+- **Auto-open after manual close.** Open via load → click collapse → load a different transcript JSON. Confirm panel auto-opens with the new transcript.
+- **Static checks.** `npm run lint` (lint baseline preserved), `npm run build` (clean `tsc -b`).
 
 ## Out of scope (queued as separate sub-projects)
 
 These remain pending after this work:
 
 1. **Configurable support types** — deferred work; prior brainstorm captured in memory.
-2. **UI bug review** — researcher's list of disallowed actions that should be allowed.
-3. **Transcript reload reconciliation** — preserve dismissed flags and element back-pointers across edits to the source `.txt`. Likely keys: `(speaker, timestamp, text)` triple matching with a fallback to manual reconciliation. Substantial design work; deferred.
+2. **Transcript panel UI cleanup** — bundle (a) in-app "Clear transcript" affordance to restore the empty state without loading another transcript or clearing localStorage, (b) remove the toolbar's panel-toggle button (now fully redundant with the in-panel collapse + edge expand affordances), (c) remove the toolbar's "Load transcript" button (redundant with the panel's empty-state upload button), (d) any other top-strip de-clutter.
+3. **UI bug review** — researcher's list of disallowed actions that should be allowed.
+4. **Transcript reload reconciliation** — preserve dismissed flags and element back-pointers across edits to the source `.txt`. Likely keys: `(speaker, timestamp, text)` triple matching with a fallback to manual reconciliation. Substantial design work; deferred.
 
 Each gets its own brainstorm → spec → plan cycle.
 
