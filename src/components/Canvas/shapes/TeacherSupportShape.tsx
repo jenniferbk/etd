@@ -1,7 +1,8 @@
-import { Group, Ellipse, Rect, Text } from 'react-konva';
+import { Group, Rect, Ellipse, Text } from 'react-konva';
 import type Konva from 'konva';
-import type { TeacherSupportElement } from '../../../types';
-import { getTeacherSupportColors } from '../../../utils/colors';
+import type { TeacherSupportElement, SupportElement } from '../../../types';
+import { useDiagramStore } from '../../../store';
+import { resolveSupportStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
 
 interface TeacherSupportShapeProps {
   element: TeacherSupportElement;
@@ -27,7 +28,16 @@ export function TeacherSupportShape({
   onContextMenu,
 }: TeacherSupportShapeProps) {
   const { position, size, content, supportType, subtype, attribution } = element;
-  const { border, fill } = getTeacherSupportColors(supportType);
+
+  const styleConfig = useDiagramStore((s) => s.styleConfig);
+  // TeacherSupportElement has no contributor field; treat as teacher.
+  const synthesized: SupportElement = {
+    ...element,
+    type: 'support',
+    contributor: 'teacher',
+  };
+  const style = resolveSupportStyle(synthesized, styleConfig);
+  const dashArray = dashArrayForBorderStyle(style.borderStyle);
 
   const padding = 8;
 
@@ -36,31 +46,29 @@ export function TeacherSupportShape({
     ? `${attribution.speaker || ''}${attribution.speaker && attribution.timestamp ? ' @ ' : ''}${attribution.timestamp || ''}`
     : '';
 
-  // Teacher Action - Red Ellipse
-  if (supportType === 'action') {
-    return (
-      <Group
-        ref={shapeRef}
-        x={position.x}
-        y={position.y}
-        draggable
-        onClick={onSelect}
-        onTap={onSelect}
-        onDblClick={onDoubleClick}
-        onDblTap={onDoubleClick}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
-        onContextMenu={onContextMenu}
-      >
+  // Build header label (action has no header; no contributor badge for legacy teacher elements)
+  const supportTypeLabel = styleConfig.supportTypes[supportType].label;
+  const subtypeLabel = supportType === 'other' && subtype
+    ? styleConfig.otherSubtypes.find((s) => s.id === subtype)?.label ?? subtype
+    : null;
+  const headerLabel =
+    supportType === 'action' ? '' :
+    supportType === 'question' ? supportTypeLabel :
+    subtypeLabel ?? supportTypeLabel;
+
+  // Shape node: ellipse for action, rounded/plain rect otherwise
+  const shapeNode =
+    style.borderShape === 'ellipse' ? (
+      <>
         <Ellipse
           x={size.width / 2}
           y={size.height / 2}
           radiusX={size.width / 2}
           radiusY={size.height / 2}
-          fill={fill}
-          stroke={border}
-          strokeWidth={2}
+          fill={style.backgroundColor}
+          stroke={style.borderColor}
+          strokeWidth={style.borderWidth}
+          dash={dashArray}
         />
         {isSelected && (
           <Ellipse
@@ -73,60 +81,17 @@ export function TeacherSupportShape({
             dash={[5, 3]}
           />
         )}
-        {/* Content - positioned in upper portion of ellipse */}
-        <Text
-          x={padding * 2}
-          y={size.height * 0.15}
-          width={size.width - padding * 4}
-          height={attributionText ? size.height * 0.55 : size.height * 0.7}
-          text={content}
-          fontSize={11}
-          fill={border}
-          align="center"
-          verticalAlign="middle"
-          wrap="word"
-        />
-        {/* Attribution - fixed position near bottom of ellipse */}
-        {attributionText && (
-          <Text
-            x={padding * 2}
-            y={size.height * 0.72}
-            width={size.width - padding * 4}
-            text={attributionText}
-            fontSize={9}
-            fill={border}
-            fontStyle="italic"
-            align="center"
-          />
-        )}
-      </Group>
-    );
-  }
-
-  // Question - Aqua Rounded Rectangle
-  if (supportType === 'question') {
-    return (
-      <Group
-        ref={shapeRef}
-        x={position.x}
-        y={position.y}
-        draggable
-        onClick={onSelect}
-        onTap={onSelect}
-        onDblClick={onDoubleClick}
-        onDblTap={onDoubleClick}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
-        onContextMenu={onContextMenu}
-      >
+      </>
+    ) : (
+      <>
         <Rect
           width={size.width}
           height={size.height}
-          fill={fill}
-          stroke={border}
-          strokeWidth={2}
-          cornerRadius={8}
+          fill={style.backgroundColor}
+          stroke={style.borderColor}
+          strokeWidth={style.borderWidth}
+          dash={dashArray}
+          cornerRadius={style.borderShape === 'rounded' ? 8 : 0}
         />
         {isSelected && (
           <Rect
@@ -136,49 +101,14 @@ export function TeacherSupportShape({
             y={-3}
             stroke="#4A90D9"
             strokeWidth={2}
+            fill="transparent"
             dash={[5, 3]}
-            cornerRadius={10}
+            cornerRadius={style.borderShape === 'rounded' ? 10 : 0}
           />
         )}
-        {/* Label */}
-        <Text
-          x={padding}
-          y={padding}
-          width={size.width - padding * 2}
-          text="Question"
-          fontSize={10}
-          fontStyle="bold"
-          fill={border}
-        />
-        {/* Content */}
-        <Text
-          x={padding}
-          y={padding + 14}
-          width={size.width - padding * 2}
-          height={size.height - padding * 2 - 14 - (attributionText ? 12 : 0)}
-          text={content}
-          fontSize={11}
-          fill="#000000"
-          wrap="word"
-        />
-        {/* Attribution */}
-        {attributionText && (
-          <Text
-            x={padding}
-            y={size.height - 14}
-            width={size.width - padding * 2}
-            text={attributionText}
-            fontSize={9}
-            fill="#666666"
-            fontStyle="italic"
-            align="right"
-          />
-        )}
-      </Group>
+      </>
     );
-  }
 
-  // Other Support - Gold Rounded Rectangle
   return (
     <Group
       ref={shapeRef}
@@ -194,58 +124,51 @@ export function TeacherSupportShape({
       onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
       onContextMenu={onContextMenu}
     >
-      <Rect
-        width={size.width}
-        height={size.height}
-        fill={fill}
-        stroke={border}
-        strokeWidth={2}
-        cornerRadius={8}
-      />
-      {isSelected && (
-        <Rect
-          width={size.width + 6}
-          height={size.height + 6}
-          x={-3}
-          y={-3}
-          stroke="#4A90D9"
-          strokeWidth={2}
-          dash={[5, 3]}
-          cornerRadius={10}
+      {shapeNode}
+      {/* Header label (empty for action) */}
+      {headerLabel !== '' && (
+        <Text
+          x={padding}
+          y={padding}
+          width={size.width - padding * 2}
+          text={headerLabel}
+          fontSize={10}
+          fontStyle="bold"
+          fill={style.borderColor}
         />
       )}
-      {/* Label with subtype */}
-      <Text
-        x={padding}
-        y={padding}
-        width={size.width - padding * 2}
-        text={`Other Support: ${subtype ? subtype.charAt(0).toUpperCase() + subtype.slice(1) : ''}`}
-        fontSize={10}
-        fontStyle="bold"
-        fill="#000000"
-      />
       {/* Content */}
       <Text
-        x={padding}
-        y={padding + 14}
-        width={size.width - padding * 2}
-        height={size.height - padding * 2 - 14 - (attributionText ? 12 : 0)}
+        x={style.borderShape === 'ellipse' ? padding * 2 : padding}
+        y={style.borderShape === 'ellipse'
+          ? size.height * 0.15
+          : headerLabel !== '' ? padding + 14 : padding}
+        width={style.borderShape === 'ellipse'
+          ? size.width - padding * 4
+          : size.width - padding * 2}
+        height={style.borderShape === 'ellipse'
+          ? (attributionText ? size.height * 0.55 : size.height * 0.7)
+          : size.height - padding * 2 - (headerLabel !== '' ? 14 : 0) - (attributionText ? 12 : 0)}
         text={content}
         fontSize={11}
         fill="#000000"
+        align={style.borderShape === 'ellipse' ? 'center' : 'left'}
+        verticalAlign={style.borderShape === 'ellipse' ? 'middle' : 'top'}
         wrap="word"
       />
       {/* Attribution */}
       {attributionText && (
         <Text
-          x={padding}
-          y={size.height - 14}
-          width={size.width - padding * 2}
+          x={style.borderShape === 'ellipse' ? padding * 2 : padding}
+          y={style.borderShape === 'ellipse' ? size.height * 0.72 : size.height - 14}
+          width={style.borderShape === 'ellipse'
+            ? size.width - padding * 4
+            : size.width - padding * 2}
           text={attributionText}
           fontSize={9}
           fill="#666666"
           fontStyle="italic"
-          align="right"
+          align={style.borderShape === 'ellipse' ? 'center' : 'right'}
         />
       )}
     </Group>
