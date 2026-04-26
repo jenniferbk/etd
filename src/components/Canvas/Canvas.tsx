@@ -348,11 +348,6 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [setSelectedIds, connectMode]
   );
 
-  // Handle element drag start
-  const handleElementDragStart = useCallback(() => {
-    // intentionally empty — kept for shape prop compatibility
-  }, []);
-
   // Handle element drag end
   const handleElementDragEnd = useCallback(
     (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
@@ -651,7 +646,6 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -667,7 +661,6 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -684,7 +677,6 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
@@ -700,7 +692,6 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id)}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragStart={handleElementDragStart}
                   onDragEnd={(e) => handleElementDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
