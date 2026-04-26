@@ -53,7 +53,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const {
     zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
-    transcript,
+    transcript, styleConfig,
   } = useDiagramStore();
 
   // Reset view: zoom to 100% and pan back to origin — rescues the user when they've
@@ -77,6 +77,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
       name: diagramName,
       elements,
       connections,
+      styleConfig,
       transcript,
     };
     const json = JSON.stringify(data, null, 2);
@@ -113,7 +114,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
-            loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null);
+            loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig);
           } else {
             alert('Invalid diagram file format');
           }

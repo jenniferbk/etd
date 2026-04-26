@@ -6,6 +6,8 @@ import type {
   SupportContributor, ArgumentElement, SupportElement,
   Transcript, TranscriptLine,
 } from '../types';
+import type { StyleConfig } from '../types/styleConfig';
+import { createCurrentDefaults, createV1_2_MigrationDefaults } from '../utils/styleConfigDefaults';
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
 
@@ -66,6 +68,9 @@ interface DiagramState {
   // Transcript
   transcript: Transcript | null;
 
+  // Style configuration (per-diagram)
+  styleConfig: StyleConfig;
+
   // Actions - Elements
   addElement: (element: DiagramElement) => void;
   updateElement: (id: string, updates: Partial<DiagramElement>) => void;
@@ -107,12 +112,16 @@ interface DiagramState {
   setTranscript: (transcript: Transcript | null) => void;
   updateTranscriptLine: (lineIndex: number, patch: Partial<TranscriptLine>) => void;
 
+  // Actions - Style config
+  replaceStyleConfig: (config: StyleConfig) => void;
+
   // Actions - File operations
   loadDiagram: (
     elements: DiagramElement[],
     connections: Connection[],
     name?: string,
     transcript?: Transcript | null,
+    styleConfig?: StyleConfig,
   ) => void;
   clearDiagram: () => void;
 }
@@ -132,6 +141,7 @@ export const useDiagramStore = create<DiagramState>()(
         position: { x: 50, y: 50 },
       },
       transcript: null,
+      styleConfig: createCurrentDefaults(),
 
       addElement: (element) =>
         set((state) => {
@@ -430,6 +440,8 @@ export const useDiagramStore = create<DiagramState>()(
 
       setTranscript: (transcript) => set({ transcript }),
 
+      replaceStyleConfig: (config) => set({ styleConfig: config }),
+
       updateTranscriptLine: (lineIndex, patch) =>
         set((state) => {
           if (!state.transcript) return state;
@@ -445,7 +457,7 @@ export const useDiagramStore = create<DiagramState>()(
 
       setDiagramName: (name) => set({ diagramName: name }),
 
-      loadDiagram: (elements, connections, name, transcript) => {
+      loadDiagram: (elements, connections, name, transcript, styleConfig) => {
         // Auto-size all elements on load to ensure content fits
         const sizedElements = elements.map((el) => {
           const autoSize = getAutoSize(el);
@@ -457,6 +469,9 @@ export const useDiagramStore = create<DiagramState>()(
           selectedIds: [],
           diagramName: name || 'Untitled Diagram',
           transcript: transcript ?? null,
+          // v1.2 files have no styleConfig — apply the FROZEN migration defaults.
+          // v1.3+ files pass their saved config through.
+          styleConfig: styleConfig ?? createV1_2_MigrationDefaults(),
         });
       },
 
@@ -471,13 +486,15 @@ export const useDiagramStore = create<DiagramState>()(
           panY: 0,
           legendConfig: { visible: false, position: { x: 50, y: 50 } },
           transcript: state.transcript, // preserved intentionally
+          styleConfig: createCurrentDefaults(),
         })),
     }),
     {
-      // Only track elements and connections for undo/redo
+      // Track elements, connections, and styleConfig for undo/redo
       partialize: (state) => ({
         elements: state.elements,
         connections: state.connections,
+        styleConfig: state.styleConfig,
       }),
       limit: 50,
     }
