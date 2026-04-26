@@ -1,7 +1,16 @@
 # Configurable Element Styles — Design
 
 **Date:** 2026-04-26
-**Status:** Design approved; pending final spec review before plan-writing.
+**Status:** Design approved; revised after adversarial review (Gemini + self-review). Pending final spec review before plan-writing.
+
+**Revision history:**
+- v1 (initial): five sections written and approved interactively, committed at 2d7a917.
+- v2 (this revision): adversarial review folded in. Changes:
+  - Subtype IDs: new ones use `crypto.randomUUID()`; six v1.2 defaults keep their slug ids for backwards compat. Re-adding a deleted subtype gets a fresh id (no ghost-resurrection of orphaned references).
+  - Orphan subtypes: visible error state (`[deleted subtype]` placeholder + red dashed outline + warning icon) instead of silent fallback to raw id.
+  - Defaults split into two functions: `createV1_2_MigrationDefaults()` (frozen forever) and `createCurrentDefaults()` (may evolve). Loading v1.2 always uses the frozen one.
+  - Resolver: `student` → dashed border now applies to supports too (was arguments-only). Joint/implicit/given overlays still arguments-only (those contributors don't exist for supports).
+  - Per-export-path coverage made explicit: PDF needs no change (live-stage snapshot); SVG needs full resolver plumbing; `.diagramx` propagates renamed labels only.
 
 ## Background
 
@@ -14,7 +23,7 @@ This feature makes the per-type style configurable inside the editor. Configurat
 - Add a `styleConfig` field on the diagram, stored alongside `elements` and `connections`, and bump the save schema from `1.2` to `1.3`.
 - Make per-type **display label**, **border style** (solid/dashed/dotted), **border shape** (rectangle/rounded/ellipse), and **background color** editable for all six argument types and all three support types.
 - Make the "Other Support" subtype list fully editable per diagram (add, rename, remove, reorder).
-- Preserve existing contributor-derived visual conventions as **overlays** on top of per-type config: `student` → dashed; `joint` → dot-dash; `implicit` → cloud shape; `given` → light-green background tint.
+- Preserve existing contributor-derived visual conventions as **overlays** on top of per-type config: `student` → dashed (applies to both arguments and supports); `joint` → dot-dash (arguments only — supports don't have a `joint` contributor); `implicit` → cloud shape (arguments only); `given` → light-green background tint (arguments only).
 - Reach the per-diagram config through a gear icon in the toolbar that opens a modal with a sidebar list, an edit pane, and a live preview.
 - Loading a v1.2 diagram (no `styleConfig`) applies built-in defaults that exactly match today's visual conventions — no visual change for any existing diagram.
 
@@ -45,7 +54,8 @@ export interface TypeStyle {
 }
 
 export interface OtherSubtype {
-  id: string;     // stable, e.g. "displays" or a uuid for new ones
+  id: string;     // stable. Six default ids are slugs ("displays" etc.) for v1.2 backwards compat.
+                  // ALL new subtypes use crypto.randomUUID() — never slug-from-label.
   label: string;  // display label, e.g. "Displays"
 }
 
@@ -60,8 +70,9 @@ Key choices:
 
 - **Internal keys are immutable.** `argumentType` and `supportType` discriminators on `DiagramElement` never change at runtime. Only `TypeStyle.label` (display) varies. This protects connections, the four export paths (PNG/SVG/PDF/.diagramx), the schema, the resolver branches, and any future analysis pipelines.
 - **`otherSubtypes` is an ordered array, not a `Record`.** Order matters in the dropdown UI, and entries can be added/removed at runtime. The element-side field `subtype?: SupportSubtype` (already a `string` type with custom-value support per `src/types/elements.ts:30`) stores the `id`.
-- **Orphan subtypes render gracefully.** If a subtype is removed from `styleConfig.otherSubtypes` while elements still reference its `id`, those elements continue to render with the orphan `id` as the displayed label until the user assigns a different subtype. (Same defensive pattern the transcript ingester uses for orphan transcript references.)
-- **Backwards compatibility on load.** A v1.2 diagram has no `styleConfig` field. The loader applies `createDefaultStyleConfig()` so the diagram renders identically to before. Saving always writes v1.3.
+- **Subtype IDs are stable and never label-derived.** The six v1.2 defaults keep their slug ids (`'displays'`, `'suggests'`, etc.) so existing diagrams' `subtype: 'displays'` references still resolve. Every subtype added through the UI gets `crypto.randomUUID()`. Decoupling id from label means renaming a subtype never breaks references, and re-adding a previously-deleted subtype gets a fresh id (it does *not* reattach orphaned elements — that would be silent ghost-resurrection).
+- **Orphan subtypes show a visible error state.** If an element's `subtype` id is not present in `config.otherSubtypes`, the element renders with a placeholder label `"[deleted subtype]"`, a red dashed outline, and a small warning icon. The Properties panel for that element shows the subtype dropdown in error state with `"[Deleted Subtype — pick a new one]"` as the current value, forcing the user to assign a valid subtype to clear the error. Silent fallback to the raw id is rejected — UUIDs as on-canvas labels would leak meaningless data.
+- **Backwards compatibility on load.** A v1.2 diagram has no `styleConfig` field. The loader applies `createV1_2_MigrationDefaults()` (a frozen function — see "Defaults and migration") so the diagram renders identically to before. Saving always writes v1.3.
 
 The save schema constant in `src/utils/schema.ts` bumps:
 
@@ -122,9 +133,16 @@ export function resolveSupportStyle(
   // Border color stays contributor-derived (existing getSupportColors logic).
   // We discard the .fill it returns; the per-type config now owns background.
   const { border } = getSupportColors(el.supportType, el.contributor);
+
+  // Symmetric with resolveArgumentStyle: student contributor → dashed border.
+  // SupportContributor only has 'teacher' | 'student' so joint/implicit/given
+  // overlays from the argument resolver don't apply here.
+  const borderStyle: ResolvedStyle['borderStyle'] =
+    el.contributor === 'student' ? 'dashed' : typeStyle.borderStyle;
+
   return {
     borderColor: border,
-    borderStyle: typeStyle.borderStyle,
+    borderStyle,
     borderShape: typeStyle.borderShape,
     backgroundColor: typeStyle.backgroundColor,
     borderWidth: 2,
@@ -185,12 +203,19 @@ No "Save"/"Cancel" buttons — edits apply immediately and the canvas behind the
 
 ## Defaults and migration
 
-A new file `src/utils/styleConfigDefaults.ts` exposes a single factory used for new diagrams, "Reset all", and per-type resets:
+A new file `src/utils/styleConfigDefaults.ts` exposes **two** factory functions:
+
+- `createV1_2_MigrationDefaults()` — the frozen factory used **only** for migrating v1.2 diagrams to v1.3 on load. This function MUST NOT change once shipped. It is the contract that says "a v1.2 diagram opened in any future version of the editor renders the way it did in v1.2."
+- `createCurrentDefaults()` — used for new diagrams, "Reset all to defaults", and per-type resets. May evolve over time.
+
+At launch, both functions return identical config. They diverge only if defaults are ever changed in a future release. Splitting them now (rather than later, when it would require backfilling) prevents silently re-styling every old diagram on load.
 
 ```ts
 import type { StyleConfig } from '../types/styleConfig';
 
-export function createDefaultStyleConfig(): StyleConfig {
+// FROZEN — never modify. Used only for v1.2 → v1.3 load migration.
+// If defaults change in the future, change createCurrentDefaults instead.
+export function createV1_2_MigrationDefaults(): StyleConfig {
   return {
     argumentTypes: {
       data:      { label: 'Data',      borderStyle: 'solid', borderShape: 'rectangle', backgroundColor: '#FFFFFF' },
@@ -215,22 +240,41 @@ export function createDefaultStyleConfig(): StyleConfig {
     ],
   };
 }
+
+// Used for new diagrams, "Reset all to defaults", and per-type resets.
+// Safe to evolve in future releases.
+export function createCurrentDefaults(): StyleConfig {
+  return createV1_2_MigrationDefaults();  // identical at launch; will diverge if defaults change later
+}
 ```
 
 These match today's visual conventions exactly. The `given` contributor's green tint (`#F0FFF0`) is *not* in this defaults factory — it's applied as a contributor overlay in `resolveArgumentStyle`, symmetric with how `student=dashed` and `implicit=cloud` are applied.
 
-**Load migration.** `diagramStore.loadDiagram()` accepts an optional `styleConfig` parameter. When absent (v1.2 file), the loader calls `createDefaultStyleConfig()`:
+**Load migration.** `diagramStore.loadDiagram()` accepts an optional `styleConfig` parameter. When absent (v1.2 file), the loader calls `createV1_2_MigrationDefaults()`:
 
 ```ts
 loadDiagram: (elements, connections, name, transcript, styleConfig) => {
   set({
     // existing fields...
-    styleConfig: styleConfig ?? createDefaultStyleConfig(),
+    styleConfig: styleConfig ?? createV1_2_MigrationDefaults(),
   });
 }
 ```
 
-The four save/load utilities — `pdfExport`, `svgExport`, `diagramxExport`, and the JSON save path in `Toolbar.tsx` — read/write the new field. Schema version bumps to `1.3` (`SAVE_SCHEMA_VERSION` in `src/utils/schema.ts`).
+`clearDiagram` and the "new diagram" path use `createCurrentDefaults()`. The Settings modal "Reset all to defaults" button also uses `createCurrentDefaults()`.
+
+**Save path.** The JSON save flow in `Toolbar.tsx` writes the new `styleConfig` field. Schema version bumps to `1.3` (`SAVE_SCHEMA_VERSION` in `src/utils/schema.ts`).
+
+**Per-export-path coverage.** The four output paths each work differently — explicit treatment needed:
+
+| Export | Rendering path | styleConfig handling |
+|---|---|---|
+| **JSON save** | Direct serialization | Add `styleConfig` to the saved object; bump schema to 1.3 |
+| **PDF export** (`pdfExport.ts`) | `Konva.stages[0].toDataURL()` snapshot of live stage | **No code changes.** The live canvas already renders from `styleConfig` via the updated shape components, so the PNG/PDF inherits it for free |
+| **SVG export** (`svgExport.ts`) | Independent SVG-string rendering using `getContributorColor` and `getTeacherSupportColors` | **Must be updated.** Read `styleConfig` from `useDiagramStore.getState().styleConfig`; pass to a new `renderArgumentSvg(el, styleConfig)` / `renderSupportSvg(el, styleConfig)` that mirrors the resolver. Use the resolved style values for `stroke`, `stroke-dasharray`, `fill`, and the shape element (`<rect>` vs `<rect rx>` vs `<ellipse>`) |
+| **`.diagramx` export** (`diagramxExport.ts`) | Independent — exports to DiagramMix's bplist format with its own shape vocabulary | **Label-only update.** The Level A MVP exports everything as rectangles per its own spec; per-type shape config doesn't translate to DiagramMix's GraphicStyle ids cleanly. But user-renamed labels SHOULD propagate — read `config.argumentTypes[type].label` instead of the hardcoded type name when emitting element text |
+
+Verification step 9 (Export parity) must be exercised on **all three** non-JSON exports, not just one.
 
 **Cross-version behavior.** A v1.3 file opened in a future v1.x reader can ignore unknown fields. A v1.2 (older) reader silently loses the `styleConfig` and renders with its hardcoded defaults — acceptable for a research tool with a small set of users.
 
@@ -246,7 +290,10 @@ The project has no test framework installed (per `package.json`); verification i
 6. **Live preview accuracy** — settings preview pane matches what appears on the canvas.
 7. **Undo/redo** — change a type's color, hit Cmd+Z, color reverts. (Verifies `styleConfig` was added to the temporal `partialize`.)
 8. **Palette / Properties / Transcript labels** — rename "Claim" to "Conclusion"; the palette button, Properties dropdown, and TranscriptPanel object-type dropdown all show "Conclusion".
-9. **Export parity** — PNG, SVG, and PDF exports use the configured styles (re-use the same renderers).
+9. **Export parity** — exercise *all three* non-JSON exports after customizing styles:
+   - **PDF:** verify the snapshot inherits the configured shape and color (no code change should mean automatic inheritance — if not, that's a bug).
+   - **SVG:** open the exported `.svg` and confirm strokes, dash arrays, fills, and shape elements (`<rect>` vs `<ellipse>`) match the canvas. Confirm contributor overlays (student=dashed) survive.
+   - **`.diagramx`:** open in DiagramMix; user-renamed labels appear; shape changes do NOT (acceptable per Level A spec).
 10. **Browser test with Claude for Chrome** — drag/drop new elements after config changes; verify dashed/dotted borders, ellipse shape, and colors render correctly (per CLAUDE.md "Critical Rendering Details" — dashed must look dashed, not dotted).
 
 **Optional follow-up (not in scope):** add `vitest` plus a small test file for `resolveArgumentStyle` and `resolveSupportStyle`. Pure functions, ideal first tests, ~30 lines. Would catch resolver regressions without browser work.
@@ -257,14 +304,14 @@ The project has no test framework installed (per `package.json`); verification i
 - **Konva `dash` array values.** `[2, 4]` (dotted) and `[10, 5]` (dashed) need a quick visual check at typical zoom; they should be visually distinct from each other and from solid. CLAUDE.md flags this category of detail explicitly.
 - **Modal `<Stage>` lifecycle.** The preview Konva `<Stage>` is a separate Konva root from the canvas. Verify no event-handler leakage when the modal opens/closes repeatedly.
 - **Temporal `partialize` regression.** Adding `styleConfig` to undo history changes the size of each undo entry. Bounded by the `limit: 50` already in place — fine in practice, but worth noting.
-- **Schema constant fan-out.** `SAVE_SCHEMA_VERSION` is consumed by every save path; the bump to `1.3` is one line, but loaders should still gracefully handle `1.2` (and earlier) by calling `createDefaultStyleConfig()` when `styleConfig` is absent. No version-gated loader fork needed.
+- **Schema constant fan-out.** `SAVE_SCHEMA_VERSION` is consumed by every save path; the bump to `1.3` is one line, but loaders should still gracefully handle `1.2` (and earlier) by calling `createV1_2_MigrationDefaults()` when `styleConfig` is absent. No version-gated loader fork needed.
 
 ## Files affected
 
 **New:**
 - `src/types/styleConfig.ts` — `StyleConfig`, `TypeStyle`, `OtherSubtype`, `BorderStyle`, `BorderShape` types
 - `src/utils/styleResolver.ts` — `resolveArgumentStyle`, `resolveSupportStyle`
-- `src/utils/styleConfigDefaults.ts` — `createDefaultStyleConfig`
+- `src/utils/styleConfigDefaults.ts` — `createV1_2_MigrationDefaults` (frozen) and `createCurrentDefaults`
 - `src/components/Settings/SettingsModal.tsx`
 - `src/components/Settings/SettingsSidebar.tsx`
 - `src/components/Settings/TypeStyleEditor.tsx`
@@ -283,9 +330,9 @@ The project has no test framework installed (per `package.json`); verification i
 - `src/components/TranscriptPanel/TranscriptPanelItem.tsx` — rebuild `OBJECT_TYPE_OPTIONS` from config
 - `src/components/Toolbar/Toolbar.tsx` — gear icon entry point
 - `src/utils/schema.ts` — bump `SAVE_SCHEMA_VERSION` to `1.3`
-- `src/utils/pdfExport.ts` — round-trip `styleConfig` (verify it's read from store, not stale)
-- `src/utils/svgExport.ts` — same
-- `src/utils/diagramxExport.ts` — same (skip if `.diagramx` is one-way export only)
+- `src/utils/pdfExport.ts` — **no code change** (snapshots live Konva stage; inherits config automatically)
+- `src/utils/svgExport.ts` — independent renderer; must read `styleConfig` from store and apply per-type shape/style/background and contributor overlays via the resolver pattern
+- `src/utils/diagramxExport.ts` — propagate user-renamed labels (`config.argumentTypes[type].label`); per-type shape/style not exported (Level A limitation)
 - `src/hooks/useAutoSave.ts` — include `styleConfig` in autosave payload
 - `src/components/RecoveryPrompt.tsx` — accept and forward `styleConfig` on recovery
 - `src/App.tsx` — wire `handleRecover` to pass `styleConfig`
