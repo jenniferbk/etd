@@ -102,7 +102,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
       // Handle .drawing files (DiagramMix binary plist)
       if (file.name.endsWith('.drawing')) {
         const result = await importDrawingFile(file);
-        loadDiagram(result.elements, result.connections, result.name);
+        loadDiagram(result.elements, result.connections, result.name, null);
         e.target.value = '';
         return;
       }
