@@ -43,7 +43,12 @@ function App() {
   // Check for auto-saved data on mount
   useEffect(() => {
     const saved = getAutoSavedData();
-    if (saved && (saved.elements.length > 0 || saved.connections.length > 0)) {
+    if (
+      saved &&
+      (saved.elements.length > 0 ||
+        saved.connections.length > 0 ||
+        saved.transcript != null)
+    ) {
       setRecoveryData({ timestamp: saved.timestamp });
     }
   }, []);
@@ -52,7 +57,7 @@ function App() {
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
     if (saved) {
-      loadDiagram(saved.elements, saved.connections);
+      loadDiagram(saved.elements, saved.connections, undefined, saved.transcript);
       clearAutoSave();
     }
     setRecoveryData(null);

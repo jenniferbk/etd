@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDiagramStore } from '../store';
+import type { Transcript } from '../types';
 
 const AUTO_SAVE_KEY = 'toulmin-diagram-autosave';
 const AUTO_SAVE_INTERVAL = 60000; // 60 seconds
@@ -7,6 +8,7 @@ const AUTO_SAVE_INTERVAL = 60000; // 60 seconds
 interface AutoSaveData {
   elements: ReturnType<typeof useDiagramStore.getState>['elements'];
   connections: ReturnType<typeof useDiagramStore.getState>['connections'];
+  transcript: Transcript | null;
   timestamp: number;
 }
 
@@ -18,11 +20,12 @@ export function useAutoSave() {
     intervalRef.current = window.setInterval(() => {
       const state = useDiagramStore.getState();
 
-      // Only save if there's content
-      if (state.elements.length > 0 || state.connections.length > 0) {
+      // Save if there's any work in progress: diagram content or a loaded transcript.
+      if (state.elements.length > 0 || state.connections.length > 0 || state.transcript !== null) {
         const data: AutoSaveData = {
           elements: state.elements,
           connections: state.connections,
+          transcript: state.transcript,
           timestamp: Date.now(),
         };
 
