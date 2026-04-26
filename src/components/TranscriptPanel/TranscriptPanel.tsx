@@ -157,12 +157,16 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
                 line={line}
                 transcriptId={transcript.id}
                 used={usedLineIndexes.has(line.index)}
+                dismissed={line.dismissed === true}
                 altRow={idx % 2 === 1}
                 onContributorChange={(value) =>
                   updateTranscriptLine(line.index, { contributor: value })
                 }
                 onObjectTypeChange={(objectType, subtype) =>
                   updateTranscriptLine(line.index, { objectType, subtype })
+                }
+                onDismissChange={(value) =>
+                  updateTranscriptLine(line.index, { dismissed: value })
                 }
               />
             ))}

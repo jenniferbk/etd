@@ -65,18 +65,22 @@ export interface TranscriptPanelItemProps {
   line: TranscriptLine;
   transcriptId: string;
   used: boolean;
+  dismissed: boolean;
   altRow: boolean;
   onContributorChange: (value: ContributorType | null) => void;
   onObjectTypeChange: (objectType: TranscriptObjectType | null, subtype?: SupportSubtype) => void;
+  onDismissChange: (dismissed: boolean) => void;
 }
 
 export function TranscriptPanelItem({
   line,
   transcriptId,
   used,
+  dismissed,
   altRow,
   onContributorChange,
   onObjectTypeChange,
+  onDismissChange,
 }: TranscriptPanelItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const incompatible = isIncompatible(line.contributor, line.objectType);
@@ -125,6 +129,8 @@ export function TranscriptPanelItem({
     fontWeight: 500,
   };
 
+  const ariaLabel = dismissed && !used ? 'Dismissed: not relevant' : undefined;
+
   return (
     <div
       draggable={canDrag}
@@ -132,17 +138,34 @@ export function TranscriptPanelItem({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       title={dragTooltip || undefined}
+      aria-label={ariaLabel}
       className="p-3 transition-colors duration-100"
       style={{
         backgroundColor: cardBg,
         borderLeft: `3px solid ${borderColor}`,
         borderBottom: `1px solid ${theme.sidebar.border}`,
-        opacity: used ? 0.55 : 1,
+        opacity: used ? 0.55 : (dismissed ? 0.75 : 1),
         cursor: canDrag ? 'grab' : 'not-allowed',
       }}
     >
       <div className="flex items-center justify-between mb-1 gap-2">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          {!used && (
+            <input
+              type="checkbox"
+              checked={dismissed}
+              onChange={(e) => {
+                e.stopPropagation();
+                onDismissChange(e.target.checked);
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              title={dismissed ? 'Restore: marked not relevant' : 'Mark as not relevant'}
+              aria-label={dismissed ? 'Restore: not relevant' : 'Mark as not relevant'}
+              className="cursor-pointer flex-shrink-0"
+              style={{ accentColor: theme.sidebar.accent }}
+            />
+          )}
           <GripVertical
             size={12}
             style={{
@@ -159,14 +182,21 @@ export function TranscriptPanelItem({
             <span style={{ color: theme.sidebar.textSecondary }}>{line.speaker}</span>
           </div>
         </div>
-        {used && (
+        {used ? (
           <span
             className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
             style={{ color: theme.sidebar.accent }}
           >
             ✓ used
           </span>
-        )}
+        ) : dismissed ? (
+          <span
+            className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
+            style={{ color: theme.sidebar.muted }}
+          >
+            — not relevant
+          </span>
+        ) : null}
       </div>
 
       <div
@@ -177,6 +207,7 @@ export function TranscriptPanelItem({
           WebkitLineClamp: 3,
           WebkitBoxOrient: 'vertical',
           overflow: 'hidden',
+          textDecoration: (dismissed && !used) ? 'line-through' : 'none',
         }}
         title={line.text}
       >
