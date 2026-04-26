@@ -5,7 +5,11 @@ import { theme } from '../../utils/theme';
 import { parseTranscript } from '../../utils/transcriptParser';
 import { TranscriptPanelItem } from './TranscriptPanelItem';
 
-export function TranscriptPanel() {
+interface TranscriptPanelProps {
+  onClose: () => void;
+}
+
+export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
   const transcript = useDiagramStore((s) => s.transcript);
   const setTranscript = useDiagramStore((s) => s.setTranscript);
   const updateTranscriptLine = useDiagramStore((s) => s.updateTranscriptLine);
@@ -63,7 +67,7 @@ export function TranscriptPanel() {
   };
 
   const handleClose = () => {
-    setTranscript(null);
+    onClose();
   };
 
   return (

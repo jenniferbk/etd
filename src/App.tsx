@@ -53,6 +53,14 @@ function App() {
     }
   }, []);
 
+  // Auto-open the transcript panel when a transcript becomes loaded in the store.
+  // Triggers on JSON load, autosave recovery, or any future load path. Setting
+  // to true is idempotent if already open. Manual close after auto-open still
+  // works; the next null→non-null transition reopens.
+  useEffect(() => {
+    if (transcript) setTranscriptPanelOpen(true);
+  }, [transcript]);
+
   // Handle recovery
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
@@ -338,7 +346,9 @@ function App() {
           onConnectionStart={handleConnectionStart}
           connectingFrom={connectingFrom}
         />
-        {transcriptPanelOpen && <TranscriptPanel />}
+        {transcriptPanelOpen && (
+          <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+        )}
       </div>
       <PropertiesPanel />
 
