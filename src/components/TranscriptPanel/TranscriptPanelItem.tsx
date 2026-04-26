@@ -154,12 +154,8 @@ export function TranscriptPanelItem({
             <input
               type="checkbox"
               checked={dismissed}
-              onChange={(e) => {
-                e.stopPropagation();
-                onDismissChange(e.target.checked);
-              }}
+              onChange={(e) => onDismissChange(e.target.checked)}
               onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
               title={dismissed ? 'Restore: marked not relevant' : 'Mark as not relevant'}
               aria-label={dismissed ? 'Restore: not relevant' : 'Mark as not relevant'}
               className="cursor-pointer flex-shrink-0"
