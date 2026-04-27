@@ -24,9 +24,13 @@ type ObjectTypeOption = {
   subtype?: SupportSubtype;
 };
 
-function encodeObjectTypeValue(objectType: TranscriptObjectType | null, subtype?: SupportSubtype): string {
+function encodeObjectTypeValue(
+  objectType: TranscriptObjectType | null,
+  subtype: SupportSubtype | undefined,
+  fallbackSubtypeId: string,
+): string {
   if (objectType === null) return '';
-  if (objectType === 'other') return `other:${subtype ?? 'displays'}`;
+  if (objectType === 'other') return `other:${subtype ?? fallbackSubtypeId}`;
   return objectType;
 }
 
@@ -216,7 +220,11 @@ export function TranscriptPanelItem({
         </select>
 
         <select
-          value={encodeObjectTypeValue(line.objectType, line.subtype)}
+          value={encodeObjectTypeValue(
+            line.objectType,
+            line.subtype,
+            styleConfig.otherSubtypes[0]?.id ?? '',
+          )}
           onChange={(e) => {
             const { objectType, subtype } = decodeObjectTypeValue(e.target.value, OBJECT_TYPE_OPTIONS);
             onObjectTypeChange(objectType, subtype);
