@@ -139,8 +139,10 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
 
   let shapeElement: string;
   if (style.borderShape === 'cloud') {
-    const cloudPath = generateCloudPath(x, y, width, height);
-    shapeElement = `<path d="${cloudPath}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+    // Cloud approximation for SVG export — the canvas renders a true cloud via
+    // Konva paths but exporting that is out of scope. A thick rounded rect is
+    // immediately recognizable as a cloud stand-in.
+    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="20" ry="20" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr} />`;
   } else if (style.borderShape === 'ellipse') {
     const cx = x + width / 2;
     const cy = y + height / 2;
@@ -226,10 +228,14 @@ function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number
     </g>`;
   }
 
-  // Rounded rectangle — header is type label only (no contributor prefix for teacherSupport)
+  // Orphan detection: 'other' supportType with a subtype that no longer exists in config
+  const isOrphan = el.supportType === 'other' && el.subtype !== undefined &&
+    !styleConfig.otherSubtypes.some((s) => s.id === el.subtype);
   const subtypeLabel = el.supportType === 'other' && el.subtype
-    ? (styleConfig.otherSubtypes.find((s) => s.id === el.subtype)?.label ?? el.subtype)
+    ? (styleConfig.otherSubtypes.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
     : null;
+
+  // Rounded rectangle — header is type label only (no contributor prefix for teacherSupport)
   const label = el.supportType === 'question'
     ? styleConfig.supportTypes['question'].label
     : `${styleConfig.supportTypes['other'].label}: ${subtypeLabel ?? ''}`;
@@ -244,10 +250,15 @@ function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number
     shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
   }
 
+  const orphanMarker = isOrphan
+    ? `<text x="${x + width - 16}" y="${y + 14}" fill="#CC0000" style="font-size: 14px;">&#9888;</text>`
+    : '';
+
   return `<g>
     ${shapeElement}
     <text x="${x + padding}" y="${labelY}" class="label" font-size="10" fill="${style.borderColor}">${escapeXml(label)}</text>
     <text x="${x + padding}" y="${contentY}" class="content" font-size="11" fill="#000000">${escapeXml(el.content)}</text>
+    ${orphanMarker}
   </g>`;
 }
 
@@ -289,28 +300,6 @@ function renderConnectionSvg(
   return '';
 }
 
-function generateCloudPath(x: number, y: number, width: number, height: number): string {
-  const cx = x + width / 2;
-  const cy = y + height / 2;
-  const rx = width / 2 - 5;
-  const ry = height / 2 - 5;
-  const bumps = 8;
-  const points: string[] = [];
-
-  for (let i = 0; i <= bumps * 4; i++) {
-    const angle = (i / (bumps * 4)) * Math.PI * 2;
-    const bumpOffset = Math.sin(i * Math.PI / 2) * 5;
-    const px = cx + (rx + bumpOffset) * Math.cos(angle);
-    const py = cy + (ry + bumpOffset) * Math.sin(angle);
-    if (i === 0) {
-      points.push(`M ${px} ${py}`);
-    } else {
-      points.push(`L ${px} ${py}`);
-    }
-  }
-  points.push('Z');
-  return points.join(' ');
-}
 
 function escapeXml(text: string): string {
   return text
