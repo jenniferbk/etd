@@ -21,7 +21,7 @@ export function SettingsSidebar({ config, selection, onSelect }: SettingsSidebar
   };
 
   const rowClass = (active: boolean) =>
-    `w-full text-left px-3 py-2 text-sm rounded ${active ? '' : 'hover:bg-white/5'}`;
+    `w-full text-left px-3 py-2 text-sm rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-blue-400 ${active ? '' : 'hover:bg-white/5'}`;
 
   const rowStyle = (active: boolean) => ({
     backgroundColor: active ? theme.sidebar.surfaceHover : 'transparent',
