@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { StyleConfig, TypeStyle, BorderStyle, BorderShape } from '../../types';
 import { theme } from '../../utils/theme';
 import { createCurrentDefaults } from '../../utils/styleConfigDefaults';
+import { StylePreview } from './StylePreview';
 
 interface TypeStyleEditorProps {
   kind: 'argument' | 'support';
@@ -139,6 +140,8 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
           />
         </div>
       </label>
+
+      <StylePreview kind={kind} typeKey={typeKey} config={config} />
     </div>
   );
 }
