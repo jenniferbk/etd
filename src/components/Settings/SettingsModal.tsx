@@ -4,6 +4,7 @@ import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import type { StyleConfig } from '../../types';
 import { SettingsSidebar } from './SettingsSidebar';
+import { TypeStyleEditor } from './TypeStyleEditor';
 
 export type SettingsSelection =
   | { kind: 'argument'; type: 'data' | 'claim' | 'warrant' | 'backing' | 'qualifier' | 'rebuttal' }
@@ -25,10 +26,7 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
 
   // Local working copy. Initialized once when the inner modal mounts (i.e. on open).
   // Apply commits to the store; Cancel discards by simply closing.
-  // Setter will be wired to editors in Tasks 13–16.
-  const workingConfigState = useState<StyleConfig>(committedConfig);
-  const workingConfig = workingConfigState[0];
-  // setWorkingConfig = workingConfigState[1] (used in Tasks 13–16)
+  const [workingConfig, setWorkingConfig] = useState<StyleConfig>(committedConfig);
 
   // Selection state — resets to Data on each open because SettingsModalInner remounts.
   const [selection, setSelection] = useState<SettingsSelection>({ kind: 'argument', type: 'data' });
@@ -83,10 +81,27 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
             onSelect={setSelection}
           />
           <div className="flex-1 p-6 overflow-y-auto">
-            {/* Right pane — populated in Tasks 13–16 */}
-            <div className="text-sm" style={{ color: theme.sidebar.muted }}>
-              Editor for: {selection.kind === 'subtypes' ? 'subtypes' : `${selection.kind}: ${selection.type}`} (UI in upcoming tasks)
-            </div>
+            {selection.kind === 'argument' && (
+              <TypeStyleEditor
+                key={selection.type}
+                kind="argument"
+                typeKey={selection.type}
+                config={workingConfig}
+                onChange={setWorkingConfig}
+              />
+            )}
+            {selection.kind === 'support' && (
+              <TypeStyleEditor
+                key={selection.type}
+                kind="support"
+                typeKey={selection.type}
+                config={workingConfig}
+                onChange={setWorkingConfig}
+              />
+            )}
+            {selection.kind === 'subtypes' && (
+              <div className="text-sm" style={{ color: theme.sidebar.muted }}>Subtype editor — Task 15</div>
+            )}
           </div>
         </div>
 
