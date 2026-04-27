@@ -6,16 +6,6 @@ import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
 import { useImagePaste } from '../../hooks/useImagePaste';
 
-// Argument type options
-const ARGUMENT_TYPES: { value: ArgumentType; label: string }[] = [
-  { value: 'claim', label: 'Claim' },
-  { value: 'data', label: 'Data' },
-  { value: 'warrant', label: 'Warrant' },
-  { value: 'backing', label: 'Backing' },
-  { value: 'qualifier', label: 'Qualifier' },
-  { value: 'rebuttal', label: 'Rebuttal' },
-];
-
 // Contributor type options
 const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
   { value: 'given', label: 'Given' },
@@ -24,25 +14,22 @@ const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
   { value: 'implicit', label: 'Implicit' },
 ];
 
-// Support type options
-const SUPPORT_TYPES: { value: SupportType; label: string }[] = [
-  { value: 'action', label: 'Action' },
-  { value: 'question', label: 'Question' },
-  { value: 'other', label: 'Other Support' },
-];
-
-// Support subtype options (for 'other' type)
-const SUPPORT_SUBTYPES: { value: SupportSubtype; label: string }[] = [
-  { value: 'displays', label: 'Displays' },
-  { value: 'suggests', label: 'Suggests' },
-  { value: 'summarizes', label: 'Summarizes' },
-  { value: 'restates', label: 'Restates' },
-  { value: 'highlights', label: 'Highlights' },
-  { value: 'validates', label: 'Validates' },
-];
-
 export function PropertiesPanel() {
   const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings, changeSupportType, convertToArgument, convertToSupport } = useDiagramStore();
+  const styleConfig = useDiagramStore((s) => s.styleConfig);
+
+  const ARGUMENT_TYPES = (
+    ['claim', 'data', 'warrant', 'backing', 'qualifier', 'rebuttal'] as const
+  ).map((value) => ({ value, label: styleConfig.argumentTypes[value].label }));
+
+  const SUPPORT_TYPES = (
+    ['action', 'question', 'other'] as const
+  ).map((value) => ({ value, label: styleConfig.supportTypes[value].label }));
+
+  const SUPPORT_SUBTYPES = styleConfig.otherSubtypes.map((s) => ({
+    value: s.id,
+    label: s.label,
+  }));
 
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
