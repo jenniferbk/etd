@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { GripVertical, Trash2, Plus } from 'lucide-react';
 import type { StyleConfig, OtherSubtype } from '../../types';
 import { useDiagramStore } from '../../store';
@@ -117,7 +117,6 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
   // Initial label comes from props. External changes (e.g. undo) are handled by
   // the `key={id:label}` on the parent — forcing a remount with fresh state.
   const [labelDraft, setLabelDraft] = useState(subtype.label);
-  const dragSourceIndex = useRef<number | null>(null);
 
   return (
     <div
@@ -125,7 +124,7 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
       style={{ backgroundColor: theme.sidebar.surface }}
       draggable
       onDragStart={(e) => {
-        dragSourceIndex.current = index;
+        e.dataTransfer.setData('text/plain', String(index));
         e.dataTransfer.effectAllowed = 'move';
       }}
       onDragOver={(e) => {
@@ -134,9 +133,9 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
       }}
       onDrop={(e) => {
         e.preventDefault();
-        const from = dragSourceIndex.current;
-        if (from !== null && from !== index) onReorder(from, index);
-        dragSourceIndex.current = null;
+        const fromStr = e.dataTransfer.getData('text/plain');
+        const from = fromStr === '' ? NaN : Number(fromStr);
+        if (Number.isFinite(from) && from !== index) onReorder(from, index);
       }}
     >
       <GripVertical size={14} style={{ color: theme.sidebar.muted, cursor: 'grab' }} />
