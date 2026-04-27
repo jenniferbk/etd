@@ -16,6 +16,7 @@ import type {
   ContributorType,
   DiagramElement,
   Position,
+  StyleConfig,
 } from '../types';
 import {
   isArgumentElement,
@@ -446,6 +447,11 @@ export function exportToDiagramx(
   elements: DiagramElement[],
   connections: Connection[],
   diagramName: string,
+  // styleConfig is accepted for forward-compatibility (renamed type labels).
+  // At Level A, all element text comes from el.label / el.content — no
+  // type-derived strings are emitted — so the body does not use it yet.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _styleConfig?: StyleConfig,
 ): string {
   const elementsById = new Map(elements.map((e) => [e.id, e]));
   const idMap = new Map<string, string>();

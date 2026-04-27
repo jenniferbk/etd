@@ -183,7 +183,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
         alert('No elements to export');
         return;
       }
-      const json = exportToDiagramx(elements, connections, diagramName);
+      const json = exportToDiagramx(elements, connections, diagramName, styleConfig);
       downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
       if (hasEmbeddedImages(elements)) {
         alert('Embedded images were dropped — DiagramMix does not support inline images.');
