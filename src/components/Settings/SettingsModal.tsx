@@ -6,6 +6,7 @@ import type { StyleConfig } from '../../types';
 import { SettingsSidebar } from './SettingsSidebar';
 import { TypeStyleEditor } from './TypeStyleEditor';
 import { SubtypeListEditor } from './SubtypeListEditor';
+import { createCurrentDefaults } from '../../utils/styleConfigDefaults';
 
 export type SettingsSelection =
   | { kind: 'argument'; type: 'data' | 'claim' | 'warrant' | 'backing' | 'qualifier' | 'rebuttal' }
@@ -44,6 +45,20 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
   const handleApply = () => {
     replaceStyleConfig(workingConfig);
     onClose();
+  };
+
+  const handleResetAllTypeStyles = () => {
+    const ok = window.confirm(
+      'Reset all argument and support type styles to defaults? This does NOT affect your custom subtypes.'
+    );
+    if (!ok) return;
+    const defaults = createCurrentDefaults();
+    setWorkingConfig({
+      ...workingConfig,
+      argumentTypes: defaults.argumentTypes,
+      supportTypes:  defaults.supportTypes,
+      // otherSubtypes intentionally preserved
+    });
   };
 
   return (
@@ -107,24 +122,30 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
         </div>
 
         {/* Footer */}
-        <div
-          className="px-6 py-3 border-t flex justify-end gap-2"
-          style={{ borderColor: theme.sidebar.border }}
-        >
+        <div className="px-6 py-3 border-t flex justify-between items-center" style={{ borderColor: theme.sidebar.border }}>
           <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg"
-            style={{ backgroundColor: theme.sidebar.surface, color: theme.sidebar.text }}
+            onClick={handleResetAllTypeStyles}
+            className="text-xs underline"
+            style={{ color: theme.sidebar.muted }}
           >
-            Cancel
+            Reset all type styles
           </button>
-          <button
-            onClick={handleApply}
-            className="px-4 py-2 text-sm rounded-lg font-medium"
-            style={{ backgroundColor: theme.sidebar.accent, color: theme.colors.void[950] }}
-          >
-            Apply
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm rounded-lg"
+              style={{ backgroundColor: theme.sidebar.surface, color: theme.sidebar.text }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleApply}
+              className="px-4 py-2 text-sm rounded-lg font-medium"
+              style={{ backgroundColor: theme.sidebar.accent, color: theme.colors.void[950] }}
+            >
+              Apply
+            </button>
+          </div>
         </div>
       </div>
     </div>
