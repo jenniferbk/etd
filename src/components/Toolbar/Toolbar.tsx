@@ -444,7 +444,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
 
           <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* Clear and About */}
+          {/* Clear, Settings, and About */}
           <div className="flex items-center gap-0.5">
             <IconButton
               onClick={handleClear}
