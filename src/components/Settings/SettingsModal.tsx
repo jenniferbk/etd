@@ -5,6 +5,7 @@ import { theme } from '../../utils/theme';
 import type { StyleConfig } from '../../types';
 import { SettingsSidebar } from './SettingsSidebar';
 import { TypeStyleEditor } from './TypeStyleEditor';
+import { SubtypeListEditor } from './SubtypeListEditor';
 
 export type SettingsSelection =
   | { kind: 'argument'; type: 'data' | 'claim' | 'warrant' | 'backing' | 'qualifier' | 'rebuttal' }
@@ -100,7 +101,7 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
               />
             )}
             {selection.kind === 'subtypes' && (
-              <div className="text-sm" style={{ color: theme.sidebar.muted }}>Subtype editor — Task 15</div>
+              <SubtypeListEditor config={workingConfig} onChange={setWorkingConfig} />
             )}
           </div>
         </div>

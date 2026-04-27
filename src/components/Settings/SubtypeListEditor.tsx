@@ -1,0 +1,171 @@
+import { useState, useRef } from 'react';
+import { GripVertical, Trash2, Plus } from 'lucide-react';
+import type { StyleConfig, OtherSubtype } from '../../types';
+import { useDiagramStore } from '../../store';
+import { isSupportElement } from '../../types';
+import { theme } from '../../utils/theme';
+import { createCurrentDefaults } from '../../utils/styleConfigDefaults';
+
+interface SubtypeListEditorProps {
+  config: StyleConfig;
+  onChange: (next: StyleConfig) => void;
+}
+
+export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) {
+  const elements = useDiagramStore((s) => s.elements);
+
+  const updateSubtypes = (next: OtherSubtype[]) => {
+    onChange({ ...config, otherSubtypes: next });
+  };
+
+  const handleAdd = () => {
+    const id =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `subtype-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    updateSubtypes([...config.otherSubtypes, { id, label: 'New subtype' }]);
+  };
+
+  const handleRename = (id: string, label: string) => {
+    updateSubtypes(config.otherSubtypes.map((s) => (s.id === id ? { ...s, label } : s)));
+  };
+
+  const handleRemove = (id: string) => {
+    const useCount = elements.filter((el) => isSupportElement(el) && el.subtype === id).length;
+    if (useCount > 0) {
+      const ok = window.confirm(
+        `This subtype is used by ${useCount} element${useCount === 1 ? '' : 's'}. Deleting it will leave them with no assigned subtype. Continue?`
+      );
+      if (!ok) return;
+    }
+    updateSubtypes(config.otherSubtypes.filter((s) => s.id !== id));
+  };
+
+  const handleReorder = (fromIndex: number, toIndex: number) => {
+    const next = [...config.otherSubtypes];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    updateSubtypes(next);
+  };
+
+  const handleResetSubtypes = () => {
+    const ok = window.confirm(
+      'Replace your custom subtypes with the six defaults? Elements using removed subtypes will be orphaned.'
+    );
+    if (!ok) return;
+    updateSubtypes(createCurrentDefaults().otherSubtypes);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3
+          className="text-sm font-semibold uppercase tracking-wider"
+          style={{ color: theme.sidebar.text }}
+        >
+          Other-Support Subtypes
+        </h3>
+        <button
+          onClick={handleResetSubtypes}
+          className="text-xs underline"
+          style={{ color: theme.sidebar.muted }}
+        >
+          Reset subtypes to defaults
+        </button>
+      </div>
+
+      <div className="text-xs" style={{ color: theme.sidebar.muted }}>
+        Subtypes appear in the palette dropdown and the transcript-line object-type selector.
+        Renaming a subtype updates every element that uses it. Deleting one orphans those elements.
+      </div>
+
+      <div className="space-y-1">
+        {config.otherSubtypes.map((s, idx) => (
+          <SubtypeRow
+            key={`${s.id}:${s.label}`}
+            subtype={s}
+            index={idx}
+            useCount={elements.filter((el) => isSupportElement(el) && el.subtype === s.id).length}
+            onRename={handleRename}
+            onRemove={handleRemove}
+            onReorder={handleReorder}
+          />
+        ))}
+      </div>
+
+      <button
+        onClick={handleAdd}
+        className="flex items-center gap-2 px-3 py-2 text-sm rounded"
+        style={{ backgroundColor: theme.sidebar.surface, color: theme.sidebar.text }}
+      >
+        <Plus size={14} /> Add subtype
+      </button>
+    </div>
+  );
+}
+
+interface SubtypeRowProps {
+  subtype: OtherSubtype;
+  index: number;
+  useCount: number;
+  onRename: (id: string, label: string) => void;
+  onRemove: (id: string) => void;
+  onReorder: (fromIndex: number, toIndex: number) => void;
+}
+
+function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }: SubtypeRowProps) {
+  // Initial label comes from props. External changes (e.g. undo) are handled by
+  // the `key={id:label}` on the parent — forcing a remount with fresh state.
+  const [labelDraft, setLabelDraft] = useState(subtype.label);
+  const dragSourceIndex = useRef<number | null>(null);
+
+  return (
+    <div
+      className="flex items-center gap-2 px-2 py-1.5 rounded"
+      style={{ backgroundColor: theme.sidebar.surface }}
+      draggable
+      onDragStart={(e) => {
+        dragSourceIndex.current = index;
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const from = dragSourceIndex.current;
+        if (from !== null && from !== index) onReorder(from, index);
+        dragSourceIndex.current = null;
+      }}
+    >
+      <GripVertical size={14} style={{ color: theme.sidebar.muted, cursor: 'grab' }} />
+      <input
+        type="text"
+        value={labelDraft}
+        onChange={(e) => setLabelDraft(e.target.value)}
+        onBlur={() => {
+          if (labelDraft !== subtype.label) onRename(subtype.id, labelDraft);
+        }}
+        className="flex-1 px-2 py-1 text-sm rounded"
+        style={{
+          backgroundColor: theme.sidebar.bg,
+          color: theme.sidebar.text,
+          border: `1px solid ${theme.sidebar.border}`,
+        }}
+      />
+      {useCount > 0 && (
+        <span className="text-xs" style={{ color: theme.sidebar.muted }}>
+          {useCount} use{useCount === 1 ? '' : 's'}
+        </span>
+      )}
+      <button
+        onClick={() => onRemove(subtype.id)}
+        className="p-1 rounded hover:bg-white/10"
+        aria-label={`Remove subtype ${subtype.label}`}
+      >
+        <Trash2 size={14} style={{ color: theme.sidebar.muted }} />
+      </button>
+    </div>
+  );
+}
