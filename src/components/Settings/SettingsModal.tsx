@@ -83,7 +83,7 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
           <div className="flex-1 p-6 overflow-y-auto">
             {selection.kind === 'argument' && (
               <TypeStyleEditor
-                key={selection.type}
+                key={`argument:${selection.type}`}
                 kind="argument"
                 typeKey={selection.type}
                 config={workingConfig}
@@ -92,7 +92,7 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
             )}
             {selection.kind === 'support' && (
               <TypeStyleEditor
-                key={selection.type}
+                key={`support:${selection.type}`}
                 kind="support"
                 typeKey={selection.type}
                 config={workingConfig}
