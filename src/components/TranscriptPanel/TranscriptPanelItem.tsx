@@ -4,6 +4,7 @@ import type { ContributorType, SupportSubtype } from '../../types/elements';
 import type { TranscriptLine, TranscriptObjectType } from '../../types/transcript';
 import { theme } from '../../utils/theme';
 import { getContributorColor } from '../../utils/colors';
+import { useDiagramStore } from '../../store';
 
 const CONTRIBUTOR_OPTIONS: { value: ContributorType | ''; label: string }[] = [
   { value: '', label: '—' },
@@ -23,32 +24,17 @@ type ObjectTypeOption = {
   subtype?: SupportSubtype;
 };
 
-const OBJECT_TYPE_OPTIONS: ObjectTypeOption[] = [
-  { value: '', label: '—', objectType: null },
-  { value: 'data', label: 'Data', objectType: 'data' },
-  { value: 'claim', label: 'Claim', objectType: 'claim' },
-  { value: 'warrant', label: 'Warrant', objectType: 'warrant' },
-  { value: 'backing', label: 'Backing', objectType: 'backing' },
-  { value: 'qualifier', label: 'Qualifier', objectType: 'qualifier' },
-  { value: 'rebuttal', label: 'Rebuttal', objectType: 'rebuttal' },
-  { value: 'action', label: 'Action', objectType: 'action' },
-  { value: 'question', label: 'Question', objectType: 'question' },
-  { value: 'other:displays', label: 'Other Support: Displays', objectType: 'other', subtype: 'displays' },
-  { value: 'other:suggests', label: 'Other Support: Suggests', objectType: 'other', subtype: 'suggests' },
-  { value: 'other:summarizes', label: 'Other Support: Summarizes', objectType: 'other', subtype: 'summarizes' },
-  { value: 'other:restates', label: 'Other Support: Restates', objectType: 'other', subtype: 'restates' },
-  { value: 'other:highlights', label: 'Other Support: Highlights', objectType: 'other', subtype: 'highlights' },
-  { value: 'other:validates', label: 'Other Support: Validates', objectType: 'other', subtype: 'validates' },
-];
-
 function encodeObjectTypeValue(objectType: TranscriptObjectType | null, subtype?: SupportSubtype): string {
   if (objectType === null) return '';
   if (objectType === 'other') return `other:${subtype ?? 'displays'}`;
   return objectType;
 }
 
-function decodeObjectTypeValue(value: string): { objectType: TranscriptObjectType | null; subtype?: SupportSubtype } {
-  const match = OBJECT_TYPE_OPTIONS.find((opt) => opt.value === value);
+function decodeObjectTypeValue(
+  value: string,
+  options: ObjectTypeOption[],
+): { objectType: TranscriptObjectType | null; subtype?: SupportSubtype } {
+  const match = options.find((opt) => opt.value === value);
   if (!match) return { objectType: null };
   return { objectType: match.objectType, subtype: match.subtype };
 }
@@ -82,6 +68,26 @@ export function TranscriptPanelItem({
   onObjectTypeChange,
   onDismissChange,
 }: TranscriptPanelItemProps) {
+  const styleConfig = useDiagramStore((s) => s.styleConfig);
+
+  const OBJECT_TYPE_OPTIONS: ObjectTypeOption[] = [
+    { value: '', label: '—', objectType: null },
+    { value: 'claim',     label: styleConfig.argumentTypes.claim.label,     objectType: 'claim' },
+    { value: 'data',      label: styleConfig.argumentTypes.data.label,      objectType: 'data' },
+    { value: 'warrant',   label: styleConfig.argumentTypes.warrant.label,   objectType: 'warrant' },
+    { value: 'backing',   label: styleConfig.argumentTypes.backing.label,   objectType: 'backing' },
+    { value: 'qualifier', label: styleConfig.argumentTypes.qualifier.label, objectType: 'qualifier' },
+    { value: 'rebuttal',  label: styleConfig.argumentTypes.rebuttal.label,  objectType: 'rebuttal' },
+    { value: 'action',    label: styleConfig.supportTypes.action.label,     objectType: 'action' },
+    { value: 'question',  label: styleConfig.supportTypes.question.label,   objectType: 'question' },
+    ...styleConfig.otherSubtypes.map((s) => ({
+      value: `other:${s.id}`,
+      label: `${styleConfig.supportTypes.other.label}: ${s.label}`,
+      objectType: 'other' as const,
+      subtype: s.id,
+    })),
+  ];
+
   const [isHovered, setIsHovered] = useState(false);
   const incompatible = isIncompatible(line.contributor, line.objectType);
   const canDrag = line.contributor !== null && line.objectType !== null && !incompatible;
@@ -212,7 +218,7 @@ export function TranscriptPanelItem({
         <select
           value={encodeObjectTypeValue(line.objectType, line.subtype)}
           onChange={(e) => {
-            const { objectType, subtype } = decodeObjectTypeValue(e.target.value);
+            const { objectType, subtype } = decodeObjectTypeValue(e.target.value, OBJECT_TYPE_OPTIONS);
             onObjectTypeChange(objectType, subtype);
           }}
           onMouseDown={(e) => e.stopPropagation()}
