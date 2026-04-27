@@ -3,6 +3,12 @@ import { X } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import type { StyleConfig } from '../../types';
+import { SettingsSidebar } from './SettingsSidebar';
+
+export type SettingsSelection =
+  | { kind: 'argument'; type: 'data' | 'claim' | 'warrant' | 'backing' | 'qualifier' | 'rebuttal' }
+  | { kind: 'support';  type: 'action' | 'question' | 'other' }
+  | { kind: 'subtypes' };
 
 interface SettingsModalProps {
   open: boolean;
@@ -19,10 +25,13 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
 
   // Local working copy. Initialized once when the inner modal mounts (i.e. on open).
   // Apply commits to the store; Cancel discards by simply closing.
-  // Setter will be wired to editors in Tasks 12–16.
+  // Setter will be wired to editors in Tasks 13–16.
   const workingConfigState = useState<StyleConfig>(committedConfig);
   const workingConfig = workingConfigState[0];
-  // setWorkingConfig = workingConfigState[1] (used in Tasks 12–16)
+  // setWorkingConfig = workingConfigState[1] (used in Tasks 13–16)
+
+  // Selection state — resets to Data on each open because SettingsModalInner remounts.
+  const [selection, setSelection] = useState<SettingsSelection>({ kind: 'argument', type: 'data' });
 
   // Esc cancels.
   useEffect(() => {
@@ -66,12 +75,18 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Body — placeholder until Tasks 12–16 fill this in. */}
+        {/* Body */}
         <div className="flex-1 overflow-hidden flex" style={{ color: theme.sidebar.text }}>
-          <div className="p-6 text-sm" style={{ color: theme.sidebar.muted }}>
-            Settings UI under construction. Working config snapshot of{' '}
-            {Object.keys(workingConfig.argumentTypes).length} argument types and{' '}
-            {workingConfig.otherSubtypes.length} subtypes is staged.
+          <SettingsSidebar
+            config={workingConfig}
+            selection={selection}
+            onSelect={setSelection}
+          />
+          <div className="flex-1 p-6 overflow-y-auto">
+            {/* Right pane — populated in Tasks 13–16 */}
+            <div className="text-sm" style={{ color: theme.sidebar.muted }}>
+              Editor for: {selection.kind === 'subtypes' ? 'subtypes' : `${selection.kind}: ${selection.type}`} (UI in upcoming tasks)
+            </div>
           </div>
         </div>
 
