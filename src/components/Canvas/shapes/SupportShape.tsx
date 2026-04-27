@@ -45,8 +45,10 @@ export function SupportShape({
 
   // Build header label (action has no header)
   const supportTypeLabel = styleConfig.supportTypes[supportType].label;
+  const isOrphan = supportType === 'other' && subtype !== undefined &&
+    !styleConfig.otherSubtypes.some((s) => s.id === subtype);
   const subtypeLabel = supportType === 'other' && subtype
-    ? styleConfig.otherSubtypes.find((s) => s.id === subtype)?.label ?? subtype
+    ? (styleConfig.otherSubtypes.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
     : null;
   const headerLabel =
     supportType === 'action' ? '' :
@@ -143,6 +145,16 @@ export function SupportShape({
           fontSize={10}
           fontStyle="bold"
           fill={style.borderColor}
+        />
+      )}
+      {/* Orphan warning marker */}
+      {isOrphan && (
+        <Text
+          x={size.width - 16}
+          y={4}
+          text="⚠"
+          fontSize={14}
+          fill="#CC0000"
         />
       )}
       {/* Content */}
