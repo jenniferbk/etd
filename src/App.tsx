@@ -10,6 +10,7 @@ import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSav
 import { parseTranscript } from './utils/transcriptParser';
 import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel } from './components/TranscriptPanel';
+import { SettingsModal } from './components/Settings';
 import { PanelRightOpen } from 'lucide-react';
 import { theme } from './utils/theme';
 
@@ -20,6 +21,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [transcriptPanelOpen, setTranscriptPanelOpen] = useState(false);
   const transcriptFileInputRef = useRef<HTMLInputElement>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Auto-save hook
   useAutoSave();
@@ -337,6 +339,7 @@ function App() {
         onLoadTranscript={handleLoadTranscriptClick}
         transcriptPanelOpen={transcriptPanelOpen}
         onToggleTranscriptPanel={toggleTranscriptPanel}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="flex flex-1 overflow-hidden">
         <Palette
@@ -377,6 +380,9 @@ function App() {
           onDiscard={handleDiscard}
         />
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {/* Image Lightbox */}
       {lightboxOpen && lightboxImage && (

@@ -19,6 +19,7 @@ import {
   PanelRight,
   Crosshair,
   Maximize2,
+  Settings,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { theme } from '../../utils/theme';
@@ -47,9 +48,10 @@ interface ToolbarProps {
   onLoadTranscript: () => void;
   transcriptPanelOpen: boolean;
   onToggleTranscriptPanel: () => void;
+  onOpenSettings: () => void;
 }
 
-export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscriptPanel }: ToolbarProps) {
+export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscriptPanel, onOpenSettings }: ToolbarProps) {
   const {
     zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
@@ -449,6 +451,11 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               icon={Trash2}
               tooltip="Clear diagram"
               variant="danger"
+            />
+            <IconButton
+              onClick={onOpenSettings}
+              icon={Settings}
+              tooltip="Element styles"
             />
             <IconButton
               onClick={() => setShowAbout(true)}
