@@ -9,7 +9,9 @@ interface AutoSaveData {
   elements: ReturnType<typeof useDiagramStore.getState>['elements'];
   connections: ReturnType<typeof useDiagramStore.getState>['connections'];
   transcript: Transcript | null;
-  styleConfig: StyleConfig;
+  // Optional: pre-1.3 autosave entries written before styleConfig was tracked
+  // lack this field. loadDiagram applies createV1_2_MigrationDefaults() when absent.
+  styleConfig?: StyleConfig;
   timestamp: number;
 }
 
