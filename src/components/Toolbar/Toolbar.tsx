@@ -168,7 +168,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
         alert('No elements to export');
         return;
       }
-      const svgContent = exportToSvg(elements, connections);
+      const svgContent = exportToSvg(elements, connections, styleConfig);
       downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
     } finally {
       setExporting(null);

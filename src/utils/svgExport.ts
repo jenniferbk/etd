@@ -1,5 +1,6 @@
-import type { DiagramElement, Connection, ArgumentElement, TeacherSupportElement, InfoBoxElement } from '../types';
-import { getContributorColor, getTeacherSupportColors } from './colors';
+import type { DiagramElement, Connection, ArgumentElement, SupportElement, TeacherSupportElement, InfoBoxElement } from '../types';
+import type { StyleConfig } from '../types';
+import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle } from './styleResolver';
 
 interface SvgExportOptions {
   padding?: number;
@@ -8,6 +9,7 @@ interface SvgExportOptions {
 export function exportToSvg(
   elements: DiagramElement[],
   connections: Connection[],
+  styleConfig: StyleConfig,
   options: SvgExportOptions = {}
 ): string {
   const { padding = 50 } = options;
@@ -43,7 +45,7 @@ export function exportToSvg(
 
   // Add elements
   elements.forEach((el) => {
-    const svg = renderElementSvg(el, offsetX, offsetY);
+    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig);
     if (svg) svgContent.push(svg);
   });
 
@@ -61,28 +63,27 @@ export function exportToSvg(
 </svg>`;
 }
 
-function renderElementSvg(element: DiagramElement, offsetX: number, offsetY: number): string {
+function renderElementSvg(element: DiagramElement, offsetX: number, offsetY: number, styleConfig: StyleConfig): string {
   const x = element.position.x + offsetX;
   const y = element.position.y + offsetY;
   const { width, height } = element.size;
 
   if (element.type === 'argument') {
-    return renderArgumentSvg(element as ArgumentElement, x, y, width, height);
+    return renderArgumentSvg(element as ArgumentElement, x, y, width, height, styleConfig);
+  } else if (element.type === 'support') {
+    return renderSupportSvg(element as SupportElement, x, y, width, height, styleConfig);
   } else if (element.type === 'teacherSupport') {
-    return renderTeacherSupportSvg(element as TeacherSupportElement, x, y, width, height);
+    return renderTeacherSupportSvg(element as TeacherSupportElement, x, y, width, height, styleConfig);
   } else if (element.type === 'infoBox') {
     return renderInfoBoxSvg(element as InfoBoxElement, x, y, width, height);
   }
   return '';
 }
 
-function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: number, height: number): string {
-  const color = getContributorColor(el.contributor);
-  const isDashed = el.contributor === 'student' || el.contributor === 'joint';
-  const isCloud = el.contributor === 'implicit';
-  const fill = el.contributor === 'given' ? '#F0FFF0' : '#FFFFFF';
-  const strokeWidth = isCloud ? 2 : 3;
-  const dashArray = isDashed ? 'stroke-dasharray="10 5"' : '';
+function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: number, height: number, styleConfig: StyleConfig): string {
+  const style = resolveArgumentStyle(el, styleConfig);
+  const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
+  const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
 
   const padding = 10;
   const labelY = y + padding + 14;
@@ -136,50 +137,116 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
     attributionElement = `<text x="${x + width - padding}" y="${y + height - 6}" class="attribution" font-size="10" fill="#666666" text-anchor="end">${escapeXml(attributionText)}</text>`;
   }
 
-  if (isCloud) {
-    // Cloud shape
+  let shapeElement: string;
+  if (style.borderShape === 'cloud') {
     const cloudPath = generateCloudPath(x, y, width, height);
-    return `<g>
-      <path d="${cloudPath}" fill="${fill}" stroke="${color}" stroke-width="${strokeWidth}"/>
-      <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="#000000">${escapeXml(el.label)}</text>
-      <text x="${x + padding}" y="${contentY}" class="content" font-size="12" fill="#000000">${escapeXml(el.content)}</text>
-      ${imageElement}
-      ${attributionElement}
-    </g>`;
+    shapeElement = `<path d="${cloudPath}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+  } else if (style.borderShape === 'ellipse') {
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    shapeElement = `<ellipse cx="${cx}" cy="${cy}" rx="${width / 2}" ry="${height / 2}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+  } else {
+    const rx = style.borderShape === 'rounded' ? 8 : 0;
+    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
   }
 
   return `<g>
-    <rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${color}" stroke-width="${strokeWidth}" ${dashArray}/>
-    <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="${color}">${escapeXml(el.label)}</text>
+    ${shapeElement}
+    <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="${style.borderColor}">${escapeXml(el.label)}</text>
     <text x="${x + padding}" y="${contentY}" class="content" font-size="12" fill="#000000">${escapeXml(el.content)}</text>
     ${imageElement}
     ${attributionElement}
   </g>`;
 }
 
-function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number, width: number, height: number): string {
-  const { border, fill } = getTeacherSupportColors(el.supportType);
+function renderSupportSvg(el: SupportElement, x: number, y: number, width: number, height: number, styleConfig: StyleConfig): string {
+  const style = resolveSupportStyle(el, styleConfig);
+  const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
+  const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
+
+  // Orphan detection: 'other' supportType with a subtype that no longer exists in config
+  const isOrphan = el.supportType === 'other' && el.subtype !== undefined &&
+    !styleConfig.otherSubtypes.some((s) => s.id === el.subtype);
+  const subtypeLabel = el.supportType === 'other' && el.subtype
+    ? (styleConfig.otherSubtypes.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
+    : null;
+  const supportTypeLabel = styleConfig.supportTypes[el.supportType].label;
+  const contributorLabel = el.contributor === 'teacher' ? 'T' : 'S';
+  const headerText =
+    el.supportType === 'action' ? '' :
+    el.supportType === 'question' ? `[${contributorLabel}] ${supportTypeLabel}` :
+    `[${contributorLabel}] ${subtypeLabel ?? supportTypeLabel}`;
+
+  let shapeElement: string;
+  if (style.borderShape === 'ellipse') {
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    shapeElement = `<ellipse cx="${cx}" cy="${cy}" rx="${width / 2}" ry="${height / 2}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+  } else {
+    const rx = style.borderShape === 'rounded' ? 8 : 0;
+    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+  }
+
+  const headerEl = headerText
+    ? `<text x="${x + 8}" y="${y + 18}" class="label" font-size="10" fill="${style.borderColor}">${escapeXml(headerText)}</text>`
+    : '';
+  const contentEl = el.content
+    ? `<text x="${x + 8}" y="${y + (headerText ? 32 : 20)}" class="content" font-size="11" fill="#000000">${escapeXml(el.content)}</text>`
+    : '';
+  const orphanMarker = isOrphan
+    ? `<text x="${x + width - 16}" y="${y + 14}" fill="#CC0000" font-size="14">&#9888;</text>`
+    : '';
+
+  return `<g>
+    ${shapeElement}
+    ${headerEl}
+    ${contentEl}
+    ${orphanMarker}
+  </g>`;
+}
+
+function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number, width: number, height: number, styleConfig: StyleConfig): string {
+  // Synthesize as a teacher SupportElement to reuse resolveSupportStyle
+  const synthesized: SupportElement = { ...el, type: 'support', contributor: 'teacher' };
+  const style = resolveSupportStyle(synthesized, styleConfig);
+  const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
+  const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
+
   const padding = 8;
   const labelY = y + padding + 10;
   const contentY = y + padding + 24;
 
   if (el.supportType === 'action') {
-    // Ellipse
+    // Ellipse — action type has no header label
     const cx = x + width / 2;
     const cy = y + height / 2;
-    const rx = width / 2;
-    const ry = height / 2;
     return `<g>
-      <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="${fill}" stroke="${border}" stroke-width="2"/>
-      <text x="${cx}" y="${cy}" class="content" font-size="11" fill="${border}" text-anchor="middle" dominant-baseline="middle">${escapeXml(el.content)}</text>
+      <ellipse cx="${cx}" cy="${cy}" rx="${width / 2}" ry="${height / 2}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>
+      <text x="${cx}" y="${cy}" class="content" font-size="11" fill="${style.borderColor}" text-anchor="middle" dominant-baseline="middle">${escapeXml(el.content)}</text>
     </g>`;
   }
 
-  // Rounded rectangle
-  const label = el.supportType === 'question' ? 'Question' : `Other Support: ${el.subtype || ''}`;
+  // Rounded rectangle — header is type label only (no contributor prefix for teacherSupport)
+  const subtypeLabel = el.supportType === 'other' && el.subtype
+    ? (styleConfig.otherSubtypes.find((s) => s.id === el.subtype)?.label ?? el.subtype)
+    : null;
+  const label = el.supportType === 'question'
+    ? styleConfig.supportTypes['question'].label
+    : `${styleConfig.supportTypes['other'].label}: ${subtypeLabel ?? ''}`;
+
+  let shapeElement: string;
+  if (style.borderShape === 'ellipse') {
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    shapeElement = `<ellipse cx="${cx}" cy="${cy}" rx="${width / 2}" ry="${height / 2}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+  } else {
+    const rx = style.borderShape === 'rounded' ? 8 : 0;
+    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
+  }
+
   return `<g>
-    <rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${fill}" stroke="${border}" stroke-width="2" rx="8" ry="8"/>
-    <text x="${x + padding}" y="${labelY}" class="label" font-size="10" fill="${border}">${escapeXml(label)}</text>
+    ${shapeElement}
+    <text x="${x + padding}" y="${labelY}" class="label" font-size="10" fill="${style.borderColor}">${escapeXml(label)}</text>
     <text x="${x + padding}" y="${contentY}" class="content" font-size="11" fill="#000000">${escapeXml(el.content)}</text>
   </g>`;
 }
