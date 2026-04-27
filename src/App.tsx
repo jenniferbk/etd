@@ -69,7 +69,7 @@ function App() {
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
     if (saved) {
-      loadDiagram(saved.elements, saved.connections, undefined /* name: default */, saved.transcript);
+      loadDiagram(saved.elements, saved.connections, undefined /* name: default */, saved.transcript, saved.styleConfig);
       clearAutoSave();
     }
     setRecoveryData(null);
