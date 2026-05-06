@@ -175,9 +175,11 @@ export function ConnectionArrow({
   const handlerRefs = useRef<{
     move: ((e: MouseEvent | TouchEvent) => void) | null;
     up: (() => void) | null;
-  }>({ move: null, up: null });
+    blur: (() => void) | null;
+  }>({ move: null, up: null, blur: null });
   const moveDispatcher = useRef((e: MouseEvent | TouchEvent) => handlerRefs.current.move?.(e)).current;
   const upDispatcher = useRef(() => handlerRefs.current.up?.()).current;
+  const blurDispatcher = useRef(() => handlerRefs.current.blur?.()).current;
 
   // Refresh closure-captured handlers every render so they see the latest
   // dragOverride at mouseup. Stable dispatchers (above) read through these refs.
@@ -241,6 +243,39 @@ export function ConnectionArrow({
       window.removeEventListener('mouseup', upDispatcher);
       window.removeEventListener('touchmove', moveDispatcher);
       window.removeEventListener('touchend', upDispatcher);
+      window.removeEventListener('blur', blurDispatcher);
+    };
+
+    // Window blur during drag (e.g., user releases mouse outside the viewport):
+    // commit the drag and tear down listeners — same logic as handleWindowUp.
+    handlerRefs.current.blur = () => {
+      const drag = dragRef.current;
+      if (drag && dragOverride) {
+        updateConnectionWaypoints(connection.id, dragOverride);
+      }
+      dragRef.current = null;
+      setDragOverride(null);
+
+      window.removeEventListener('mousemove', moveDispatcher);
+      window.removeEventListener('mouseup', upDispatcher);
+      window.removeEventListener('touchmove', moveDispatcher);
+      window.removeEventListener('touchend', upDispatcher);
+      window.removeEventListener('blur', blurDispatcher);
+    };
+
+    // Cleanup on unmount: if a drag is in progress, remove the window listeners
+    // that handleSegmentDragStart attached so they don't fire after unmount and
+    // call setState on a dead component or mutate a deleted connection.
+    // Don't call setDragOverride(null) here — the component is unmounting.
+    return () => {
+      if (dragRef.current) {
+        window.removeEventListener('mousemove', moveDispatcher);
+        window.removeEventListener('mouseup', upDispatcher);
+        window.removeEventListener('touchmove', moveDispatcher);
+        window.removeEventListener('touchend', upDispatcher);
+        window.removeEventListener('blur', blurDispatcher);
+        dragRef.current = null;
+      }
     };
   });
 
@@ -299,6 +334,7 @@ export function ConnectionArrow({
     window.addEventListener('mouseup', upDispatcher);
     window.addEventListener('touchmove', moveDispatcher);
     window.addEventListener('touchend', upDispatcher);
+    window.addEventListener('blur', blurDispatcher);
   };
 
   // Calculate midpoint for click detection
