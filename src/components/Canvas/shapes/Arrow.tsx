@@ -13,6 +13,35 @@ import {
 } from '../../../utils/orthogonalRouting';
 
 const MIN_SEGMENT_PX = 4;
+const SNAP_THRESHOLD_PX = 6;
+
+// Collect snap candidate coordinates from all other connections' segments
+// matching the dragged segment's orientation. Pure helper — operates only on
+// its arguments. Skips the dragged connection itself and warrant-attachment
+// connections (their geometry is not orthogonal-segment-based in v1).
+function collectSnapCandidates(
+  draggedConnId: string,
+  draggedOrientation: SegmentOrientation,
+  allConnections: Connection[],
+  allElements: DiagramElement[],
+): number[] {
+  const out: number[] = [];
+  for (const conn of allConnections) {
+    if (conn.id === draggedConnId) continue;
+    if (isArrowAttachment(conn.to)) continue;
+    const fromEl = allElements.find((e) => e.id === conn.from);
+    const toEl = allElements.find((e) => e.id === conn.to);
+    if (!fromEl || !toEl) continue;
+    const wps = getEffectiveWaypoints(conn, fromEl, toEl);
+    const points = getOrthogonalPath(fromEl, toEl, wps);
+    const segs = getSegments(points);
+    for (const s of segs) {
+      if (s.orientation !== draggedOrientation) continue;
+      out.push(s.orientation === 'horizontal' ? s.start.y : s.start.x);
+    }
+  }
+  return out;
+}
 
 // Clamp the perpendicular coordinate of a dragged segment so the resulting
 // adjacent segments don't collapse below MIN_SEGMENT_PX. Pure helper — no
@@ -158,6 +187,7 @@ export function ConnectionArrow({
 
   // Transient drag state — not persisted to store until mouseup.
   const [dragOverride, setDragOverride] = useState<Position[] | null>(null);
+  const [snapLine, setSnapLine] = useState<{ orientation: SegmentOrientation; coord: number } | null>(null);
   const dragRef = useRef<{
     segmentIdx: number;
     orientation: SegmentOrientation;
@@ -198,6 +228,32 @@ export function ConnectionArrow({
 
       const newWaypoints = drag.startWaypoints.map((wp) => ({ ...wp }));
 
+      // Snap raw pointer coordinate to the nearest matching-orientation segment
+      // in any other connection, within SNAP_THRESHOLD_PX. Alt held suspends snap
+      // and clears the visible indicator.
+      const applySnap = (rawCoord: number, orientation: SegmentOrientation): number => {
+        if (altHeld) {
+          setSnapLine(null);
+          return rawCoord;
+        }
+        const candidates = collectSnapCandidates(connection.id, orientation, connections, elements);
+        let bestDist = SNAP_THRESHOLD_PX;
+        let bestCoord: number | null = null;
+        for (const c of candidates) {
+          const d = Math.abs(c - rawCoord);
+          if (d < bestDist) {
+            bestDist = d;
+            bestCoord = c;
+          }
+        }
+        if (bestCoord !== null) {
+          setSnapLine({ orientation, coord: bestCoord });
+          return bestCoord;
+        }
+        setSnapLine(null);
+        return rawCoord;
+      };
+
       if (drag.orientation === 'horizontal') {
         let rawY: number;
         if (drag.waypointIndexA !== null) {
@@ -207,9 +263,8 @@ export function ConnectionArrow({
         } else {
           return;
         }
-        let newY = rawY;
+        let newY = applySnap(rawY, 'horizontal');
         newY = clampToMinSegment(newY, drag.startWaypoints, drag.segmentIdx, 'horizontal');
-        void altHeld; // used in Task 7 for snap
         if (drag.waypointIndexA !== null) newWaypoints[drag.waypointIndexA].y = newY;
         if (drag.waypointIndexB !== null) newWaypoints[drag.waypointIndexB].y = newY;
       } else {
@@ -221,9 +276,8 @@ export function ConnectionArrow({
         } else {
           return;
         }
-        let newX = rawX;
+        let newX = applySnap(rawX, 'vertical');
         newX = clampToMinSegment(newX, drag.startWaypoints, drag.segmentIdx, 'vertical');
-        void altHeld;
         if (drag.waypointIndexA !== null) newWaypoints[drag.waypointIndexA].x = newX;
         if (drag.waypointIndexB !== null) newWaypoints[drag.waypointIndexB].x = newX;
       }
@@ -238,6 +292,7 @@ export function ConnectionArrow({
       }
       dragRef.current = null;
       setDragOverride(null);
+      setSnapLine(null);
 
       window.removeEventListener('mousemove', moveDispatcher);
       window.removeEventListener('mouseup', upDispatcher);
@@ -255,6 +310,7 @@ export function ConnectionArrow({
       }
       dragRef.current = null;
       setDragOverride(null);
+      setSnapLine(null);
 
       window.removeEventListener('mousemove', moveDispatcher);
       window.removeEventListener('mouseup', upDispatcher);
@@ -431,6 +487,24 @@ export function ConnectionArrow({
 
   return (
     <>
+      {/* Dashed cyan alignment indicator while snapping (Task 7).
+          Rendered first so it sits visually beneath the connector line. */}
+      {snapLine && (() => {
+        const RANGE = 10000;
+        const points = snapLine.orientation === 'horizontal'
+          ? [-RANGE, snapLine.coord, RANGE, snapLine.coord]
+          : [snapLine.coord, -RANGE, snapLine.coord, RANGE];
+        return (
+          <Line
+            points={points}
+            stroke="#00CED1"
+            strokeWidth={1}
+            dash={[4, 4]}
+            listening={false}
+          />
+        );
+      })()}
+
       {/* Connector line */}
       {isAttachment ? (
         <Line
