@@ -6,7 +6,9 @@
 
 **Architecture:** Pure geometry helpers in a new `src/utils/orthogonalRouting.ts` module (no Konva imports there). `Arrow.tsx` consumes those helpers, renders one Konva `Line` per segment for hit isolation, and runs all drag/snap state in transient React state inside the component — only the final waypoints commit to the Zustand store on `mouseup`. Schema gets one optional field (`Connection.waypoints?: Position[]`) and `SAVE_SCHEMA_VERSION` bumps 1.3 → 1.4.
 
-**Tech Stack:** React 19, TypeScript, Vite, Konva.js (react-konva 19), Zustand 5 with `zundo` temporal middleware. **No unit-test framework is configured in this project** — verification is `npm run typecheck`, `npm run lint`, and manual browser testing on `npm run dev` per `CLAUDE.md`.
+**Tech Stack:** React 19, TypeScript, Vite, Konva.js (react-konva 19), Zustand 5 with `zundo` temporal middleware. **No unit-test framework is configured in this project** — verification is `npx tsc -b` (type-check), `npm run lint`, and manual browser testing on `npm run dev` per `CLAUDE.md`. The project does not define a `typecheck` npm script; run `tsc -b` directly.
+
+**Baseline lint state (recorded 2026-05-05 at start of work):** `npm run lint` reports **13 errors and 1 warning** on `main` that are pre-existing and unrelated to this work — across `src/components/Properties/CropModal.tsx`, `src/App.tsx` (useTemporalStore-in-keydown), and `src/components/Palette/Palette.tsx` (Math.random in render). Implementer subagents must NOT attempt to fix these. The acceptance criterion for each task is: lint count does not increase from baseline. Run `npm run lint 2>&1 | grep -c "error"` before and after each task and compare.
 
 **Spec:** [`docs/superpowers/specs/2026-05-05-orthogonal-connectors-design.md`](../specs/2026-05-05-orthogonal-connectors-design.md). Read first; this plan is the literal execution.
 
@@ -78,8 +80,8 @@ export const SAVE_SCHEMA_VERSION = '1.4';
 
 - [ ] **Step 3: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors. (`Position` was already exported from `elements.ts`; `connections.ts` now re-exports it for callers that import only from `connections.ts`.)
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`). (`Position` was already exported from `elements.ts`; `connections.ts` now re-exports it for callers that import only from `connections.ts`.)
 
 Run: `npm run lint`
 Expected: no errors.
@@ -281,8 +283,8 @@ export function getSegments(points: number[]): Segment[] {
 
 - [ ] **Step 2: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
@@ -388,8 +390,8 @@ function getConnectionPathPoints(
 
 - [ ] **Step 2: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
@@ -487,8 +489,8 @@ import type {
 
 - [ ] **Step 3: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
@@ -586,8 +588,8 @@ Replace the single `<Line>` connector with a per-segment render. Keep `isAttachm
 
 - [ ] **Step 2: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
@@ -925,8 +927,8 @@ segments.map((seg, idx) => (
 
 - [ ] **Step 5: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
@@ -1126,8 +1128,8 @@ After the segment Lines in the JSX return, add:
 
 - [ ] **Step 4: Verify typecheck and lint clean**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
@@ -1198,8 +1200,8 @@ If undo restores `waypoints: []` instead of removing the field, fix the store ac
 
 - [ ] **Step 6: Final type-check, lint, and visual sanity**
 
-Run: `npm run typecheck`
-Expected: no errors.
+Run: `npx tsc -b`
+Expected: clean exit (no output, exit code 0). The project does NOT define a `typecheck` npm script — invoke `tsc -b` directly per the existing `build` script (`tsc -b && vite build`).
 
 Run: `npm run lint`
 Expected: no errors.
