@@ -158,6 +158,51 @@ export function getStraightAttachmentPath(fromEl: DiagramElement, attachPoint: P
   return [exit.x, exit.y, attachPoint.x, attachPoint.y];
 }
 
+// Calculate point along a polyline at position t (0-1).
+// Works on any polyline including a single 2-point segment.
+// Used by warrant-attachment connections to resolve their attachment point on
+// the parent connection's rendered path. Pure — lives here so SVG export and
+// the Konva renderer can share the same geometry.
+export function getPointOnPolyline(
+  points: number[],
+  t: number,
+): { x: number; y: number } {
+  if (points.length < 4) {
+    return { x: points[0] || 0, y: points[1] || 0 };
+  }
+
+  let totalLength = 0;
+  const segments: {
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+    length: number;
+  }[] = [];
+
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const start = { x: points[i], y: points[i + 1] };
+    const end = { x: points[i + 2], y: points[i + 3] };
+    const length = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2);
+    segments.push({ start, end, length });
+    totalLength += length;
+  }
+
+  const targetLength = t * totalLength;
+  let accLength = 0;
+
+  for (const seg of segments) {
+    if (accLength + seg.length >= targetLength) {
+      const segT = (targetLength - accLength) / seg.length;
+      return {
+        x: seg.start.x + (seg.end.x - seg.start.x) * segT,
+        y: seg.start.y + (seg.end.y - seg.start.y) * segT,
+      };
+    }
+    accLength += seg.length;
+  }
+
+  return { x: points[points.length - 2], y: points[points.length - 1] };
+}
+
 // Decompose a flat points array (from getOrthogonalPath) into segments with orientation.
 // Used by hit-testing and snap-to-align.
 export function getSegments(points: number[]): Segment[] {

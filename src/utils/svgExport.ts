@@ -1,6 +1,13 @@
 import type { DiagramElement, Connection, ArgumentElement, SupportElement, TeacherSupportElement, InfoBoxElement } from '../types';
 import type { StyleConfig } from '../types';
+import { isArrowAttachment } from '../types';
 import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle } from './styleResolver';
+import {
+  getEffectiveWaypoints,
+  getOrthogonalPath,
+  getPointOnPolyline,
+  getStraightAttachmentPath,
+} from './orthogonalRouting';
 
 interface SvgExportOptions {
   padding?: number;
@@ -57,6 +64,9 @@ export function exportToSvg(
       .content { font-family: system-ui, sans-serif; }
       .attribution { font-family: system-ui, sans-serif; font-style: italic; }
     </style>
+    <marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#333333"/>
+    </marker>
   </defs>
   <rect width="100%" height="100%" fill="#f8fafc"/>
   ${svgContent.join('\n  ')}
@@ -274,30 +284,62 @@ function renderInfoBoxSvg(el: InfoBoxElement, x: number, y: number, width: numbe
   </g>`;
 }
 
+// Resolve a connection to its rendered polyline points in element-coordinate space
+// (no offset applied). Mirrors getConnectionPathPoints in Arrow.tsx so SVG export
+// produces the same shapes as the canvas.
+//
+// Element-to-element: orthogonal polyline via getEffectiveWaypoints + getOrthogonalPath.
+// Warrant-attachment: straight 2-point line from source bounding-rect exit to the
+// attachment point on the parent connection's polyline (recursively resolved).
+function resolveConnectionPoints(
+  conn: Connection,
+  elements: DiagramElement[],
+  connections: Connection[],
+): number[] | null {
+  const fromEl = elements.find((e) => e.id === conn.from);
+  if (!fromEl) return null;
+
+  if (isArrowAttachment(conn.to)) {
+    const attachment = conn.to;
+    const parentConn = connections.find((c) => c.id === attachment.connectionId);
+    if (!parentConn) return null;
+    const parentPoints = resolveConnectionPoints(parentConn, elements, connections);
+    if (!parentPoints || parentPoints.length < 4) return null;
+    const attachPoint = getPointOnPolyline(parentPoints, attachment.position);
+    return getStraightAttachmentPath(fromEl, attachPoint);
+  }
+
+  const toEl = elements.find((e) => e.id === conn.to);
+  if (!toEl) return null;
+
+  const waypoints = getEffectiveWaypoints(conn, fromEl, toEl);
+  return getOrthogonalPath(fromEl, toEl, waypoints);
+}
+
 function renderConnectionSvg(
   conn: Connection,
   elements: DiagramElement[],
-  _connections: Connection[],
+  connections: Connection[],
   offsetX: number,
   offsetY: number
 ): string {
-  const fromEl = elements.find((e) => e.id === conn.from);
-  if (!fromEl) return '';
+  const points = resolveConnectionPoints(conn, elements, connections);
+  if (!points || points.length < 4) return '';
 
-  // Handle connection to element
-  if (typeof conn.to === 'string') {
-    const toEl = elements.find((e) => e.id === conn.to);
-    if (!toEl) return '';
+  // Apply export offset to each (x, y) pair.
+  const offsetPoints: string[] = [];
+  for (let i = 0; i < points.length; i += 2) {
+    offsetPoints.push(`${points[i] + offsetX},${points[i + 1] + offsetY}`);
+  }
+  const pointsAttr = offsetPoints.join(' ');
 
-    const fromX = fromEl.position.x + fromEl.size.width / 2 + offsetX;
-    const fromY = fromEl.position.y + fromEl.size.height / 2 + offsetY;
-    const toX = toEl.position.x + toEl.size.width / 2 + offsetX;
-    const toY = toEl.position.y + toEl.size.height / 2 + offsetY;
-
-    return `<line x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}" stroke="#333333" stroke-width="2" marker-end="url(#arrowhead)"/>`;
+  // Warrant-attachment connections render no arrowhead (matches Arrow.tsx,
+  // which draws only a small terminal dot for these).
+  if (isArrowAttachment(conn.to)) {
+    return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"/>`;
   }
 
-  return '';
+  return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>`;
 }
 
 

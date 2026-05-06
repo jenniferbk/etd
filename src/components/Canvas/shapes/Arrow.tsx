@@ -7,6 +7,7 @@ import { useDiagramStore } from '../../../store';
 import {
   getEffectiveWaypoints,
   getOrthogonalPath,
+  getPointOnPolyline,
   getSegments,
   getStraightAttachmentPath,
   type SegmentOrientation,
@@ -87,48 +88,6 @@ interface ArrowProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onArrowClick?: (connectionId: string, position: number, point: { x: number; y: number }) => void;
   onHover?: (connectionId: string | null) => void;
-}
-
-// Calculate point along a polyline at position t (0-1).
-// Works on any polyline including a single 2-point segment.
-function getPointOnPolyline(
-  points: number[],
-  t: number
-): { x: number; y: number } {
-  if (points.length < 4) {
-    return { x: points[0] || 0, y: points[1] || 0 };
-  }
-
-  let totalLength = 0;
-  const segments: {
-    start: { x: number; y: number };
-    end: { x: number; y: number };
-    length: number;
-  }[] = [];
-
-  for (let i = 0; i < points.length - 2; i += 2) {
-    const start = { x: points[i], y: points[i + 1] };
-    const end = { x: points[i + 2], y: points[i + 3] };
-    const length = Math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2);
-    segments.push({ start, end, length });
-    totalLength += length;
-  }
-
-  const targetLength = t * totalLength;
-  let accLength = 0;
-
-  for (const seg of segments) {
-    if (accLength + seg.length >= targetLength) {
-      const segT = (targetLength - accLength) / seg.length;
-      return {
-        x: seg.start.x + (seg.end.x - seg.start.x) * segT,
-        y: seg.start.y + (seg.end.y - seg.start.y) * segT,
-      };
-    }
-    accLength += seg.length;
-  }
-
-  return { x: points[points.length - 2], y: points[points.length - 1] };
 }
 
 // Resolve a connection to its rendered polyline points.
