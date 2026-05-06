@@ -140,8 +140,8 @@ export function getOrthogonalPath(
   return out;
 }
 
-// Warrant-attachment connections stay straight in v1 (see spec §5).
-// Source clips to bounding rect; target is the exact attachment point.
+// Straight 2-point attachment path. Kept for fallback rendering when a vertical
+// attachment isn't possible (no horizontal parent segment under the warrant).
 export function getStraightAttachmentPath(fromEl: DiagramElement, attachPoint: Position): number[] {
   const center = getCenter(fromEl);
   const dx = attachPoint.x - center.x;
@@ -156,6 +156,89 @@ export function getStraightAttachmentPath(fromEl: DiagramElement, attachPoint: P
   const t = Math.min(tx, ty);
   const exit = { x: center.x + t * dx, y: center.y + t * dy };
   return [exit.x, exit.y, attachPoint.x, attachPoint.y];
+}
+
+// Warrant- and rebuttal-attachment connections render as a single VERTICAL line
+// from the warrant box's top or bottom edge straight up/down to a horizontal
+// segment of the parent polyline at x = warrant.center.x. The user's stored
+// `position` (t along the parent polyline at create-time) is used only as a
+// tiebreaker when multiple horizontal segments span the warrant's x.
+//
+// If no horizontal segment of the parent intersects warrant.center.x, the
+// attachment can't render vertically. Returns 'warning' style with a fallback
+// straight line to the closest valid endpoint, signalling the user to reposition.
+export function getVerticalAttachmentPath(
+  fromEl: DiagramElement,
+  parentPoints: number[],
+  hintT: number,
+): { points: number[]; style: 'normal' | 'warning' } {
+  const center = getCenter(fromEl);
+  const segs = getSegments(parentPoints);
+
+  // Find horizontal parent segments whose x-range contains warrant.center.x.
+  const candidates: { y: number; segIdx: number; xMin: number; xMax: number }[] = [];
+  segs.forEach((s, idx) => {
+    if (s.orientation !== 'horizontal') return;
+    const xMin = Math.min(s.start.x, s.end.x);
+    const xMax = Math.max(s.start.x, s.end.x);
+    if (center.x >= xMin && center.x <= xMax) {
+      candidates.push({ y: s.start.y, segIdx: idx, xMin, xMax });
+    }
+  });
+
+  if (candidates.length > 0) {
+    // Pick the candidate closest in y to the warrant. On ties, prefer the
+    // segment whose midpoint is closest to the polyline-t hint location.
+    let best = candidates[0];
+    let bestDist = Math.abs(best.y - center.y);
+    const hintPoint = getPointOnPolyline(parentPoints, hintT);
+    for (let i = 1; i < candidates.length; i++) {
+      const c = candidates[i];
+      const d = Math.abs(c.y - center.y);
+      if (d < bestDist) {
+        best = c;
+        bestDist = d;
+      } else if (d === bestDist) {
+        const cMid = (c.xMin + c.xMax) / 2;
+        const bestMid = (best.xMin + best.xMax) / 2;
+        if (Math.abs(c.y - hintPoint.y) < Math.abs(best.y - hintPoint.y) ||
+            (c.y === best.y && Math.abs(cMid - hintPoint.x) < Math.abs(bestMid - hintPoint.x))) {
+          best = c;
+          bestDist = d;
+        }
+      }
+    }
+    // Source: warrant box edge at x=center.x, on the side facing the parent.
+    const half = fromEl.size.height / 2;
+    const sourceY = best.y > center.y ? center.y + half : center.y - half;
+    return {
+      points: [center.x, sourceY, center.x, best.y],
+      style: 'normal',
+    };
+  }
+
+  // No horizontal segment under the warrant — fall back to a straight line to
+  // the nearest endpoint of any horizontal parent segment. If the parent has
+  // no horizontal segments at all, fall back to the polyline-t point.
+  let fallback: Position | null = null;
+  let fallbackDist = Infinity;
+  for (const s of segs) {
+    if (s.orientation !== 'horizontal') continue;
+    for (const ep of [s.start, s.end]) {
+      const d = (ep.x - center.x) ** 2 + (ep.y - center.y) ** 2;
+      if (d < fallbackDist) {
+        fallbackDist = d;
+        fallback = ep;
+      }
+    }
+  }
+  if (!fallback) {
+    fallback = getPointOnPolyline(parentPoints, hintT);
+  }
+  return {
+    points: getStraightAttachmentPath(fromEl, fallback),
+    style: 'warning',
+  };
 }
 
 // Calculate point along a polyline at position t (0-1).

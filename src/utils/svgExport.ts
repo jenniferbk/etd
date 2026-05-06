@@ -5,8 +5,7 @@ import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle } fr
 import {
   getEffectiveWaypoints,
   getOrthogonalPath,
-  getPointOnPolyline,
-  getStraightAttachmentPath,
+  getVerticalAttachmentPath,
 } from './orthogonalRouting';
 
 interface SvgExportOptions {
@@ -284,18 +283,18 @@ function renderInfoBoxSvg(el: InfoBoxElement, x: number, y: number, width: numbe
   </g>`;
 }
 
-// Resolve a connection to its rendered polyline points in element-coordinate space
-// (no offset applied). Mirrors getConnectionPathPoints in Arrow.tsx so SVG export
-// produces the same shapes as the canvas.
+// Resolve a connection to its rendered polyline points + optional attachment style.
+// Mirrors getConnectionPathPoints in Arrow.tsx so SVG export produces the same
+// shapes as the canvas.
 //
 // Element-to-element: orthogonal polyline via getEffectiveWaypoints + getOrthogonalPath.
-// Warrant-attachment: straight 2-point line from source bounding-rect exit to the
-// attachment point on the parent connection's polyline (recursively resolved).
+// Warrant-attachment: vertical line at warrant.center.x to the closest horizontal
+// parent segment (or 'warning' fallback when no horizontal segment intersects x).
 function resolveConnectionPoints(
   conn: Connection,
   elements: DiagramElement[],
   connections: Connection[],
-): number[] | null {
+): { points: number[]; attachmentStyle?: 'normal' | 'warning' } | null {
   const fromEl = elements.find((e) => e.id === conn.from);
   if (!fromEl) return null;
 
@@ -303,17 +302,17 @@ function resolveConnectionPoints(
     const attachment = conn.to;
     const parentConn = connections.find((c) => c.id === attachment.connectionId);
     if (!parentConn) return null;
-    const parentPoints = resolveConnectionPoints(parentConn, elements, connections);
-    if (!parentPoints || parentPoints.length < 4) return null;
-    const attachPoint = getPointOnPolyline(parentPoints, attachment.position);
-    return getStraightAttachmentPath(fromEl, attachPoint);
+    const parent = resolveConnectionPoints(parentConn, elements, connections);
+    if (!parent || parent.points.length < 4) return null;
+    const result = getVerticalAttachmentPath(fromEl, parent.points, attachment.position);
+    return { points: result.points, attachmentStyle: result.style };
   }
 
   const toEl = elements.find((e) => e.id === conn.to);
   if (!toEl) return null;
 
   const waypoints = getEffectiveWaypoints(conn, fromEl, toEl);
-  return getOrthogonalPath(fromEl, toEl, waypoints);
+  return { points: getOrthogonalPath(fromEl, toEl, waypoints) };
 }
 
 function renderConnectionSvg(
@@ -323,8 +322,9 @@ function renderConnectionSvg(
   offsetX: number,
   offsetY: number
 ): string {
-  const points = resolveConnectionPoints(conn, elements, connections);
-  if (!points || points.length < 4) return '';
+  const result = resolveConnectionPoints(conn, elements, connections);
+  if (!result || result.points.length < 4) return '';
+  const { points, attachmentStyle } = result;
 
   // Apply export offset to each (x, y) pair.
   const offsetPoints: string[] = [];
@@ -333,9 +333,12 @@ function renderConnectionSvg(
   }
   const pointsAttr = offsetPoints.join(' ');
 
-  // Warrant-attachment connections render no arrowhead (matches Arrow.tsx,
-  // which draws only a small terminal dot for these).
+  // Warrant-attachment connections render no arrowhead (matches Arrow.tsx).
+  // Warning-state attachments render dashed and faint to signal "no valid attachment".
   if (isArrowAttachment(conn.to)) {
+    if (attachmentStyle === 'warning') {
+      return `<polyline points="${pointsAttr}" stroke="#A0A0A0" stroke-width="1" stroke-dasharray="4,4" opacity="0.6" fill="none"/>`;
+    }
     return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"/>`;
   }
 

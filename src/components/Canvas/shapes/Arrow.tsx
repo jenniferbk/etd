@@ -9,7 +9,7 @@ import {
   getOrthogonalPath,
   getPointOnPolyline,
   getSegments,
-  getStraightAttachmentPath,
+  getVerticalAttachmentPath,
   type SegmentOrientation,
 } from '../../../utils/orthogonalRouting';
 
@@ -90,14 +90,17 @@ interface ArrowProps {
   onHover?: (connectionId: string | null) => void;
 }
 
-// Resolve a connection to its rendered polyline points.
+// Resolve a connection to its rendered polyline points plus optional rendering
+// hints (currently just `attachmentStyle` for warrant/rebuttal lines).
 // Element-to-element connections: orthogonal polyline (Z-elbow default + stored waypoints).
-// Warrant-attachment connections: straight 2-point segment (orthogonal-attachment is out of scope in v1).
+// Warrant-attachment connections: vertical 2-point line at warrant.center.x to
+// the closest horizontal parent segment, or a 'warning' fallback line when no
+// horizontal segment of the parent intersects warrant.center.x.
 function getConnectionPathPoints(
   connection: Connection,
   elements: DiagramElement[],
   connections: Connection[],
-): { points: number[] } | null {
+): { points: number[]; attachmentStyle?: 'normal' | 'warning' } | null {
   const fromEl = elements.find((el) => el.id === connection.from);
   if (!fromEl) return null;
 
@@ -109,8 +112,8 @@ function getConnectionPathPoints(
     const targetResult = getConnectionPathPoints(targetConn, elements, connections);
     if (!targetResult) return null;
 
-    const attachPoint = getPointOnPolyline(targetResult.points, attachment.position);
-    return { points: getStraightAttachmentPath(fromEl, attachPoint) };
+    const result = getVerticalAttachmentPath(fromEl, targetResult.points, attachment.position);
+    return { points: result.points, attachmentStyle: result.style };
   }
 
   const toEl = elements.find((el) => el.id === connection.to);
@@ -304,6 +307,7 @@ export function ConnectionArrow({
   }
   if (!pathResult || pathResult.points.length < 4) return null;
   const { points: pathPoints } = pathResult;
+  const attachmentStyle = pathResult.attachmentStyle ?? 'normal';
   const segments = getSegments(pathPoints);
 
   const getStartWaypoints = (): Position[] => {
@@ -468,8 +472,10 @@ export function ConnectionArrow({
       {isAttachment ? (
         <Line
           points={pathPoints}
-          stroke={strokeColor}
-          strokeWidth={strokeWidth}
+          stroke={attachmentStyle === 'warning' ? '#A0A0A0' : strokeColor}
+          strokeWidth={attachmentStyle === 'warning' ? 1 : strokeWidth}
+          dash={attachmentStyle === 'warning' ? [4, 4] : undefined}
+          opacity={attachmentStyle === 'warning' ? 0.6 : 1}
           onClick={handleArrowClick}
           onTap={handleArrowClick}
           onMouseEnter={handleMouseEnter}
@@ -537,8 +543,9 @@ export function ConnectionArrow({
         />
       )}
 
-      {/* For arrow attachments, show a small perpendicular indicator */}
-      {isAttachment && (
+      {/* For arrow attachments, show a small perpendicular indicator.
+          Suppressed in 'warning' state — the line is a fallback hint, not a real attachment. */}
+      {isAttachment && attachmentStyle === 'normal' && (
         <Circle
           x={endX}
           y={endY}
