@@ -1,13 +1,52 @@
+import { useEffect, useRef, useState } from 'react';
 import { Circle, Line } from 'react-konva';
 import type Konva from 'konva';
-import type { Connection, DiagramElement } from '../../../types';
+import type { Connection, DiagramElement, Position } from '../../../types';
 import { isArrowAttachment } from '../../../types';
+import { useDiagramStore } from '../../../store';
 import {
   getEffectiveWaypoints,
   getOrthogonalPath,
   getSegments,
   getStraightAttachmentPath,
+  type SegmentOrientation,
 } from '../../../utils/orthogonalRouting';
+
+const MIN_SEGMENT_PX = 4;
+
+// Clamp the perpendicular coordinate of a dragged segment so the resulting
+// adjacent segments don't collapse below MIN_SEGMENT_PX. Pure helper — no
+// component state. Inputs: candidate value, the run's start waypoints, the
+// segment index being dragged, and its orientation.
+function clampToMinSegment(
+  newPerp: number,
+  startWaypoints: Position[],
+  segmentIdx: number,
+  orientation: SegmentOrientation,
+): number {
+  const numSegs = startWaypoints.length + 1;
+  const limits: number[] = [];
+  if (segmentIdx - 1 >= 0) {
+    const farIdx = segmentIdx - 2;
+    if (farIdx >= 0) {
+      const far = startWaypoints[farIdx];
+      limits.push(orientation === 'horizontal' ? far.y : far.x);
+    }
+  }
+  if (segmentIdx + 1 < numSegs) {
+    const farIdx = segmentIdx + 1;
+    if (farIdx < startWaypoints.length) {
+      const far = startWaypoints[farIdx];
+      limits.push(orientation === 'horizontal' ? far.y : far.x);
+    }
+  }
+  for (const lim of limits) {
+    if (Math.abs(newPerp - lim) < MIN_SEGMENT_PX) {
+      newPerp = newPerp >= lim ? lim + MIN_SEGMENT_PX : lim - MIN_SEGMENT_PX;
+    }
+  }
+  return newPerp;
+}
 
 interface ArrowProps {
   connection: Connection;
@@ -115,12 +154,152 @@ export function ConnectionArrow({
   onArrowClick,
   onHover,
 }: ArrowProps) {
-  const pathResult = getConnectionPathPoints(connection, elements, connections);
-  if (!pathResult || pathResult.points.length < 4) return null;
-
-  const { points: pathPoints } = pathResult;
   const isAttachment = isArrowAttachment(connection.to);
+
+  // Transient drag state — not persisted to store until mouseup.
+  const [dragOverride, setDragOverride] = useState<Position[] | null>(null);
+  const dragRef = useRef<{
+    segmentIdx: number;
+    orientation: SegmentOrientation;
+    startWaypoints: Position[];
+    startPointer: Position;
+    waypointIndexA: number | null;
+    waypointIndexB: number | null;
+    stage: Konva.Stage;
+  } | null>(null);
+
+  const updateConnectionWaypoints = useDiagramStore((s) => s.updateConnectionWaypoints);
+
+  // Stable dispatchers + per-render handler refs so window listeners can be removed.
+  // Declared at the top so all hook calls happen before any early return.
+  const handlerRefs = useRef<{
+    move: ((e: MouseEvent | TouchEvent) => void) | null;
+    up: (() => void) | null;
+  }>({ move: null, up: null });
+  const moveDispatcher = useRef((e: MouseEvent | TouchEvent) => handlerRefs.current.move?.(e)).current;
+  const upDispatcher = useRef(() => handlerRefs.current.up?.()).current;
+
+  // Refresh closure-captured handlers every render so they see the latest
+  // dragOverride at mouseup. Stable dispatchers (above) read through these refs.
+  useEffect(() => {
+    handlerRefs.current.move = (e: MouseEvent | TouchEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+      const altHeld = 'altKey' in e ? (e as MouseEvent).altKey : false;
+      const stage = drag.stage;
+      if (!stage) return;
+      const pointer = stage.getPointerPosition();
+      if (!pointer) return;
+
+      const dx = pointer.x - drag.startPointer.x;
+      const dy = pointer.y - drag.startPointer.y;
+
+      const newWaypoints = drag.startWaypoints.map((wp) => ({ ...wp }));
+
+      if (drag.orientation === 'horizontal') {
+        let rawY: number;
+        if (drag.waypointIndexA !== null) {
+          rawY = drag.startWaypoints[drag.waypointIndexA].y + dy;
+        } else if (drag.waypointIndexB !== null) {
+          rawY = drag.startWaypoints[drag.waypointIndexB].y + dy;
+        } else {
+          return;
+        }
+        let newY = rawY;
+        newY = clampToMinSegment(newY, drag.startWaypoints, drag.segmentIdx, 'horizontal');
+        void altHeld; // used in Task 7 for snap
+        if (drag.waypointIndexA !== null) newWaypoints[drag.waypointIndexA].y = newY;
+        if (drag.waypointIndexB !== null) newWaypoints[drag.waypointIndexB].y = newY;
+      } else {
+        let rawX: number;
+        if (drag.waypointIndexA !== null) {
+          rawX = drag.startWaypoints[drag.waypointIndexA].x + dx;
+        } else if (drag.waypointIndexB !== null) {
+          rawX = drag.startWaypoints[drag.waypointIndexB].x + dx;
+        } else {
+          return;
+        }
+        let newX = rawX;
+        newX = clampToMinSegment(newX, drag.startWaypoints, drag.segmentIdx, 'vertical');
+        void altHeld;
+        if (drag.waypointIndexA !== null) newWaypoints[drag.waypointIndexA].x = newX;
+        if (drag.waypointIndexB !== null) newWaypoints[drag.waypointIndexB].x = newX;
+      }
+
+      setDragOverride(newWaypoints);
+    };
+
+    handlerRefs.current.up = () => {
+      const drag = dragRef.current;
+      if (drag && dragOverride) {
+        updateConnectionWaypoints(connection.id, dragOverride);
+      }
+      dragRef.current = null;
+      setDragOverride(null);
+
+      window.removeEventListener('mousemove', moveDispatcher);
+      window.removeEventListener('mouseup', upDispatcher);
+      window.removeEventListener('touchmove', moveDispatcher);
+      window.removeEventListener('touchend', upDispatcher);
+    };
+  });
+
+  let pathResult = getConnectionPathPoints(connection, elements, connections);
+  if (pathResult && !isAttachment && dragOverride) {
+    const fromEl = elements.find((el) => el.id === connection.from);
+    const toEl = elements.find((el) => el.id === connection.to);
+    if (fromEl && toEl) {
+      pathResult = { points: getOrthogonalPath(fromEl, toEl, dragOverride) };
+    }
+  }
+  if (!pathResult || pathResult.points.length < 4) return null;
+  const { points: pathPoints } = pathResult;
   const segments = getSegments(pathPoints);
+
+  const getStartWaypoints = (): Position[] => {
+    const fromEl = elements.find((el) => el.id === connection.from);
+    const toEl = elements.find((el) => el.id === connection.to);
+    if (!fromEl || !toEl) return [];
+    if (connection.waypoints && connection.waypoints.length > 0) return [...connection.waypoints];
+    return [...getEffectiveWaypoints(connection, fromEl, toEl)];
+  };
+
+  const handleSegmentDragStart = (
+    segmentIdx: number,
+    e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+  ) => {
+    if (connectModeActive || isAttachment) return;
+    e.cancelBubble = true;
+
+    const stage = e.target.getStage();
+    const pointer = stage?.getPointerPosition();
+    if (!stage || !pointer) return;
+
+    const startWaypoints = getStartWaypoints();
+    if (startWaypoints.length === 0) return;
+
+    const seg = segments[segmentIdx];
+    const numSegs = segments.length;
+    const waypointIndexA = segmentIdx === 0 ? null : segmentIdx - 1;
+    const waypointIndexB = segmentIdx === numSegs - 1 ? null : segmentIdx;
+
+    dragRef.current = {
+      segmentIdx,
+      orientation: seg.orientation,
+      startWaypoints,
+      startPointer: { x: pointer.x, y: pointer.y },
+      waypointIndexA,
+      waypointIndexB,
+      stage,
+    };
+
+    setDragOverride(startWaypoints);
+
+    window.addEventListener('mousemove', moveDispatcher);
+    window.addEventListener('mouseup', upDispatcher);
+    window.addEventListener('touchmove', moveDispatcher);
+    window.addEventListener('touchend', upDispatcher);
+  };
 
   // Calculate midpoint for click detection
   const midPoint = getPointOnPolyline(pathPoints, 0.5);
@@ -237,6 +416,8 @@ export function ConnectionArrow({
             strokeWidth={strokeWidth}
             onClick={handleArrowClick}
             onTap={handleArrowClick}
+            onMouseDown={(e) => handleSegmentDragStart(idx, e)}
+            onTouchStart={(e) => handleSegmentDragStart(idx, e)}
             onMouseEnter={(e) => {
               handleMouseEnter();
               if (!connectModeActive) {
