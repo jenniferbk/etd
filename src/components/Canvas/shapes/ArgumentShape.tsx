@@ -45,7 +45,8 @@ export function ArgumentShape({
   const dashArray = dashArrayForBorderStyle(style.borderStyle);
 
   // Calculate text positioning
-  // Cloud shapes need more padding because the elliptical boundary curves inward
+  // Cloud shapes inset their interior by the bump radius, so add a bit more padding
+  // to keep text off the bumps.
   const padding = isCloud ? 12 : 10;
   const labelHeight = 20;
 
