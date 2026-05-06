@@ -5,6 +5,7 @@ import { isArrowAttachment } from '../../../types';
 import {
   getEffectiveWaypoints,
   getOrthogonalPath,
+  getSegments,
   getStraightAttachmentPath,
 } from '../../../utils/orthogonalRouting';
 
@@ -119,6 +120,7 @@ export function ConnectionArrow({
 
   const { points: pathPoints } = pathResult;
   const isAttachment = isArrowAttachment(connection.to);
+  const segments = getSegments(pathPoints);
 
   // Calculate midpoint for click detection
   const midPoint = getPointOnPolyline(pathPoints, 0.5);
@@ -215,16 +217,45 @@ export function ConnectionArrow({
   return (
     <>
       {/* Connector line */}
-      <Line
-        points={pathPoints}
-        stroke={strokeColor}
-        strokeWidth={strokeWidth}
-        onClick={handleArrowClick}
-        onTap={handleArrowClick}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        hitStrokeWidth={20}
-      />
+      {isAttachment ? (
+        <Line
+          points={pathPoints}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          onClick={handleArrowClick}
+          onTap={handleArrowClick}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          hitStrokeWidth={20}
+        />
+      ) : (
+        segments.map((seg, idx) => (
+          <Line
+            key={`seg-${idx}`}
+            points={[seg.start.x, seg.start.y, seg.end.x, seg.end.y]}
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            onClick={handleArrowClick}
+            onTap={handleArrowClick}
+            onMouseEnter={(e) => {
+              handleMouseEnter();
+              if (!connectModeActive) {
+                const stage = e.target.getStage();
+                if (stage) {
+                  stage.container().style.cursor =
+                    seg.orientation === 'horizontal' ? 'ns-resize' : 'ew-resize';
+                }
+              }
+            }}
+            onMouseLeave={(e) => {
+              handleMouseLeave();
+              const stage = e.target.getStage();
+              if (stage) stage.container().style.cursor = 'default';
+            }}
+            hitStrokeWidth={20}
+          />
+        ))
+      )}
 
       {/* Arrow head at the end */}
       {!isAttachment && (
