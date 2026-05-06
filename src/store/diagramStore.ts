@@ -90,6 +90,7 @@ interface DiagramState {
   // Actions - Connections
   addConnection: (connection: Connection) => void;
   removeConnection: (id: string) => void;
+  updateConnectionWaypoints: (id: string, waypoints: Position[] | undefined) => void;
 
   // Actions - Selection
   setSelectedIds: (ids: string[]) => void;
@@ -368,6 +369,22 @@ export const useDiagramStore = create<DiagramState>()(
       removeConnection: (id) =>
         set((state) => ({
           connections: state.connections.filter((conn) => conn.id !== id),
+        })),
+
+      updateConnectionWaypoints: (id, waypoints) =>
+        set((state) => ({
+          connections: state.connections.map((conn) => {
+            if (conn.id !== id) return conn;
+            if (waypoints === undefined) {
+              // Strip the waypoints key entirely so undo can restore the
+              // virtual-Z (no-waypoints) state. Spread + delete on a clone
+              // keeps the result `Connection`-typed without an unused-var.
+              const next = { ...conn };
+              delete next.waypoints;
+              return next;
+            }
+            return { ...conn, waypoints };
+          }),
         })),
 
       setSelectedIds: (ids) => set({ selectedIds: ids }),
