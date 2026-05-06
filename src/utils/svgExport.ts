@@ -2,6 +2,7 @@ import type { DiagramElement, Connection, ArgumentElement, SupportElement, Teach
 import type { StyleConfig } from '../types';
 import { isArrowAttachment } from '../types';
 import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle } from './styleResolver';
+import { generateCloudPath } from './cloudPath';
 import {
   getEffectiveWaypoints,
   getOrthogonalPath,
@@ -148,10 +149,8 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
 
   let shapeElement: string;
   if (style.borderShape === 'cloud') {
-    // Cloud approximation for SVG export — the canvas renders a true cloud via
-    // Konva paths but exporting that is out of scope. A thick rounded rect is
-    // immediately recognizable as a cloud stand-in.
-    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="20" ry="20" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr} />`;
+    const cloudPath = generateCloudPath(width, height);
+    shapeElement = `<path d="${cloudPath}" transform="translate(${x},${y})" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr} />`;
   } else if (style.borderShape === 'ellipse') {
     const cx = x + width / 2;
     const cy = y + height / 2;
