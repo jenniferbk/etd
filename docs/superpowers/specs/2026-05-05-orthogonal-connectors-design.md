@@ -131,6 +131,7 @@ Fallback: if `segmentY` (resp. `segmentX`) lies outside the box's vertical (resp
 - The **first** segment is special: only its waypoint endpoint is stored — the source box exit slides along the box edge as the segment moves perpendicular. Same for the last segment and target box.
 - If a first/last segment slides past the box's edge extent, its exit migrates to the adjacent edge per §3 fallback.
 - **First-drag of a virtual-Z connection** materializes the virtual waypoints into stored `waypoints` first, then applies the drag.
+- **Minimum-segment clamp.** During drag, the dragged segment cannot be moved closer than **4px** to either of its neighbors' parallel positions. This prevents a user from collapsing a perpendicular neighbor segment to zero length, which would produce two co-located waypoints and break the orientation-inference rule in §3. The clamp is applied per-frame: pointer moves past the clamp threshold are silently ignored on the perpendicular axis. (Auto-merge of co-located waypoints is the alternative; deferred to whenever click-to-remove-bend ships, since they're the same code path.)
 
 **Snap-to-align.** While dragging, on every pointer-move:
 
@@ -176,11 +177,21 @@ None required in code. `waypoints?` is genuinely optional; loading a 1.3 file pr
 - **Existing diagrams reflow on load.** This is the explicit point of the change — Anna's feedback is that the diagonals are wrong. Element positions stay; connectors change shape.
 - **Cloud/ellipse line termination on bounding rect, not silhouette.** Small visible gap. Industry convention; consistent with every other orthogonal-routing editor. No bezier-intersection math.
 - **Default Z direction is heuristic.** When `|dx| ≥ |dy|` guesses wrong for a given layout, one segment-drag rotates the Z. One drag, no menu.
-- **`t`-along-polyline for warrant attachment shifts when the polyline reshapes.** Same behavior as today's straight-line `t`-parameter, just on a polyline. Worth flagging: warrants don't pin to a specific trunk segment, they pin to a fraction along the whole path.
+- **`t`-along-polyline for warrant attachment slides non-intuitively when the polyline reshapes.** This is the single biggest UX risk in the design. Today's `ConnectionTarget.position` is a fraction `t ∈ [0,1]` along the parent connection's total arc length. With straight 2-point parents, `t` corresponds to a stable visual location. With multi-segment polyline parents, dragging one segment changes the per-segment length distribution even when the total polyline length stays roughly the same — so a warrant pinned at `t = 0.5` can slide to a visibly different point on the polyline after a parent-trunk drag, which doesn't match how users mentally pin a warrant ("this warrant attaches to *that* trunk segment, right *there*"). A more stable model is `{ segmentIndex: number; tInSegment: number }`, but that's a `ConnectionTarget` schema change with cascading effects on save format, click-to-attach math, and the `getPointOnPolyline` contract — out of scope for v1. The v1 mitigation is to ship the simpler model, watch for the failure mode in user testing, and add the segment-indexed alternative as an explicit follow-up if it bites. Listed in "Out of scope" below.
 - **`.diagramx` export drops waypoints.** Round-tripping through DiagramMix already loses our routing; documented in the plan.
 - **Snap-to-align over-eagerness.** 6px threshold may snap to the wrong segment in dense diagrams. Mitigations: snap to closest candidate; render dashed line so the user sees what's happening; `Alt` suspends snap.
-- **Hit-test overlap on shared trunks.** When two connections share a vertical segment, clicking the shared region selects whichever Konva renders last. Acceptable in v1.
-- **First-segment slide past box extent.** Edge migrates to the adjacent box edge — visually a sudden jump. Edge case; user reverses the drag if unwanted.
+- **Hit-test overlap on shared trunks.** When two connections share a vertical trunk segment, clicking the shared region selects whichever Konva renders last. **The mitigation that makes this acceptable**: every connection in this design has at least two non-shared segments — the horizontal stub from the source box and the horizontal stub into the target box are unique to each connection because each has its own source/target endpoints. The user always has an unambiguous click target per connection (just not on the shared trunk itself). Click-cycling through overlapping connections is queued as a follow-up if v1 testing shows users actually try to click trunks.
+- **First/last-segment slide past box extent.** When a first or last segment's perpendicular coordinate falls outside the source/target box's edge range, the box exit migrates to the adjacent edge per §3 fallback — visually a sudden jump. Triggered by either user drag *or* element movement (if the user drags an endpoint element such that the stored waypoint is no longer "in front of" the box). Edge case; user can reverse the action.
+
+## Edge cases
+
+These behaviors are explicit so the implementation plan doesn't leave them undefined:
+
+- **Undo of the first segment-drag** on a virtual-Z connection: the undo entry restores `waypoints` to its pre-drag state, which was `undefined`. The connection reverts to virtual-Z rendering. Subsequent re-drags re-materialize the virtual waypoints. The store action is therefore "set waypoints to value (or unset)" rather than "patch waypoints array."
+- **Element deletion.** Deleting a source or target element deletes its connections, same as today. Orthogonal `waypoints` add no new failure mode here — the connection is removed before its waypoints are ever read. (Plan should include a regression test.)
+- **Copy/paste of connections.** If the diagram supports copy/paste of connections (verify in plan), `waypoints` are copied as **absolute coordinates**. If the pasted connection lands on the same source/target elements, it produces visually identical routing. If it lands on different elements (offset paste), the absolute waypoints may be far from the new endpoints — accept this in v1; users can drag segments to rebuild. A future enhancement could store waypoints relative to source-element position.
+- **Keyboard nudge** (arrow keys when a connection is selected): **out of scope for v1.** The existing keyboard handlers operate on selected *elements*, not connections. Adding nudge for connections is a real design decision (does it nudge all waypoints? the most recently-dragged segment? does it apply snap?) that we shouldn't bolt on unconsidered. Document non-support and revisit.
+- **Identical source and target endpoints.** If both endpoint elements are at the same `position` (or so close that `dx` and `dy` round to zero), the default Z degenerates to a zero-area shape. Renderer falls back to skipping the connection (returns `null` from path computation, same pattern as today's "fromEl/toEl not found" handling). User-visible: no connector drawn until elements separate.
 
 ## Testing plan
 
@@ -202,6 +213,10 @@ None required in code. `waypoints?` is genuinely optional; loading a 1.3 file pr
 
 - Click-to-insert-bend and remove-bend gestures (would also unlock 1-waypoint L-shapes, which need explicit orientation tracking — see §3).
 - **Orthogonal warrant-attachment connection routing** — attachment lines stay straight in v1; making them orthogonal is its own design pass.
+- **Segment-indexed warrant attachment** (`{segmentIndex, tInSegment}` instead of polyline-fraction `t`). Fixes the warrant-slide-on-trunk-drag UX risk noted above. Schema change to `ConnectionTarget`. Defer until/unless the polyline-`t` model demonstrably bites in user testing.
+- **Click-cycling through overlapping connections** on shared trunks. Defer until/unless trunk-click selection becomes a real user complaint.
+- **Keyboard nudge for selected connections.** Defer; needs its own interaction-design pass.
+- **Connection copy/paste with relative waypoints.** Defer; v1 paste uses absolute waypoints.
 - Composite argument types (`dataclaim`, `warrantclaim`) — separate brainstorm pending.
 - Sticky-group movement for support→argument associations — separate brainstorm pending.
 - Image-to-JSON in-app import.
