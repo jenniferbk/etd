@@ -1,4 +1,5 @@
-import { Group, Rect, Ellipse, Text, Line } from 'react-konva';
+import { Group, Rect, Ellipse, Text, Path } from 'react-konva';
+import { generateCloudPath } from '../../../utils/cloudPath';
 import type Konva from 'konva';
 import type { ArgumentElement } from '../../../types';
 import { EmbeddedImage } from './EmbeddedImage';
@@ -45,7 +46,7 @@ export function ArgumentShape({
 
   // Calculate text positioning
   // Cloud shapes need more padding because the elliptical boundary curves inward
-  const padding = isCloud ? 18 : 10;
+  const padding = isCloud ? 12 : 10;
   const labelHeight = 20;
 
   if (isCloud) {
@@ -252,7 +253,6 @@ export function ArgumentShape({
   );
 }
 
-// Classic comic-style thought bubble shape with scalloped bumps
 interface CloudShapeProps {
   width: number;
   height: number;
@@ -262,59 +262,7 @@ interface CloudShapeProps {
   isSelected: boolean;
 }
 
-// Generate thought bubble path using absolute cosine modulation
-// All bumps go outward (no inward cusps) creating classic cloud appearance
-function generateThoughtBubblePath(width: number, height: number): number[] {
-  const cx = width / 2;
-  const cy = height / 2;
-
-  // Bump depth - how far out each bump extends (calculated first)
-  const baseBumpDepth = Math.min(width, height) * 0.08;
-
-  // Base ellipse dimensions - sized so bumps reach the bounding box edge
-  // rx + bumpDepth ≈ width/2, so rx ≈ width/2 - bumpDepth
-  const rx = (width / 2) - baseBumpDepth;
-  const ry = (height / 2) - baseBumpDepth;
-
-  // Number of bumps - scales with size
-  const perimeter = Math.PI * (3 * (rx + ry) - Math.sqrt((3 * rx + ry) * (rx + 3 * ry)));
-  const numBumps = Math.max(8, Math.min(18, Math.round(perimeter / 35)));
-
-  // Actual bump depth
-  const bumpDepth = baseBumpDepth;
-
-  const points: number[] = [];
-  const pointsPerBump = 8;
-  const totalPoints = numBumps * pointsPerBump;
-
-  for (let i = 0; i <= totalPoints; i++) {
-    const t = (i / totalPoints) * Math.PI * 2;
-
-    // Base position on ellipse
-    const baseX = cx + rx * Math.cos(t);
-    const baseY = cy + ry * Math.sin(t);
-
-    // Absolute cosine - ALL bumps go outward, no inward cusps
-    // |cos| oscillates between 0 and 1, creating smooth bumps
-    const bumpPhase = t * numBumps;
-    const bumpWave = Math.abs(Math.cos(bumpPhase));
-
-    // Apply bump outward
-    const bumpAmount = bumpWave * bumpDepth;
-
-    // Normal direction (outward from center)
-    const normalX = Math.cos(t);
-    const normalY = Math.sin(t);
-
-    // Final position - base + outward bump
-    const finalX = baseX + normalX * bumpAmount;
-    const finalY = baseY + normalY * bumpAmount;
-
-    points.push(finalX, finalY);
-  }
-
-  return points;
-}
+const SELECTION_INFLATE = 0.08;
 
 function CloudShape({
   width,
@@ -324,41 +272,27 @@ function CloudShape({
   fill,
   isSelected,
 }: CloudShapeProps) {
-  const cx = width / 2;
-  const cy = height / 2;
-
-  // Generate the thought bubble path
-  const points = generateThoughtBubblePath(width, height);
-
-  // Generate selection outline (slightly larger)
-  const selectionPoints = points.map((p, i) => {
-    if (i % 2 === 0) {
-      return p + (p > cx ? 5 : -5);
-    } else {
-      return p + (p > cy ? 5 : -5);
-    }
-  });
+  const cloudPath = generateCloudPath(width, height);
 
   return (
     <>
-      <Line
-        points={points}
-        closed
+      <Path
+        data={cloudPath}
         fill={fill}
         stroke={stroke}
         strokeWidth={strokeWidth}
-        tension={0.2}
-        lineCap="round"
-        lineJoin="round"
       />
       {isSelected && (
-        <Line
-          points={selectionPoints}
-          closed
+        <Path
+          data={cloudPath}
+          scaleX={1 + SELECTION_INFLATE}
+          scaleY={1 + SELECTION_INFLATE}
+          x={-(width * SELECTION_INFLATE) / 2}
+          y={-(height * SELECTION_INFLATE) / 2}
           stroke="#4A90D9"
           strokeWidth={2}
           dash={[5, 3]}
-          tension={0.2}
+          fill=""
         />
       )}
     </>
