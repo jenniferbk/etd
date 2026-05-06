@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { generateCloudPath, computeCloudGeometry } from './cloudPath';
 
 function countCommand(path: string, cmd: string): number {
-  return (path.match(new RegExp(`\\b${cmd}\\b`, 'g')) ?? []).length;
+  return (path.match(new RegExp(cmd, 'g')) ?? []).length;
 }
 
 describe('generateCloudPath', () => {
@@ -11,6 +11,11 @@ describe('generateCloudPath', () => {
     expect(path.length).toBeGreaterThan(0);
     expect(path.trim().startsWith('M')).toBe(true);
     expect(path.trim().endsWith('Z')).toBe(true);
+  });
+
+  it('produces a single subpath (one M command)', () => {
+    const path = generateCloudPath(140, 60);
+    expect(countCommand(path, 'M')).toBe(1);
   });
 
   it('emits 2 * (longBumps + shortBumps) arc commands at default 140x60', () => {
@@ -58,35 +63,28 @@ describe('generateCloudPath', () => {
     expect(geom.shortBumps).toBe(4);
   });
 
-  it('keeps every arc apex within the bbox plus 3px tolerance', () => {
-    // Walk the path and check that arc apex points (computed from each arc command)
-    // stay within [-3, width+3] x [-3, height+3].
+  it('keeps arc endpoints within the bbox plus 3px tolerance', () => {
+    // Walk the path and check that every arc's endpoint stays within [-3, width+3] x [-3, height+3]. (Endpoints are necessary-but-not-sufficient for full bbox containment, but the construction guarantees apexes by simultaneous-equation solution.)
     const w = 140, h = 60;
     const path = generateCloudPath(w, h);
     const tokens = path.split(/\s+/);
-    let i = 0, x = 0, y = 0;
+    let i = 0;
     while (i < tokens.length) {
       const t = tokens[i];
       if (t === 'M') {
-        x = parseFloat(tokens[i + 1]);
-        y = parseFloat(tokens[i + 2]);
         i += 3;
       } else if (t === 'A') {
-        // A rx ry xrot lf sf x y
         const ex = parseFloat(tokens[i + 6]);
         const ey = parseFloat(tokens[i + 7]);
-        // Endpoints must lie within bbox + tolerance
         expect(ex).toBeGreaterThanOrEqual(-3);
         expect(ex).toBeLessThanOrEqual(w + 3);
         expect(ey).toBeGreaterThanOrEqual(-3);
         expect(ey).toBeLessThanOrEqual(h + 3);
-        x = ex;
-        y = ey;
         i += 8;
       } else if (t === 'Z' || t === '') {
         i += 1;
       } else {
-        i += 1;
+        throw new Error(`unexpected token in path at index ${i}: ${JSON.stringify(t)}`);
       }
     }
   });
