@@ -1,12 +1,12 @@
 import { Circle, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement } from '../../../types';
+import { isArrowAttachment } from '../../../types';
 import {
-  isArgumentElement,
-  isSupportElement,
-  isTeacherSupportElement,
-  isArrowAttachment,
-} from '../../../types';
+  getEffectiveWaypoints,
+  getOrthogonalPath,
+  getStraightAttachmentPath,
+} from '../../../utils/orthogonalRouting';
 
 interface ArrowProps {
   connection: Connection;
@@ -18,14 +18,6 @@ interface ArrowProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onArrowClick?: (connectionId: string, position: number, point: { x: number; y: number }) => void;
   onHover?: (connectionId: string | null) => void;
-}
-
-// Get center point of an element
-function getElementCenter(el: DiagramElement): { x: number; y: number } {
-  return {
-    x: el.position.x + el.size.width / 2,
-    y: el.position.y + el.size.height / 2,
-  };
 }
 
 // Calculate point along a polyline at position t (0-1).
@@ -70,99 +62,13 @@ function getPointOnPolyline(
   return { x: points[points.length - 2], y: points[points.length - 1] };
 }
 
-// Decide which silhouette to clip a connector against for a given element.
-// 'ellipse' = action support shapes and the cloud "implicit" argument shape
-// (clipped to its bounding-box ellipse — the bezier bumps reach roughly to
-// that envelope, so the line ends at the cloud's outer edge).
-// 'rect' = everything else: axis-aligned bounding box.
-type ShapeKind = 'rect' | 'ellipse';
-function getShapeKind(el: DiagramElement): ShapeKind {
-  if (isArgumentElement(el) && el.contributor === 'implicit') return 'ellipse';
-  if (isSupportElement(el) && el.supportType === 'action') return 'ellipse';
-  if (isTeacherSupportElement(el) && el.supportType === 'action') return 'ellipse';
-  return 'rect';
-}
-
-// Find the point where a line from `center` toward `target` exits an
-// axis-aligned rectangle of half-width hw and half-height hh centered on `center`.
-function lineRectEdgePoint(
-  center: { x: number; y: number },
-  hw: number,
-  hh: number,
-  target: { x: number; y: number }
-): { x: number; y: number } {
-  const dx = target.x - center.x;
-  const dy = target.y - center.y;
-  if (dx === 0 && dy === 0) return { x: center.x, y: center.y };
-  const tx = dx !== 0 ? hw / Math.abs(dx) : Infinity;
-  const ty = dy !== 0 ? hh / Math.abs(dy) : Infinity;
-  const t = Math.min(tx, ty);
-  return { x: center.x + t * dx, y: center.y + t * dy };
-}
-
-// Find the point where a line from `center` toward `target` exits an ellipse
-// centered on `center` with semi-axes (rx, ry). Closed-form solution.
-function lineEllipseEdgePoint(
-  center: { x: number; y: number },
-  rx: number,
-  ry: number,
-  target: { x: number; y: number }
-): { x: number; y: number } {
-  const dx = target.x - center.x;
-  const dy = target.y - center.y;
-  const len = Math.hypot(dx, dy);
-  if (len === 0) return { x: center.x, y: center.y };
-  const ux = dx / len;
-  const uy = dy / len;
-  const s = 1 / Math.sqrt((ux * ux) / (rx * rx) + (uy * uy) / (ry * ry));
-  return { x: center.x + s * ux, y: center.y + s * uy };
-}
-
-// Boundary point of an element along the line from its center toward `target`.
-// Picks rectangle or ellipse silhouette based on element type.
-function getEdgePoint(
-  el: DiagramElement,
-  target: { x: number; y: number }
-): { x: number; y: number } {
-  const center = getElementCenter(el);
-  const hw = el.size.width / 2;
-  const hh = el.size.height / 2;
-  if (getShapeKind(el) === 'ellipse') {
-    return lineEllipseEdgePoint(center, hw, hh, target);
-  }
-  return lineRectEdgePoint(center, hw, hh, target);
-}
-
-// Build a straight 2-point path between two elements. Both endpoints lie on
-// each element's silhouette along the source-center → target-center line.
-function getStraightPath(
-  fromEl: DiagramElement,
-  toEl: DiagramElement
-): { points: number[] } {
-  const fromCenter = getElementCenter(fromEl);
-  const toCenter = getElementCenter(toEl);
-  const fromEdge = getEdgePoint(fromEl, toCenter);
-  const toEdge = getEdgePoint(toEl, fromCenter);
-  return { points: [fromEdge.x, fromEdge.y, toEdge.x, toEdge.y] };
-}
-
-// Build a straight 2-point path from an element to a point on another
-// connection. Source side is clipped to the element's silhouette; the
-// attachment side terminates exactly at the attachment point.
-function getStraightPathToArrow(
-  fromEl: DiagramElement,
-  attachPoint: { x: number; y: number }
-): { points: number[] } {
-  const fromEdge = getEdgePoint(fromEl, attachPoint);
-  return { points: [fromEdge.x, fromEdge.y, attachPoint.x, attachPoint.y] };
-}
-
-// Resolve a connection to its rendered polyline points. Recursively resolves
-// arrow-attachment connections by computing the parent's path first.
+// Resolve a connection to its rendered polyline points.
+// Element-to-element connections: orthogonal polyline (Z-elbow default + stored waypoints).
+// Warrant-attachment connections: straight 2-point segment (orthogonal-attachment is out of scope in v1).
 function getConnectionPathPoints(
   connection: Connection,
   elements: DiagramElement[],
-  connections: Connection[]
+  connections: Connection[],
 ): { points: number[] } | null {
   const fromEl = elements.find((el) => el.id === connection.from);
   if (!fromEl) return null;
@@ -175,13 +81,26 @@ function getConnectionPathPoints(
     const targetResult = getConnectionPathPoints(targetConn, elements, connections);
     if (!targetResult) return null;
 
-    const attachPoint = getPointOnPolyline(targetResult.points, connection.to.position);
-    return getStraightPathToArrow(fromEl, attachPoint);
+    const attachPoint = getPointOnPolyline(targetResult.points, attachment.position);
+    return { points: getStraightAttachmentPath(fromEl, attachPoint) };
   }
 
   const toEl = elements.find((el) => el.id === connection.to);
   if (!toEl) return null;
-  return getStraightPath(fromEl, toEl);
+
+  // Identical-endpoint degeneracy: both elements at exactly the same position with same size
+  // would produce a zero-length default Z. Skip rendering rather than draw a degenerate shape.
+  if (
+    fromEl.position.x === toEl.position.x &&
+    fromEl.position.y === toEl.position.y &&
+    fromEl.size.width === toEl.size.width &&
+    fromEl.size.height === toEl.size.height
+  ) {
+    return null;
+  }
+
+  const waypoints = getEffectiveWaypoints(connection, fromEl, toEl);
+  return { points: getOrthogonalPath(fromEl, toEl, waypoints) };
 }
 
 export function ConnectionArrow({
