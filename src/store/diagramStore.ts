@@ -76,6 +76,8 @@ interface DiagramState {
   updateElement: (id: string, updates: Partial<DiagramElement>) => void;
   removeElement: (id: string) => void;
   moveElement: (id: string, position: Position) => void;
+  moveCluster: (startPositions: Map<string, Position>, delta: Position) => void;
+  moveAndLink: (id: string, position: Position, associatedArgumentId: string | null) => void;
   resizeElement: (id: string, size: Size) => void;
   setElementImage: (id: string, imageData: string | null) => void;
   setElementImageSettings: (id: string, settings: Partial<ImageSettings>) => void;
@@ -176,19 +178,57 @@ export const useDiagramStore = create<DiagramState>()(
         })),
 
       removeElement: (id) =>
-        set((state) => ({
-          elements: state.elements.filter((el) => el.id !== id),
-          connections: state.connections.filter(
-            (conn) => conn.from !== id && conn.to !== id
-          ),
-          selectedIds: state.selectedIds.filter((sid) => sid !== id),
-        })),
+        set((state) => {
+          const removed = state.elements.find((el) => el.id === id);
+          const isArg = removed?.type === 'argument';
+          return {
+            elements: state.elements
+              .filter((el) => el.id !== id)
+              .map((el) => {
+                if (!isArg) return el;
+                if (el.type !== 'support') return el;
+                const supEl = el as SupportElement;
+                if (supEl.associatedWith !== id) return el;
+                const { associatedWith: _omit, ...rest } = supEl;
+                void _omit;
+                return rest as SupportElement;
+              }),
+            connections: state.connections.filter(
+              (conn) => conn.from !== id && conn.to !== id
+            ),
+            selectedIds: state.selectedIds.filter((sid) => sid !== id),
+          };
+        }),
 
       moveElement: (id, position) =>
         set((state) => ({
           elements: state.elements.map((el) =>
             el.id === id ? { ...el, position } : el
           ),
+        })),
+
+      moveCluster: (startPositions, delta) =>
+        set((state) => ({
+          elements: state.elements.map((el) => {
+            const start = startPositions.get(el.id);
+            if (!start) return el;
+            return { ...el, position: { x: start.x + delta.x, y: start.y + delta.y } };
+          }),
+        })),
+
+      moveAndLink: (id, position, associatedArgumentId) =>
+        set((state) => ({
+          elements: state.elements.map((el) => {
+            if (el.id !== id) return el;
+            if (el.type !== 'support') return el;  // no-op for non-supports
+            const supEl = el as SupportElement;
+            if (associatedArgumentId === null) {
+              const { associatedWith: _omit, ...rest } = supEl;
+              void _omit;
+              return { ...rest, position };
+            }
+            return { ...supEl, position, associatedWith: associatedArgumentId };
+          }),
         })),
 
       resizeElement: (id, size) =>
