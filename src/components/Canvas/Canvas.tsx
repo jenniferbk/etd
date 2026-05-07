@@ -40,6 +40,11 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const containerRef = useRef<HTMLDivElement>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const shapeRefs = useRef<Map<string, Konva.Group>>(new Map());
+  const stickyDragRef = useRef<{
+    cluster: Cluster;
+    startPositions: Map<string, { x: number; y: number }>;
+    supportNodes: Map<string, Konva.Node>;
+  } | null>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
   const [isPanMode, setIsPanMode] = useState(false);
@@ -103,6 +108,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     setSelectedIds,
     clearSelection,
     moveElement,
+    moveCluster,
     resizeElement,
     updateElement,
     addConnection,
@@ -359,6 +365,67 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       moveElement(id, { x, y });
     },
     [moveElement]
+  );
+
+  const handleArgumentDragStart = useCallback(
+    (id: string) => {
+      // Suppress sticky-group when this argument is part of a multi-selection.
+      if (selectedIds.length > 1 && selectedIds.includes(id)) {
+        stickyDragRef.current = null;
+        return;
+      }
+      const cluster = computeCluster(elements, id);
+      if (!cluster) {
+        stickyDragRef.current = null;
+        return;
+      }
+      const startPositions = new Map<string, { x: number; y: number }>();
+      startPositions.set(cluster.argument.id, { ...cluster.argument.position });
+      for (const s of cluster.supports) {
+        startPositions.set(s.id, { ...s.position });
+      }
+      const supportNodes = new Map<string, Konva.Node>();
+      for (const s of cluster.supports) {
+        const node = shapeRefs.current.get(s.id);
+        if (node) supportNodes.set(s.id, node);
+      }
+      stickyDragRef.current = { cluster, startPositions, supportNodes };
+    },
+    [elements, selectedIds]
+  );
+
+  const handleArgumentDragMove = useCallback(
+    (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+      const cache = stickyDragRef.current;
+      if (!cache) return;
+      const argStart = cache.startPositions.get(id);
+      if (!argStart) return;
+      const delta = { x: e.target.x() - argStart.x, y: e.target.y() - argStart.y };
+      for (const [supId, node] of cache.supportNodes) {
+        const start = cache.startPositions.get(supId);
+        if (!start) continue;
+        node.position({ x: start.x + delta.x, y: start.y + delta.y });
+      }
+      e.target.getLayer()?.batchDraw();
+    },
+    []
+  );
+
+  const handleArgumentDragEnd = useCallback(
+    (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+      const cache = stickyDragRef.current;
+      const finalArg = { x: e.target.x(), y: e.target.y() };
+      if (!cache) {
+        // Fallback to single-element move (multi-select case or no cluster).
+        moveElement(id, finalArg);
+        return;
+      }
+      const argStart = cache.startPositions.get(id)!;
+      const delta = { x: finalArg.x - argStart.x, y: finalArg.y - argStart.y };
+      moveCluster(cache.startPositions, delta);
+      stickyDragRef.current = null;
+    },
+    [moveElement, moveCluster]
   );
 
   // Handle context menu (right-click)
@@ -690,7 +757,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+                  onDragStart={() => handleArgumentDragStart(element.id)}
+                  onDragMove={(e) => handleArgumentDragMove(element.id, e)}
+                  onDragEnd={(e) => handleArgumentDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
                   onContextMenu={(e) => handleContextMenu(element.id, 'argument', e)}
