@@ -21,11 +21,13 @@ Anna also asked that clusters move as a unit — once a support is associated wi
 ## Non-goals
 
 - Multi-target supports. `associatedWith` is a single id (`string`), not `string[]`. If researchers find this limiting, expand later.
-- Auto-clearing the link when a support is dragged out of overlap. The field is authoritative — moving a support around the canvas does not silently re-bind it. Users edit the Properties panel dropdown to change the link.
+- Auto-clearing the link when a support is dragged out of overlap, or when a linked support is dragged onto a *different* argument's cluster. The field is authoritative — moving a support around the canvas does not silently re-bind it. Users edit the Properties panel dropdown to change the link. To make this less surprising, while a linked support is being dragged the linked argument's halo renders so the user sees that the link is intact and unchanged (see "Halo render integration").
 - Migration of legacy `TeacherSupportElement` (already deprecated). New field lives on `SupportElement` only.
 - Halo animations. Halos appear and disappear instantly on selection / drag-state change.
 - Persisted cluster IDs. Clusters are computed on demand from spatial overlap; no second source of truth.
 - Super-clusters that span multiple arguments. Argument boundaries act as walls in cluster traversal — see "Cluster computation" below.
+- Visual on-canvas indicator for orphan links (a support linked to an off-screen or non-overlapping argument). Properties panel surfaces the link; an on-canvas badge can land later if researchers ask.
+- Special handling of nested arguments (one argument's bbox fully containing another). Anna's diagrams don't currently use this; if a researcher reports it, revisit the wall rule.
 
 ## Design
 
@@ -135,59 +137,97 @@ Select halo: dashed blue stroke + 6% blue fill — passive indication.
 
 ### Halo render integration
 
-Halos render in a layer (or sub-group) **behind** the elements layer in `Canvas.tsx`. Konva draws by mount order, so halos must be mounted before element shapes.
+Halos render in a layer (or sub-group) at the **deepest** position in the canvas — behind connections AND behind elements. The current `Canvas.tsx` renders connections, then elements, then a Transformer. Halos go before all of these so their translucent fill never tints connection arrows or element borders. Konva draws by mount order, so the halo group must be the first child of the main `<Layer>`.
 
-Per render pass, deduplicate halos:
+**Per-render dedup.** Build `halosToRender: Map<argumentId, 'drag' | 'select'>`. Iterate as follows:
 
-- Build a set `halosToRender: Map<argumentId, 'drag' | 'select'>`.
-- For every selected element (argument or support): identify its anchor argument and add a `'select'` halo for it.
-- For the dragged support (if any): for every argument whose cluster the dragged support's bbox currently overlaps, add a `'drag'` halo for that argument (drag mode wins if both modes apply to the same argument).
-- Render one `<ClusterHalo>` per entry.
+1. **Selection halos.** For each selected element:
+   - If it's an argument: add `(argument.id, 'select')`.
+   - If it's a support: identify its anchor argument(s) and add a `'select'` halo for each. Anchor arguments are: (i) the argument named by `associatedWith` if set; AND (ii) every argument whose cluster the support spatially overlaps via `computeCluster`. Both can apply simultaneously — for example, a sticky-linked support that has been dragged into a different cluster shows two `'select'` halos.
+2. **Drag halos for an unlinked support being dragged.** For every argument whose cluster the dragged support's current bbox would join (computed via the auto-suggest single-BFS — see "Drag handlers"), add `(arg.id, 'drag')`. Drag mode wins on tie if a `'select'` entry already exists.
+3. **Sticky-link halo for a linked support being dragged.** If the dragged support has `associatedWith` set, add `(associatedWith, 'select')` — the existing link's halo follows the support around so the user sees the link is intact and not changing. No `'drag'` halos are added for a linked support's drag (re-linking via drag is a no-op by design).
 
-A bridge support being dragged thus produces two drag halos — one per overlapped argument — exactly the visual signal that it's about to bridge two clusters.
+The `'select'` halo for the linked argument during a linked support's drag is the visual answer to "why doesn't dragging onto a new cluster re-link?" The user sees their original link still highlighted; the path to re-link is the Properties dropdown.
+
+A bridge support being dragged (unlinked) produces two `'drag'` halos — one per overlapped argument — exactly the visual signal that it's about to bridge two clusters and that the auto-suggest will skip due to ambiguity.
 
 ### Drag handlers
 
-**Argument drag (sticky-group):**
+**Argument drag (sticky-group).** Sticky-group fires only when the dragged argument is **not part of a multi-selection**: `selectedIds.length <= 1 || !selectedIds.includes(argument.id)`. If the argument is part of a multi-select drag, the existing multi-select handler runs and sticky-group is suppressed (multi-select wins; otherwise cluster supports that are also selected would move twice).
 
 ```
 onDragStart(argument):
+  if (selectedIds.length > 1 && selectedIds.includes(argument.id)):
+    return  // multi-select wins, no sticky-group
   cluster = computeCluster(elements, argument.id)
   cache.cluster = cluster
   cache.startPositions = new Map(
     [argument, ...cluster.supports].map(el => [el.id, { ...el.position }])
   )
+  cache.supportNodes = new Map(
+    cluster.supports.map(s => [s.id, stage.findOne('#' + s.id)])
+  )
 
 onDragMove(argument):
+  if !cache.cluster: return
   delta = { x: argument.x - cache.startPositions.get(argument.id).x,
             y: argument.y - cache.startPositions.get(argument.id).y }
-  // Apply via store batch action so a single zundo entry covers the whole move:
-  store.moveCluster(cache.startPositions, delta)
+  // Move support Konva nodes imperatively — no store writes during the drag.
+  for [id, node] of cache.supportNodes:
+    start = cache.startPositions.get(id)
+    node.position({ x: start.x + delta.x, y: start.y + delta.y })
+  layer.batchDraw()
 
 onDragEnd(argument):
+  if !cache.cluster: return
+  finalDelta = { ... computed from argument's final position vs start ... }
+  // Single store action → one zundo entry covering the whole cluster move:
+  store.moveCluster(cache.startPositions, finalDelta)
   cache = {}
 ```
 
-`moveCluster(startPositions: Map<id, Position>, delta: Position)` is a new action on the diagram store. It iterates members and sets each `position = startPos + delta` in a single store update, producing one undo entry rather than N.
+`moveCluster(startPositions: Map<id, Position>, delta: Position)` is a new action on the diagram store. It iterates members in `startPositions` and sets each element's `position = startPos + delta` in a single state update, producing one undo entry rather than N.
 
-**Support drag (single-element):**
+**Why imperative Konva node moves during the drag, not store writes per frame:** writing to the store every `dragmove` would either flood zundo with N×frames undo entries, or require throttling. Imperative Konva moves during the drag + a single store commit on `dragend` is the standard idiom for grouped drag in Konva and produces exactly one undo entry.
 
-Standard single-element move via existing `moveElement`. No group behavior. The dragged support's current rect drives drag-mode halos in the render layer.
+**Snap-to-align interaction.** The recently-shipped snap-to-align feature acts on the dragged argument's Konva position. Cluster supports follow the *post-snap* `argument.x/y` exactly via the `delta` computation above, so the cluster moves rigidly without per-element snapping. This preserves the cluster's relative geometry — no jiggle, no overlap loss mid-drag, no double-snap.
+
+**Support drag (single-element).** Standard single-element move via the existing `moveElement` flow; no group behavior. The dragged support's current rect during drag drives the halo render (drag-mode halos if unlinked, sticky-link halo on the existing argument if already linked — see "Halo render integration").
+
+**Auto-suggest on support `dragend`.** Single BFS from the dropped support, walls at arguments:
 
 ```
 onDragEnd(support):
-  if support.associatedWith != null: return    // sticky link
-  overlappedArgIds = new Set()
-  for each argument in elements:
-    cluster = computeCluster(elements, argument.id)
-    if [argument, ...cluster.supports].some(m => bboxesOverlap(m, support)):
-      overlappedArgIds.add(argument.id)
+  if support.associatedWith != null:
+    return  // sticky link — no re-suggest, see "Re-linking" below
+  visited = new Set([support.id])
+  queue = [support]
+  overlappedArgIds = new Set<string>()
+
+  while (queue.length > 0):
+    current = queue.shift()
+    for each candidate in elements:
+      if visited.has(candidate.id): continue
+      if !bboxesOverlap(current, candidate): continue
+      visited.add(candidate.id)
+      if candidate.type === 'argument':
+        overlappedArgIds.add(candidate.id)
+        // wall — do not queue
+      else if isSupportElement(candidate):
+        queue.push(candidate)
+
   if overlappedArgIds.size === 1:
-    store.setElement(support.id, { associatedWith: [...overlappedArgIds][0] })
-  // else (zero or multiple): leave associatedWith unset
+    // Batch the move (already committed by Konva's drag) with the link write
+    // so undo reverts both atomically.
+    store.moveAndLink(support.id, support.position, [...overlappedArgIds][0])
+  // else (size 0 or 2+): no link change; the move stands as-is.
 ```
 
-The "exactly one" rule covers the common workflow without guessing in ambiguous cases.
+The single BFS replaces an O(args × elements²) per-argument variant — it runs once total and finds every argument anchor the support's "would-be cluster" touches.
+
+**Undo batching for support drop.** A new store action `moveAndLink(id: string, position: Position, associatedArgumentId: string | null)` is added so the position update and the link write happen in one zundo step. Without this, `Cmd+Z` after a drop-with-auto-suggest would undo only one of them. For non-linking drops, the existing `moveElement` action remains sufficient (no second write to batch).
+
+**Re-linking.** Once `associatedWith` is set, dragging the support somewhere else is a no-op for the link. The visual feedback during a linked support's drag (sticky-link halo on the existing argument — see "Halo render integration") communicates the no-op so the user understands. To re-link: open Properties and pick a different argument (or `(none)` and re-drop).
 
 ### Properties panel
 
@@ -206,17 +246,45 @@ Selecting `(none)` clears `associatedWith`. Selecting an argument sets the field
 
 No separate "Unlink" affordance. `(none)` is the unlink path.
 
-### Store action
+### Store actions and argument-deletion cleanup
 
-New action in `src/store/diagramStore.ts`:
+Two new actions in `src/store/diagramStore.ts`:
 
 ```ts
 moveCluster: (startPositions: Map<string, Position>, delta: Position) => void;
+moveAndLink: (id: string, position: Position, associatedArgumentId: string | null) => void;
 ```
 
-Implementation: single `set` call that iterates `state.elements` and updates each whose id is in `startPositions` with `position = { x: startPos.x + delta.x, y: startPos.y + delta.y }`. zundo wraps this as one undo entry.
+`moveCluster` — single `set` call that iterates `state.elements` and updates each whose id is in `startPositions` with `position = { x: startPos.x + delta.x, y: startPos.y + delta.y }`. zundo wraps this as one undo entry.
 
-The existing `setElement` action handles the `associatedWith` writes (auto-suggest at drop, dropdown selection). No new action needed for those.
+`moveAndLink` — single `set` call that updates the support's `position` and writes `associatedWith = associatedArgumentId` (or removes it if `null`). One zundo entry covers both writes, so `Cmd+Z` after a drop-with-auto-suggest reverts the move and the link together.
+
+The existing `setElement` action handles `associatedWith` writes triggered from the Properties dropdown. No new action needed for those (single field write, single undo entry — already correct).
+
+**Argument-deletion cleanup.** Modify the existing `removeElement` action: when the removed element is an `ArgumentElement`, also clear `associatedWith` on every `SupportElement` whose `associatedWith` equals the removed id. This avoids dangling references that would crash the Properties dropdown's lookup or display stale data.
+
+```ts
+removeElement: (id) =>
+  set((state) => {
+    const removed = state.elements.find(e => e.id === id);
+    const isArg = removed?.type === 'argument';
+    return {
+      elements: state.elements
+        .filter(el => el.id !== id)
+        .map(el =>
+          isArg && isSupportElement(el) && el.associatedWith === id
+            ? { ...el, associatedWith: undefined }
+            : el
+        ),
+      connections: state.connections.filter(
+        conn => conn.from !== id && conn.to !== id
+      ),
+      selectedIds: state.selectedIds.filter(sid => sid !== id),
+    };
+  }),
+```
+
+The scrub is part of the same `set` call, so undo restores both the deleted argument *and* the cleared `associatedWith` fields on every support that was pointing to it — atomic.
 
 ### JSON export
 
@@ -230,7 +298,7 @@ No format changes beyond the new optional field appearing on supports that have 
 - **NEW** `src/components/Canvas/shapes/ClusterHalo.tsx` — halo render component
 - `src/components/Canvas/Canvas.tsx` — halo render integration in the canvas layer; sticky-group drag handler for arguments; auto-suggest in support `dragend`
 - `src/components/Properties/PropertiesPanel.tsx` — "Associated with" dropdown
-- `src/store/diagramStore.ts` — add `moveCluster` action
+- `src/store/diagramStore.ts` — add `moveCluster` and `moveAndLink` actions; modify `removeElement` to scrub dangling `associatedWith` when an argument is deleted
 
 ## Testing
 
@@ -247,6 +315,14 @@ No format changes beyond the new optional field appearing on supports that have 
 - `unionBbox` of one element → that element's rect.
 - `unionBbox` of multiple elements → smallest enclosing axis-aligned rect.
 
+### Unit tests for store actions (`src/store/diagramStore.test.ts` — new)
+
+- `moveCluster` updates positions for every id in `startPositions`, leaves other elements unchanged.
+- `moveAndLink` updates both `position` and `associatedWith` in one state transition.
+- `removeElement` on an argument also clears `associatedWith` on every support that referenced it; supports linked to *other* arguments are untouched.
+- `removeElement` on a support does NOT touch any other element's `associatedWith` (supports don't appear as link targets).
+- `moveAndLink(id, pos, null)` clears `associatedWith` while updating position (covers the "drop into ambiguous overlap, no link" case if we ever route it through this action; for now it's a defensive completeness test).
+
 ### Manual verification (browser)
 
 After implementation, run the dev server and confirm in order:
@@ -255,11 +331,16 @@ After implementation, run the dev server and confirm in order:
 2. Drop a second Question, drag it onto the first Question (which is already in the Claim's cluster), release. The second Question's `associatedWith` auto-fills with the Claim (transitive auto-suggest).
 3. Click the Claim. Halo appears (dashed blue) around the Claim + both Questions.
 4. Click off, then click one of the Questions. Same halo appears.
-5. Drag the Claim. Both Questions move with it, keeping their relative offsets. Single undo step reverts the whole move.
+5. Drag the Claim. Both Questions move with it, keeping their relative offsets. Snap-to-align (if engaged) snaps the Claim cleanly; the Questions follow without independent snapping. Single `Cmd+Z` reverts the whole move.
 6. Drag one Question out of overlap. It moves alone. Properties still shows the Claim in "Associated with" (sticky link).
 7. Drop a third Question that overlaps both the existing Claim and a second Claim simultaneously. Properties shows `(none)` (auto-suggest skipped due to ambiguity). While selected, both Claims' halos visible.
 8. Open Properties for the third Question, pick the second Claim from "Associated with". Save the diagram, reopen it. The link survives the round-trip.
 9. Drag the second Claim. The third Question moves with it (it's now part of the second Claim's cluster); the first Claim's cluster is unaffected.
+10. **Linked-support drag feedback:** drag the second Question (already linked to the first Claim) toward the second Claim's cluster. While dragging, the first Claim's halo (the existing link) stays highlighted around the original argument and follows the support visually. On release, no auto-suggest fires; Properties still shows the first Claim. (`Cmd+Z` undoes the move only.)
+11. **Drop with auto-suggest is one undo step:** drop a fresh Question onto a Claim, watch `associatedWith` auto-fill. `Cmd+Z` once — the Question returns to its pre-drag position AND `associatedWith` is cleared (both reverted atomically).
+12. **Multi-select drag suppresses sticky-group:** marquee-select a Claim and one of its Questions. Drag. Only those two move (multi-select behavior); the cluster's other Questions stay put.
+13. **Argument deletion scrubs the link:** delete the first Claim. Both Questions that were linked to it now show `(none)` in Properties. `Cmd+Z` restores the Claim AND restores both Questions' `associatedWith` (atomic).
+14. **Bridge-support during select:** select the third Question (linked to second Claim, but currently overlapping both Claims via the cluster geometry). Two halos appear — one for the second Claim (its sticky link) and one for the first Claim (current spatial overlap). Both are dashed select-mode style.
 
 ## Tunable parameters (post-ship dials)
 
