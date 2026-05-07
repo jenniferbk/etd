@@ -17,6 +17,9 @@ import { Legend } from './shapes/Legend';
 import { SelectionRect } from './SelectionRect';
 import { useMarqueeSelection } from '../../hooks/useMarqueeSelection';
 import { InlineEditor } from './InlineEditor';
+import { ClusterHalo } from './shapes/ClusterHalo';
+import { computeCluster } from '../../utils/clusters';
+import type { Cluster } from '../../utils/clusters';
 
 interface ContextMenuState {
   visible: boolean;
@@ -562,6 +565,42 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [clientPointToCanvas, addElement, elements],
   );
 
+  // Cluster halos. Map keyed by argument id so each argument's halo renders at
+  // most once. Drag mode wins on tie with select mode.
+  const halosToRender = (() => {
+    const map = new Map<string, { cluster: Cluster; mode: 'drag' | 'select' }>();
+
+    // Selection halos: for each selected element, identify anchor argument(s).
+    for (const selId of selectedIds) {
+      const sel = elements.find((e) => e.id === selId);
+      if (!sel) continue;
+      if (isArgumentElement(sel)) {
+        const c = computeCluster(elements, sel.id);
+        if (c) map.set(sel.id, { cluster: c, mode: 'select' });
+      } else if (isSupportElement(sel)) {
+        // (i) sticky link target
+        if (sel.associatedWith) {
+          const c = computeCluster(elements, sel.associatedWith);
+          if (c && !map.has(sel.associatedWith)) {
+            map.set(sel.associatedWith, { cluster: c, mode: 'select' });
+          }
+        }
+        // (ii) every argument whose cluster currently overlaps this support
+        for (const el of elements) {
+          if (!isArgumentElement(el)) continue;
+          if (map.has(el.id)) continue;
+          const c = computeCluster(elements, el.id);
+          if (!c) continue;
+          if (c.supports.some((s) => s.id === sel.id)) {
+            map.set(el.id, { cluster: c, mode: 'select' });
+          }
+        }
+      }
+    }
+
+    return map;
+  })();
+
   // Determine if we're connecting from a warrant-type element
   const connectingFromElement = connectingFrom
     ? elements.find((el) => el.id === connectingFrom)
@@ -620,6 +659,11 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         }}
       >
         <Layer>
+          {/* Cluster halos render first so they sit behind connections and elements */}
+          {Array.from(halosToRender.entries()).map(([argId, { cluster, mode }]) => (
+            <ClusterHalo key={`halo-${argId}-${mode}`} cluster={cluster} mode={mode} />
+          ))}
+
           {/* Render connections first (behind elements) */}
           {connections.map((connection) => (
             <ConnectionArrow
