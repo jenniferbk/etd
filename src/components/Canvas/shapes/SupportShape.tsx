@@ -10,6 +10,7 @@ interface SupportShapeProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onDoubleClick?: () => void;
   onDragStart?: () => void;
+  onDragMove?: (e: Konva.KonvaEventObject<DragEvent>) => void;
   onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => void;
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;
@@ -22,6 +23,7 @@ export function SupportShape({
   onSelect,
   onDoubleClick,
   onDragStart,
+  onDragMove,
   onDragEnd,
   shapeRef,
   onTransformEnd,
@@ -119,6 +121,7 @@ export function SupportShape({
       onDblClick={onDoubleClick}
       onDblTap={onDoubleClick}
       onDragStart={onDragStart}
+      onDragMove={onDragMove}
       onDragEnd={onDragEnd}
       onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
       onContextMenu={onContextMenu}
