@@ -89,6 +89,7 @@ export interface SupportElement extends BaseElement {
   contributor: SupportContributor;
   supportType: SupportType;
   subtype?: SupportSubtype;
+  associatedWith?: string;   // argument element id; sticky after first auto-suggest
 }
 
 // Deprecated - use SupportElement instead
