@@ -18,7 +18,7 @@ import { SelectionRect } from './SelectionRect';
 import { useMarqueeSelection } from '../../hooks/useMarqueeSelection';
 import { InlineEditor } from './InlineEditor';
 import { ClusterHalo } from './shapes/ClusterHalo';
-import { computeCluster } from '../../utils/clusters';
+import { computeCluster, bboxesOverlap } from '../../utils/clusters';
 import type { Cluster } from '../../utils/clusters';
 
 interface ContextMenuState {
@@ -48,6 +48,10 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
   const [isPanMode, setIsPanMode] = useState(false);
+  const [draggingSupportId, setDraggingSupportId] = useState<string | null>(null);
+  // Live position of the dragged support during drag (Konva node position,
+  // not yet committed to the store). Drives drag-halo recompute on each frame.
+  const [draggingSupportPos, setDraggingSupportPos] = useState<{ x: number; y: number } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -108,6 +112,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     setSelectedIds,
     clearSelection,
     moveElement,
+    moveAndLink,
     moveCluster,
     resizeElement,
     updateElement,
@@ -428,6 +433,67 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [moveElement, moveCluster]
   );
 
+  const handleSupportDragStart = useCallback((id: string) => {
+    const sup = elements.find((e) => e.id === id);
+    if (!sup) return;
+    setDraggingSupportId(id);
+    setDraggingSupportPos({ ...sup.position });
+  }, [elements]);
+
+  const handleSupportDragMove = useCallback((_id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    setDraggingSupportPos({ x: e.target.x(), y: e.target.y() });
+  }, []);
+
+  const handleSupportDragEnd = useCallback((id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+    const finalPos = { x: e.target.x(), y: e.target.y() };
+    setDraggingSupportId(null);
+    setDraggingSupportPos(null);
+
+    const support = elements.find((el) => el.id === id);
+    if (!support || support.type !== 'support') {
+      moveElement(id, finalPos);
+      return;
+    }
+
+    // Sticky link: do not auto-suggest if already linked.
+    if ((support as SupportElement).associatedWith) {
+      moveElement(id, finalPos);
+      return;
+    }
+
+    // Single BFS from the dropped support's would-be position. Walls at arguments.
+    // Build a hypothetical element list with the support at its final position.
+    const hypothetical: DiagramElement[] = elements.map((el) =>
+      el.id === id ? { ...el, position: finalPos } : el
+    );
+    const startSupport = hypothetical.find((e) => e.id === id)!;
+    const visited = new Set<string>([id]);
+    const queue: DiagramElement[] = [startSupport];
+    const overlappedArgIds = new Set<string>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const candidate of hypothetical) {
+        if (visited.has(candidate.id)) continue;
+        if (!bboxesOverlap(current, candidate)) continue;
+        visited.add(candidate.id);
+        if (isArgumentElement(candidate)) {
+          overlappedArgIds.add(candidate.id);
+          // wall: do not queue
+        } else if (isSupportElement(candidate)) {
+          queue.push(candidate);
+        }
+      }
+    }
+
+    if (overlappedArgIds.size === 1) {
+      const argId = overlappedArgIds.values().next().value as string;
+      moveAndLink(id, finalPos, argId);
+    } else {
+      moveElement(id, finalPos);
+    }
+  }, [elements, moveElement, moveAndLink]);
+
   // Handle context menu (right-click)
   const handleContextMenu = useCallback(
     (id: string, elementType: ContextMenuState['elementType'], e: Konva.KonvaEventObject<PointerEvent>) => {
@@ -637,7 +703,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const halosToRender = (() => {
     const map = new Map<string, { cluster: Cluster; mode: 'drag' | 'select' }>();
 
-    // Selection halos: for each selected element, identify anchor argument(s).
+    // 1. Selection halos.
     for (const selId of selectedIds) {
       const sel = elements.find((e) => e.id === selId);
       if (!sel) continue;
@@ -645,14 +711,12 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         const c = computeCluster(elements, sel.id);
         if (c) map.set(sel.id, { cluster: c, mode: 'select' });
       } else if (isSupportElement(sel)) {
-        // (i) sticky link target
         if (sel.associatedWith) {
           const c = computeCluster(elements, sel.associatedWith);
           if (c && !map.has(sel.associatedWith)) {
             map.set(sel.associatedWith, { cluster: c, mode: 'select' });
           }
         }
-        // (ii) every argument whose cluster currently overlaps this support
         for (const el of elements) {
           if (!isArgumentElement(el)) continue;
           if (map.has(el.id)) continue;
@@ -661,6 +725,51 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           if (c.supports.some((s) => s.id === sel.id)) {
             map.set(el.id, { cluster: c, mode: 'select' });
           }
+        }
+      }
+    }
+
+    // 2. Sticky-link halo: linked support being dragged.
+    if (draggingSupportId) {
+      const dragSup = elements.find((e) => e.id === draggingSupportId);
+      if (dragSup && isSupportElement(dragSup) && dragSup.associatedWith) {
+        const c = computeCluster(elements, dragSup.associatedWith);
+        if (c && !map.has(dragSup.associatedWith)) {
+          map.set(dragSup.associatedWith, { cluster: c, mode: 'select' });
+        }
+      }
+    }
+
+    // 3. Drag halos: unlinked support being dragged → preview every argument
+    //    whose cluster the support's current position would join (single BFS).
+    if (draggingSupportId && draggingSupportPos) {
+      const dragSup = elements.find((e) => e.id === draggingSupportId);
+      if (dragSup && isSupportElement(dragSup) && !dragSup.associatedWith) {
+        const finalPos = draggingSupportPos;
+        const hypothetical = elements.map((el) =>
+          el.id === draggingSupportId ? { ...el, position: finalPos } : el
+        );
+        const start = hypothetical.find((e) => e.id === draggingSupportId)!;
+        const visited = new Set<string>([draggingSupportId]);
+        const queue: DiagramElement[] = [start];
+        const dragArgIds = new Set<string>();
+        while (queue.length > 0) {
+          const current = queue.shift()!;
+          for (const candidate of hypothetical) {
+            if (visited.has(candidate.id)) continue;
+            if (!bboxesOverlap(current, candidate)) continue;
+            visited.add(candidate.id);
+            if (isArgumentElement(candidate)) {
+              dragArgIds.add(candidate.id);
+            } else if (isSupportElement(candidate)) {
+              queue.push(candidate);
+            }
+          }
+        }
+        for (const argId of dragArgIds) {
+          // Drag mode wins over select mode on tie.
+          const c = computeCluster(elements, argId);
+          if (c) map.set(argId, { cluster: c, mode: 'drag' });
         }
       }
     }
@@ -774,7 +883,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
                   onSelect={(e) => handleElementSelect(element.id, e)}
                   onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+                  onDragStart={() => handleSupportDragStart(element.id)}
+                  onDragMove={(e) => handleSupportDragMove(element.id, e)}
+                  onDragEnd={(e) => handleSupportDragEnd(element.id, e)}
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
                   onContextMenu={(e) => handleContextMenu(element.id, 'support', e)}
