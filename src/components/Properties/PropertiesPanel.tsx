@@ -269,6 +269,39 @@ export function PropertiesPanel() {
                   </select>
                 </div>
               )}
+              {isSupportElement(selectedElement) && (
+                <div className="flex flex-col gap-1.5">
+                  <label style={labelStyle}>Associated with</label>
+                  <select
+                    value={selectedElement.associatedWith ?? ''}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      updateElement(selectedElement.id, {
+                        associatedWith: next === '' ? undefined : next,
+                      } as Partial<DiagramElement>);
+                    }}
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2"
+                    style={selectStyle}
+                  >
+                    <option value="">(none)</option>
+                    {elements
+                      .filter(isArgumentElement)
+                      .slice()
+                      .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)
+                      .map((arg) => {
+                        const preview = arg.content.length > 40
+                          ? arg.content.slice(0, 40) + '…'
+                          : arg.content;
+                        const labelText = preview ? `${arg.label}: "${preview}"` : arg.label;
+                        return (
+                          <option key={arg.id} value={arg.id}>
+                            {labelText}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+              )}
               <div className="flex flex-col gap-1.5">
                 <label style={labelStyle}>Convert</label>
                 <select
