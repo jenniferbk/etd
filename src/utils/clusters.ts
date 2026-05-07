@@ -52,9 +52,10 @@ export function computeCluster(
     for (const candidate of elements) {
       if (visited.has(candidate.id)) continue;
       if (!bboxesOverlap(current, candidate)) continue;
-      // Wall: another argument blocks traversal (it's still marked visited
-      // so we don't re-check it, but we don't queue it and don't add to supports).
-      if (isArgumentElement(candidate) && candidate.id !== anchor.id) {
+      // Wall: another argument blocks traversal. Mark visited so we don't
+      // re-check it, but don't queue and don't add to supports. (The anchor
+      // is already in `visited`, so an `id !== anchor.id` guard is redundant.)
+      if (isArgumentElement(candidate)) {
         visited.add(candidate.id);
         continue;
       }
@@ -71,8 +72,11 @@ export function computeCluster(
   return { argument: anchor, supports };
 }
 
-/** Smallest axis-aligned rect enclosing all elements. Assumes non-empty input. */
+/** Smallest axis-aligned rect enclosing all elements. Throws on empty input. */
 export function unionBbox(elements: BaseElement[]): Bbox {
+  if (elements.length === 0) {
+    throw new Error('unionBbox requires at least one element');
+  }
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const el of elements) {
     minX = Math.min(minX, el.position.x);
