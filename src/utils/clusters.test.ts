@@ -81,18 +81,26 @@ describe('computeCluster', () => {
   });
 
   it('respects argument walls — does not cross through another argument', () => {
+    // Geometry: a1 — sChain1 — a2 — sChain2 — sChain3
+    //   sChain1 overlaps both a1 and a2 (it's a bridge support).
+    //   sChain2 overlaps a2 only (NOT sChain1 — sChain1 ends at x=160).
+    //   sChain3 overlaps sChain2 only.
+    // With argument walls, a1's cluster reaches sChain1 (direct) but cannot
+    // walk through a2 to reach sChain2/sChain3.
+    // Without walls, a1's cluster would erroneously include all three.
     const elements: DiagramElement[] = [
       arg('a1', 0, 0, 100, 100),
-      sup('sBridge', 80, 50, 100, 40),   // overlaps both a1 and a2
-      arg('a2', 160, 50, 100, 100),
-      sup('sIsland', 250, 60, 80, 40),   // overlaps a2 only
+      sup('sChain1', 80, 0, 80, 40),     // overlaps a1 (80-100) AND a2 (140-160)
+      arg('a2', 140, 0, 100, 100),
+      sup('sChain2', 220, 50, 80, 40),   // overlaps a2 only (220-240); does NOT overlap sChain1
+      sup('sChain3', 290, 60, 80, 40),   // overlaps sChain2 only
     ];
+
     const c1 = computeCluster(elements, 'a1')!;
-    expect(c1.supports.map(s => s.id).sort()).toEqual(['sBridge']);
-    expect(c1.supports.find(s => s.id === 'sIsland')).toBeUndefined();
+    expect(c1.supports.map(s => s.id).sort()).toEqual(['sChain1']);
 
     const c2 = computeCluster(elements, 'a2')!;
-    expect(c2.supports.map(s => s.id).sort()).toEqual(['sBridge', 'sIsland']);
+    expect(c2.supports.map(s => s.id).sort()).toEqual(['sChain1', 'sChain2', 'sChain3']);
   });
 
   it('terminates on cycles in the overlap graph', () => {
