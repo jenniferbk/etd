@@ -127,20 +127,19 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     addElement,
   } = useDiagramStore();
 
-  // Update stage size on resize
+  // Track the container's actual size via ResizeObserver. Fires on any layout
+  // change — window resize, sibling panel collapse, full-screen toggle —
+  // not just window-level events.
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
     const updateSize = () => {
-      if (containerRef.current) {
-        setStageSize({
-          width: containerRef.current.offsetWidth,
-          height: containerRef.current.offsetHeight,
-        });
-      }
+      setStageSize({ width: el.offsetWidth, height: el.offsetHeight });
     };
-
     updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    const ro = new ResizeObserver(updateSize);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // Attach transformer to selected elements
