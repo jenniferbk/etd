@@ -100,6 +100,31 @@ function App() {
     }
   }, []);
 
+  const handleToolbarMouseLeave = useCallback(() => {
+    cancelPendingRetract();
+    retractTimerRef.current = window.setTimeout(() => {
+      setToolbarHovered(false);
+      retractTimerRef.current = null;
+    }, 150);
+  }, [cancelPendingRetract]);
+
+  const handleToolbarBlur = useCallback((e: React.FocusEvent) => {
+    // Retract only if focus left the toolbar entirely (not moved to a child).
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      handleToolbarMouseLeave();
+    }
+  }, [handleToolbarMouseLeave]);
+
+  const handleHoverZoneEnter = useCallback(() => {
+    cancelPendingRetract();
+    setToolbarHovered(true);
+  }, [cancelPendingRetract]);
+
+  const handleToolbarFocus = useCallback(() => {
+    cancelPendingRetract();
+    setToolbarHovered(true);
+  }, [cancelPendingRetract]);
+
   // Toggle connect mode
   const toggleConnectMode = useCallback(() => {
     setConnectMode((prev) => !prev);
@@ -398,6 +423,10 @@ function App() {
               }
             : undefined
         }
+        onMouseLeave={fullScreen ? handleToolbarMouseLeave : undefined}
+        onMouseDown={fullScreen ? (e) => e.stopPropagation() : undefined}
+        onFocus={fullScreen ? handleToolbarFocus : undefined}
+        onBlur={fullScreen ? handleToolbarBlur : undefined}
       >
         <Toolbar
           onLoadTranscript={handleLoadTranscriptClick}
@@ -410,7 +439,10 @@ function App() {
       {/* Canvas row — Canvas always at this stable tree position. Sibling panels
           toggled via Tailwind `hidden` (display: none) so they unmount layout-wise
           but stay mounted component-wise; their internal state survives. */}
-      <div className="flex flex-1 overflow-hidden">
+      <div
+        className="flex flex-1 overflow-hidden"
+        onMouseDown={fullScreen ? () => setToolbarHovered(false) : undefined}
+      >
         <div className={fullScreen ? 'hidden' : 'contents'}>
           <Palette
             connectMode={connectMode}
@@ -445,6 +477,15 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
+      {fullScreen && (
+        <div
+          className="absolute top-0 left-0 right-0 z-20"
+          style={{ height: 12 }}
+          onMouseEnter={handleHoverZoneEnter}
+        />
+      )}
 
       {/* Properties — hidden in full-screen */}
       <div className={fullScreen ? 'hidden' : ''}>
