@@ -24,10 +24,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [fullScreen, setFullScreen] = useState(false);
   const [toolbarHovered, setToolbarHovered] = useState(false);
-  // showHint / setShowHint are wired in Task 4 (entry hint chip).
   const [showHint, setShowHint] = useState(false);
-  void showHint;
-  void setShowHint;
   const retractTimerRef = useRef<number | null>(null);
 
   // Read once at mount. The OS-level toggle takes effect on next refresh.
@@ -76,6 +73,14 @@ function App() {
   useEffect(() => {
     if (transcript) setTranscriptPanelOpen(true);
   }, [transcript]);
+
+  // Show the entry hint each time full-screen is entered. Fades out after 2.5s.
+  useEffect(() => {
+    if (!fullScreen) return;
+    setShowHint(true);
+    const t = window.setTimeout(() => setShowHint(false), 2500);
+    return () => clearTimeout(t);
+  }, [fullScreen]);
 
   // Handle recovery
   const handleRecover = useCallback(() => {
@@ -485,6 +490,20 @@ function App() {
           style={{ height: 12 }}
           onMouseEnter={handleHoverZoneEnter}
         />
+      )}
+
+      {/* Entry hint — disappears after 2.5s */}
+      {fullScreen && showHint && (
+        <div
+          className="absolute bottom-4 right-4 z-40 px-3 py-1.5 rounded-md text-xs pointer-events-none"
+          style={{
+            background: 'rgba(0, 0, 0, 0.75)',
+            color: 'white',
+            transition: prefersReducedMotion ? 'none' : 'opacity 400ms ease',
+          }}
+        >
+          Press F or Esc to exit
+        </div>
       )}
 
       {/* Properties — hidden in full-screen */}
