@@ -22,6 +22,17 @@ function App() {
   const [transcriptPanelOpen, setTranscriptPanelOpen] = useState(false);
   const transcriptFileInputRef = useRef<HTMLInputElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
+  const [toolbarHovered, setToolbarHovered] = useState(false);
+  // showHint / setShowHint are wired in Task 4 (entry hint chip).
+  const [showHint, setShowHint] = useState(false);
+  void showHint;
+  void setShowHint;
+  const retractTimerRef = useRef<number | null>(null);
+
+  // Read once at mount. The OS-level toggle takes effect on next refresh.
+  const prefersReducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Auto-save hook
   useAutoSave();
@@ -80,6 +91,13 @@ function App() {
   const handleDiscard = useCallback(() => {
     clearAutoSave();
     setRecoveryData(null);
+  }, []);
+
+  const cancelPendingRetract = useCallback(() => {
+    if (retractTimerRef.current !== null) {
+      clearTimeout(retractTimerRef.current);
+      retractTimerRef.current = null;
+    }
   }, []);
 
   // Toggle connect mode
@@ -276,6 +294,17 @@ function App() {
         return;
       }
 
+      // Full-screen toggle: F (no modifier).
+      // CRITICAL: must NOT trigger on Cmd+F / Ctrl+F (browser find), Shift+F,
+      // or Alt+F — those should pass through to default browser/OS behavior.
+      if ((e.key === 'f' || e.key === 'F') && !isMod && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        setFullScreen((prev) => !prev);
+        setToolbarHovered(false);
+        cancelPendingRetract();
+        return;
+      }
+
       // 'C' for connect mode
       if (e.key === 'c' || e.key === 'C') {
         toggleConnectMode();
@@ -293,8 +322,18 @@ function App() {
         });
       }
 
-      // Escape to cancel connect mode or deselect
+      // Escape: modal-gated, then full-screen exit, then connect-mode cancel.
       if (e.key === 'Escape') {
+        // Defer to any open modal — its own keydown handler will close it.
+        if (settingsOpen || lightboxOpen || recoveryData !== null) {
+          return;
+        }
+        if (fullScreen) {
+          setFullScreen(false);
+          setToolbarHovered(false);
+          cancelPendingRetract();
+          return;
+        }
         if (connectMode) {
           setConnectMode(false);
           setConnectingFrom(null);
@@ -318,10 +357,15 @@ function App() {
     setZoom,
     zoom,
     fitToView,
+    fullScreen,
+    settingsOpen,
+    lightboxOpen,
+    recoveryData,
+    cancelPendingRetract,
   ]);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-gray-50 relative">
       {/* Hidden file input for Ctrl+O loading */}
       <input
         ref={fileInputRef}
@@ -337,42 +381,75 @@ function App() {
         onChange={handleTranscriptFileChange}
         className="hidden"
       />
-      <Toolbar
-        onLoadTranscript={handleLoadTranscriptClick}
-        transcriptPanelOpen={transcriptPanelOpen}
-        onToggleTranscriptPanel={toggleTranscriptPanel}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
-      <div className="flex flex-1 overflow-hidden">
-        <Palette
-          connectMode={connectMode}
-          onToggleConnectMode={toggleConnectMode}
+
+      {/* Toolbar wrapper — flow position normally, absolute overlay in full-screen.
+          In full-screen, slides in from above on toolbarHovered (Task 3 wires the
+          mouse handlers). Until Task 3 lands, the wrapper is just hidden via the
+          translate-up transform. */}
+      <div
+        className={fullScreen ? 'absolute top-0 left-0 right-0 z-30' : 'relative'}
+        style={
+          fullScreen
+            ? {
+                transform: toolbarHovered ? 'translateY(0)' : 'translateY(-100%)',
+                transition: prefersReducedMotion ? 'none' : 'transform 180ms ease',
+                paddingBottom: 24,
+                boxShadow: toolbarHovered ? '0 2px 12px rgba(0,0,0,0.15)' : 'none',
+              }
+            : undefined
+        }
+      >
+        <Toolbar
+          onLoadTranscript={handleLoadTranscriptClick}
+          transcriptPanelOpen={transcriptPanelOpen}
+          onToggleTranscriptPanel={toggleTranscriptPanel}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
+      </div>
+
+      {/* Canvas row — Canvas always at this stable tree position. Sibling panels
+          toggled via Tailwind `hidden` (display: none) so they unmount layout-wise
+          but stay mounted component-wise; their internal state survives. */}
+      <div className="flex flex-1 overflow-hidden">
+        <div className={fullScreen ? 'hidden' : 'contents'}>
+          <Palette
+            connectMode={connectMode}
+            onToggleConnectMode={toggleConnectMode}
+          />
+        </div>
+
         <Canvas
           connectMode={connectMode}
           onConnectionStart={handleConnectionStart}
           connectingFrom={connectingFrom}
         />
-        {transcriptPanelOpen ? (
-          <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setTranscriptPanelOpen(true)}
-            title="Show transcript panel"
-            aria-label="Show transcript panel"
-            className="w-8 border-l flex items-start justify-center pt-4 hover:opacity-80"
-            style={{
-              background: theme.sidebar.bgGradient,
-              borderColor: theme.sidebar.border,
-              color: theme.sidebar.textSecondary,
-            }}
-          >
-            <PanelRightOpen size={16} />
-          </button>
-        )}
+
+        <div className={fullScreen ? 'hidden' : 'contents'}>
+          {transcriptPanelOpen ? (
+            <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setTranscriptPanelOpen(true)}
+              title="Show transcript panel"
+              aria-label="Show transcript panel"
+              className="w-8 border-l flex items-start justify-center pt-4 hover:opacity-80"
+              style={{
+                background: theme.sidebar.bgGradient,
+                borderColor: theme.sidebar.border,
+                color: theme.sidebar.textSecondary,
+              }}
+            >
+              <PanelRightOpen size={16} />
+            </button>
+          )}
+        </div>
       </div>
-      <PropertiesPanel />
+
+      {/* Properties — hidden in full-screen */}
+      <div className={fullScreen ? 'hidden' : ''}>
+        <PropertiesPanel />
+      </div>
 
       {/* Recovery Prompt */}
       {recoveryData && (
