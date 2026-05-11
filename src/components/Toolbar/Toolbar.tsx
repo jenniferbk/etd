@@ -200,7 +200,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const handleExportPDF = async () => {
     setExporting('pdf');
     try {
-      await exportToPdf({
+      await exportToPdf(elements, connections, {
         filename: `${toFilename(diagramName)}.pdf`,
         orientation: 'landscape',
         quality: 2,
