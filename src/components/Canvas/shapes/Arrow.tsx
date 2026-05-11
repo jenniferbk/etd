@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Circle, Line } from 'react-konva';
 import type Konva from 'konva';
-import type { Connection, DiagramElement, Position } from '../../../types';
+import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor } from '../../../types';
 import { isArrowAttachment } from '../../../types';
 import { useDiagramStore } from '../../../store';
 import {
@@ -77,6 +77,30 @@ function clampToMinSegment(
     }
   }
   return newPerp;
+}
+
+function determineFacingEdge(self: DiagramElement, other: DiagramElement): BoxEdge {
+  const sCx = self.position.x + self.size.width / 2;
+  const sCy = self.position.y + self.size.height / 2;
+  const oCx = other.position.x + other.size.width / 2;
+  const oCy = other.position.y + other.size.height / 2;
+  const dx = oCx - sCx;
+  const dy = oCy - sCy;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+  return dy >= 0 ? 'bottom' : 'top';
+}
+
+function pointerToAnchorT(
+  pointer: { x: number; y: number },
+  el: DiagramElement,
+  edge: BoxEdge,
+): number {
+  if (edge === 'left' || edge === 'right') {
+    const t = (pointer.y - el.position.y) / el.size.height;
+    return Math.max(0, Math.min(1, t));
+  }
+  const t = (pointer.x - el.position.x) / el.size.width;
+  return Math.max(0, Math.min(1, t));
 }
 
 interface ArrowProps {
@@ -170,6 +194,21 @@ export function ConnectionArrow({
   } | null>(null);
 
   const updateConnectionWaypoints = useDiagramStore((s) => s.updateConnectionWaypoints);
+  const updateConnectionAnchor = useDiagramStore((s) => s.updateConnectionAnchor);
+
+  const dragAnchorRef = useRef<{
+    end: 'from' | 'to';
+    element: DiagramElement;
+    facingEdge: BoxEdge;
+    stage: Konva.Stage;
+  } | null>(null);
+
+  const [anchorDragOverride, setAnchorDragOverride] = useState<EdgeAnchor | null>(null);
+  const [anchorDragEnd, setAnchorDragEnd] = useState<'from' | 'to' | null>(null);
+  const anchorDragOverrideRef = useRef<EdgeAnchor | null>(null);
+  useEffect(() => {
+    anchorDragOverrideRef.current = anchorDragOverride;
+  }, [anchorDragOverride]);
 
   // Stable dispatchers + per-render handler refs so window listeners can be removed.
   // Declared at the top so all hook calls happen before any early return.
@@ -307,11 +346,21 @@ export function ConnectionArrow({
   });
 
   let pathResult = getConnectionPathPoints(connection, elements, connections);
-  if (pathResult && !isAttachment && dragOverride) {
+  if (pathResult && !isAttachment && (dragOverride || anchorDragOverride)) {
     const fromEl = elements.find((el) => el.id === connection.from);
     const toEl = elements.find((el) => el.id === connection.to);
     if (fromEl && toEl) {
-      pathResult = { points: getOrthogonalPath(fromEl, toEl, dragOverride) };
+      if (anchorDragOverride && anchorDragEnd) {
+        const tempConn: Connection = {
+          ...connection,
+          ...(anchorDragEnd === 'from'
+            ? { fromAnchor: anchorDragOverride }
+            : { toAnchor: anchorDragOverride }),
+        };
+        pathResult = { points: computeConnectionPath(tempConn, fromEl, toEl, []) };
+      } else if (dragOverride) {
+        pathResult = { points: getOrthogonalPath(fromEl, toEl, dragOverride) };
+      }
     }
   }
   if (!pathResult || pathResult.points.length < 4) return null;
@@ -366,12 +415,58 @@ export function ConnectionArrow({
   };
 
   const handleAnchorDragStart = (
-    _end: 'from' | 'to',
+    end: 'from' | 'to',
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
   ) => {
     if (connectModeActive || isAttachment) return;
     e.cancelBubble = true;
-    // Full drag logic added in Task 17.
+
+    const stage = e.target.getStage();
+    if (!stage) return;
+    const el = end === 'from'
+      ? elements.find((x) => x.id === connection.from)
+      : elements.find((x) => x.id === connection.to);
+    if (!el) return;
+
+    // Determine facing edge from current geometry. The "other" element is the connection's other endpoint.
+    const otherEl = end === 'from'
+      ? (typeof connection.to === 'string' ? elements.find((x) => x.id === connection.to) : null)
+      : elements.find((x) => x.id === connection.from);
+    if (!otherEl) return;
+    const facingEdge = determineFacingEdge(el, otherEl);
+
+    dragAnchorRef.current = { end, element: el, facingEdge, stage };
+    setAnchorDragEnd(end);
+
+    const move = () => {
+      const drag = dragAnchorRef.current;
+      if (!drag) return;
+      // Use getRelativePointerPosition to get stage/logical coords (accounts for pan + zoom).
+      // Element positions in the store are in stage coords, so this is what we need.
+      const ptr = drag.stage.getRelativePointerPosition();
+      if (!ptr) return;
+      const t = pointerToAnchorT(ptr, drag.element, drag.facingEdge);
+      setAnchorDragOverride({ edge: drag.facingEdge, t });
+    };
+
+    const up = () => {
+      const drag = dragAnchorRef.current;
+      if (drag && anchorDragOverrideRef.current) {
+        updateConnectionAnchor(connection.id, drag.end, anchorDragOverrideRef.current);
+      }
+      dragAnchorRef.current = null;
+      setAnchorDragOverride(null);
+      setAnchorDragEnd(null);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('touchend', up);
+    };
+
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    window.addEventListener('touchmove', move);
+    window.addEventListener('touchend', up);
   };
 
   // Calculate midpoint for click detection
