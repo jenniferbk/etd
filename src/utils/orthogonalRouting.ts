@@ -1,7 +1,7 @@
 // Pure geometry for orthogonal (Manhattan) connector routing.
 // No React or Konva imports — these are unit-testable functions.
 
-import type { DiagramElement, Position, Connection } from '../types';
+import type { DiagramElement, Position, Connection, EdgeAnchor } from '../types';
 
 export type SegmentOrientation = 'horizontal' | 'vertical';
 
@@ -16,6 +16,20 @@ function getCenter(el: DiagramElement): Position {
     x: el.position.x + el.size.width / 2,
     y: el.position.y + el.size.height / 2,
   };
+}
+
+export function resolveAnchor(el: DiagramElement, anchor: EdgeAnchor): Position {
+  const left = el.position.x;
+  const right = el.position.x + el.size.width;
+  const top = el.position.y;
+  const bottom = el.position.y + el.size.height;
+  const t = Math.max(0, Math.min(1, anchor.t));
+  switch (anchor.edge) {
+    case 'left':   return { x: left,                       y: top + t * el.size.height };
+    case 'right':  return { x: right,                      y: top + t * el.size.height };
+    case 'top':    return { x: left + t * el.size.width,   y: top };
+    case 'bottom': return { x: left + t * el.size.width,   y: bottom };
+  }
 }
 
 // Compute the default Z-elbow virtual waypoints for a connection that has no stored waypoints.
