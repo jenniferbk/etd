@@ -32,6 +32,53 @@ export function resolveAnchor(el: DiagramElement, anchor: EdgeAnchor): Position 
   }
 }
 
+// Rule 1 routing: when source is a `data` argument and target is a `claim`,
+// AND target's center falls inside the source's vertical or horizontal extent,
+// AND target is fully to one side of source — return a single straight 2-point
+// line at target.center.{y|x}. Returns null when conditions don't hold; caller
+// should fall through to Rule 2 / default Z.
+export function computeRule1Path(
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): number[] | null {
+  if (fromEl.type !== 'argument' || toEl.type !== 'argument') return null;
+  if (fromEl.argumentType !== 'data' || toEl.argumentType !== 'claim') return null;
+
+  const fromLeft = fromEl.position.x;
+  const fromRight = fromLeft + fromEl.size.width;
+  const fromTop = fromEl.position.y;
+  const fromBottom = fromTop + fromEl.size.height;
+
+  const toLeft = toEl.position.x;
+  const toRight = toLeft + toEl.size.width;
+  const toTop = toEl.position.y;
+  const toBottom = toTop + toEl.size.height;
+  const toCenterX = toLeft + toEl.size.width / 2;
+  const toCenterY = toTop + toEl.size.height / 2;
+
+  // Horizontal case: target.center.y inside source's vertical extent, target fully on one side.
+  const yInside = toCenterY >= fromTop && toCenterY <= fromBottom;
+  const targetToRight = toLeft >= fromRight;
+  const targetToLeft = toRight <= fromLeft;
+  if (yInside && (targetToRight || targetToLeft)) {
+    const sourceX = targetToRight ? fromRight : fromLeft;
+    const targetX = targetToRight ? toLeft : toRight;
+    return [sourceX, toCenterY, targetX, toCenterY];
+  }
+
+  // Vertical case: target.center.x inside source's horizontal extent, target above/below.
+  const xInside = toCenterX >= fromLeft && toCenterX <= fromRight;
+  const targetBelow = toTop >= fromBottom;
+  const targetAbove = toBottom <= fromTop;
+  if (xInside && (targetBelow || targetAbove)) {
+    const sourceY = targetBelow ? fromBottom : fromTop;
+    const targetY = targetBelow ? toTop : toBottom;
+    return [toCenterX, sourceY, toCenterX, targetY];
+  }
+
+  return null;
+}
+
 // Compute the default Z-elbow virtual waypoints for a connection that has no stored waypoints.
 // |dx| >= |dy| → vertical trunk (segments alternate H-V-H).
 // otherwise   → horizontal trunk (segments alternate V-H-V).
