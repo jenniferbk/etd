@@ -365,6 +365,15 @@ export function ConnectionArrow({
     window.addEventListener('blur', blurDispatcher);
   };
 
+  const handleAnchorDragStart = (
+    _end: 'from' | 'to',
+    e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
+  ) => {
+    if (connectModeActive || isAttachment) return;
+    e.cancelBubble = true;
+    // Full drag logic added in Task 17.
+  };
+
   // Calculate midpoint for click detection
   const midPoint = getPointOnPolyline(pathPoints, 0.5);
 
@@ -553,6 +562,34 @@ export function ConnectionArrow({
               );
             })
           }
+
+          {/* Edge-anchor handles (Task 16) */}
+          {!isAttachment && (isHovered || isSelected) && !connectModeActive && (
+            <>
+              {/* Source-side anchor handle */}
+              <Circle
+                x={pathPoints[0]}
+                y={pathPoints[1]}
+                radius={5}
+                fill="#3B82F6"
+                stroke="#FFFFFF"
+                strokeWidth={1.5}
+                onMouseDown={(e) => handleAnchorDragStart('from', e)}
+                onTouchStart={(e) => handleAnchorDragStart('from', e)}
+              />
+              {/* Target-side anchor handle */}
+              <Circle
+                x={pathPoints[pathPoints.length - 2]}
+                y={pathPoints[pathPoints.length - 1]}
+                radius={5}
+                fill="#3B82F6"
+                stroke="#FFFFFF"
+                strokeWidth={1.5}
+                onMouseDown={(e) => handleAnchorDragStart('to', e)}
+                onTouchStart={(e) => handleAnchorDragStart('to', e)}
+              />
+            </>
+          )}
         </>
       )}
 
