@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useDiagramStore } from '../../store';
-import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype } from '../../types';
+import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
@@ -13,6 +13,11 @@ const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
   { value: 'student', label: 'Student' },
   { value: 'joint', label: 'Joint' },
   { value: 'implicit', label: 'Implicit' },
+];
+
+const SUPPORT_CONTRIBUTOR_TYPES: { value: SupportContributor; label: string }[] = [
+  { value: 'teacher', label: 'Teacher' },
+  { value: 'student', label: 'Student' },
 ];
 
 export function PropertiesPanel() {
@@ -248,6 +253,27 @@ export function PropertiesPanel() {
                   ))}
                 </select>
               </div>
+              {isSupportElement(selectedElement) && (
+                <div className="flex flex-col gap-1.5">
+                  <label style={labelStyle}>Contributor</label>
+                  <select
+                    value={selectedElement.contributor}
+                    onChange={(e) =>
+                      updateElement(selectedElement.id, {
+                        contributor: e.target.value as SupportContributor,
+                      } as Partial<DiagramElement>)
+                    }
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                    style={selectStyle}
+                  >
+                    {SUPPORT_CONTRIBUTOR_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {selectedElement.supportType === 'other' && (
                 <div className="flex flex-col gap-1.5">
                   <label style={labelStyle}>Subtype</label>
