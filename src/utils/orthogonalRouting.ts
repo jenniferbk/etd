@@ -361,3 +361,68 @@ export function getSegments(points: number[]): Segment[] {
   }
   return segs;
 }
+
+// Top-level routing entry. Returns a flattened [x0,y0,x1,y1,...] polyline.
+// Applies the override hierarchy from the spec:
+//   stored waypoints  >  stored anchors  >  Rule 1  >  Rule 2 (added in Task 14)  >  default Z
+//
+// `siblings` is the set of OTHER connections also targeting `toEl`. Used by Rule 2.
+// Pass [] if Rule 2 isn't wired up yet — falls through to default Z when Rule 1 doesn't apply.
+export function computeConnectionPath(
+  connection: Connection,
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _siblings: { conn: Connection; fromEl: DiagramElement }[] = [],
+): number[] {
+  // Waypoints win.
+  if (connection.waypoints && connection.waypoints.length > 0) {
+    return getOrthogonalPath(fromEl, toEl, connection.waypoints);
+  }
+
+  // Anchored endpoints — render a Z that respects them (no Rule 1, no Rule 2 for this conn).
+  if (connection.fromAnchor || connection.toAnchor) {
+    return getOrthogonalPath(fromEl, toEl, anchoredZWaypoints(connection, fromEl, toEl));
+  }
+
+  // Rule 1.
+  const rule1 = computeRule1Path(fromEl, toEl);
+  if (rule1) return rule1;
+
+  // Rule 2 placeholder (filled in Task 14).
+  return getOrthogonalPath(fromEl, toEl, computeDefaultZWaypoints(fromEl, toEl));
+}
+
+// When at least one anchor is set, compute Z-shape waypoints that respect the
+// fixed endpoint(s). Falls back to default Z behavior on the unanchored side.
+export function anchoredZWaypoints(
+  connection: Connection,
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): Position[] {
+  const fromCenter = {
+    x: fromEl.position.x + fromEl.size.width / 2,
+    y: fromEl.position.y + fromEl.size.height / 2,
+  };
+  const toCenter = {
+    x: toEl.position.x + toEl.size.width / 2,
+    y: toEl.position.y + toEl.size.height / 2,
+  };
+  const fromPoint = connection.fromAnchor
+    ? resolveAnchor(fromEl, connection.fromAnchor)
+    : fromCenter;
+  const toPoint = connection.toAnchor
+    ? resolveAnchor(toEl, connection.toAnchor)
+    : toCenter;
+
+  const dx = toPoint.x - fromPoint.x;
+  const dy = toPoint.y - fromPoint.y;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const midX = (fromPoint.x + toPoint.x) / 2;
+    return [{ x: midX, y: fromPoint.y }, { x: midX, y: toPoint.y }];
+  } else {
+    const midY = (fromPoint.y + toPoint.y) / 2;
+    return [{ x: fromPoint.x, y: midY }, { x: toPoint.x, y: midY }];
+  }
+}

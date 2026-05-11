@@ -11,6 +11,7 @@ import {
   getSegments,
   getVerticalAttachmentPath,
   type SegmentOrientation,
+  computeConnectionPath,
 } from '../../../utils/orthogonalRouting';
 
 const MIN_SEGMENT_PX = 4;
@@ -119,8 +120,7 @@ function getConnectionPathPoints(
   const toEl = elements.find((el) => el.id === connection.to);
   if (!toEl) return null;
 
-  // Identical-endpoint degeneracy: both elements at exactly the same position with same size
-  // would produce a zero-length default Z. Skip rendering rather than draw a degenerate shape.
+  // Identical-endpoint degeneracy: both elements at exactly the same position with same size.
   if (
     fromEl.position.x === toEl.position.x &&
     fromEl.position.y === toEl.position.y &&
@@ -130,8 +130,17 @@ function getConnectionPathPoints(
     return null;
   }
 
-  const waypoints = getEffectiveWaypoints(connection, fromEl, toEl);
-  return { points: getOrthogonalPath(fromEl, toEl, waypoints) };
+  // Build siblings list — other connections also targeting toEl.
+  const siblings: { conn: Connection; fromEl: DiagramElement }[] = [];
+  for (const c of connections) {
+    if (c.id === connection.id) continue;
+    if (isArrowAttachment(c.to)) continue;
+    if (c.to !== toEl.id) continue;
+    const sFrom = elements.find((el) => el.id === c.from);
+    if (sFrom) siblings.push({ conn: c, fromEl: sFrom });
+  }
+
+  return { points: computeConnectionPath(connection, fromEl, toEl, siblings) };
 }
 
 export function ConnectionArrow({
