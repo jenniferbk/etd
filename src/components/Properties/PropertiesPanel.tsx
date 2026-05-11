@@ -9,6 +9,7 @@ import { useImagePaste } from '../../hooks/useImagePaste';
 // Contributor type options
 const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
   { value: 'given', label: 'Given' },
+  { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
   { value: 'joint', label: 'Joint' },
   { value: 'implicit', label: 'Implicit' },
