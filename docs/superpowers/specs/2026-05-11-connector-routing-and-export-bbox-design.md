@@ -108,27 +108,26 @@ trunkX = maxSourceRight + 0.3 * (target.left - maxSourceRight)
 trunkX = clamp(trunkX, maxSourceRight + 20, target.left - 20)
 ```
 
-Symmetric formulas for right-side, above-side, and below-side groups. Each group gets its own shared trunk. The `0.3` and `20px` clamp are hardcoded constants — tweakable later.
+Symmetric formulas for right-side, above-side, and below-side groups. Each group gets its own shared trunk. The `0.3` and `20px` clamp are hardcoded constants — tweakable later. **Tiebreak for ambiguous side membership:** if `source.center.x == target.center.x` (within 1px), this connection is excluded from Rule 2 grouping and falls through to default Z; Rule 2 only applies when sources are clearly left/right (or clearly above/below) of the target.
+
+**Rationale for `0.3`:** placing the trunk 30% of the way from sources to target keeps the trunk visually associated with the sources (so the eye reads each connection as originating from its source, not from a shared rail near the target) while leaving room between the trunk and the target for the horizontal entry segments to be visible. Empirically tested against the Ava diagram; tunable later. Not exposed in styleConfig in v1 to avoid coupling to user-facing settings before Anna sees it.
 
 **Step B — spread entry points along target's edge.**
 
-For N convergent connections entering the same edge of `target` (e.g., the left edge), assign entry t values:
+For N convergent auto-routed connections entering the same edge of `target`:
 
-```
-entry_i.t = (i + 1) / (N + 1)   // for i = 0..N-1, t in (0, 1)
-```
+- **N=2:** skip spread. Both connections enter at `t = 0.5` (target.center.y on a vertical edge). The lines overlap exactly at the endpoint — acceptable for two lines and visually quieter than forcing them apart by ~33% of the box.
+- **N ≥ 3:** assign `entry_i.t = (i + 1) / (N + 1)` for `i = 0..N-1` (so N=3 → 0.25, 0.5, 0.75). The actual y on a left edge = `target.top + t * target.height`.
 
-Sort assignment order: ascending by `source.center.y` (top-most source gets the top-most entry t) so lines don't cross. For N=3, entry t's are `0.25, 0.5, 0.75` of the target's edge length. The actual y on the left edge = `target.top + t * target.height`.
+Sort assignment order: ascending by `source.center.y` (top-most source gets the top-most entry t) so lines don't cross. The spread is recomputed at render time from the current siblings; it is not stored on connections. A user dragging one connection's segment (creating stored waypoints) removes it from the auto-routed set and the remaining siblings re-spread — this is the intended behavior (when the user pins one, the others rearrange to share the remaining slots). Re-spread happens on the next render after the drag commits (`mouseup`), not on every drag tick, so there is no flicker.
 
 These spread entries are *computed at render time*, not stored. The user opts out for a specific connection by setting `toAnchor` (manual drag of the entry handle).
 
-**Override hierarchy** (highest to lowest):
+**Override hierarchy.** *Manual data always wins for the part it specifies; auto-rules apply only to parts the user hasn't touched.* Concretely:
 
-1. Stored `waypoints` — use as-is.
-2. Stored `fromAnchor` / `toAnchor` — respect for endpoints; auto-compute the middle (Z elbow respecting anchors).
-3. Rule 1 — straight line.
-4. Rule 2 — aligned trunk + spread entries.
-5. Default Z-elbow.
+- If `connection.waypoints` is present and non-empty → render exactly those waypoints; Rule 1 and Rule 2 do not apply to this connection.
+- If `connection.fromAnchor` and/or `toAnchor` is present → the endpoint is locked to the resolved anchor coordinate. The middle is computed as a Z that respects the anchor(s). Rule 1 does *not* apply to this connection (since at least one endpoint is manually fixed). Rule 2 still runs for the other auto-routed siblings, but this connection's anchored endpoint is excluded from the auto-spread (the user said where it should go).
+- Otherwise → try Rule 1; if it matches, render straight line. If not, try Rule 2 (in the context of this target's auto-routed siblings); if 2+ siblings convergent, apply aligned-trunk + (for N≥3) spread entries. Otherwise default Z-elbow.
 
 **Edge cases:**
 
@@ -160,9 +159,17 @@ function resolveAnchor(el: DiagramElement, anchor: EdgeAnchor): Position {
 
 **Facing-edges-only constraint (v1):** an anchor on `from`'s `left` edge is only legal if `to` is to the left of `from`; an anchor on `from`'s `right` edge only if `to` is to the right; etc. While dragging, if the user pulls toward a non-facing edge, the handle clamps and won't jump edges. This prevents accidental wrap-around routing. Revisit if Anna wants more freedom.
 
-**Reset:** right-click the handle → context menu "Reset anchor" → clears just that endpoint's anchor.
+**Reset:** when a connection is selected and an anchor handle is hovered, a small grey "×" badge (~10×10px) appears just outside the handle. Clicking the × clears that endpoint's anchor and reverts to auto-resolved entry/exit. Properties Panel for the selected connection also gets a "Reset routing" button that clears both anchors AND `waypoints` in one action (a full revert to auto). No right-click context menu — discoverability on Konva canvas is poor for right-click since no other affordance uses it.
 
-**Interaction with Rule 1:** if `toAnchor` is set on a `data→claim` connection that would otherwise match Rule 1, Rule 1 still applies *if* the anchor is geometrically compatible (anchor sits on the facing edge at a y that matches a straight line). Otherwise the line falls back to a Z that respects the anchor.
+**Interaction with Rule 1:** if any anchor is set on a connection, Rule 1 does not fire — the connection renders as a Z that respects the anchor(s). This is the simpler "manual wins" contract; Anna can always clear the anchor to get Rule 1 back.
+
+**Anchor lifecycle:**
+
+- **Source/target box moved:** anchors persist as `(edge, t)` and re-resolve to new absolute coordinates next render. Nothing to do — `t` is a fraction of the (current) edge length.
+- **Source/target box resized:** `t` is preserved. If a resize would put the resolved coordinate outside an obviously sensible range, no clamp is applied — `t` is already in `[0, 1]`, so the resolved point is by definition on the edge. (User-visible effect: if a tall box is resized to be much shorter, the absolute y of the anchor scales with the box, which is what they'd expect.)
+- **Connection rebound to a different element via "edit connection" UI:** anchor for the rebound endpoint is discarded. The other endpoint's anchor is preserved.
+- **Source or target element deleted:** the connection is deleted (existing behavior); anchors go with it.
+- **Anchor edge becomes non-facing due to box movement** (e.g., user moves target to the left of source, but `to.toAnchor.edge === 'left'`): anchor is preserved on the same edge; the resulting route may wrap around. This is graceful degradation — the user can drag the handle to a now-facing edge or click × to reset.
 
 ### Segment-midpoint handles (discoverability)
 
@@ -211,6 +218,8 @@ export function computeExportBounds(
 }
 ```
 
+**Perf note:** `computeExportBounds` iterates `elements + connections` once and visits each connection's rendered points (also bounded by element count). For a 200-element diagram with ~150 connections it runs in well under 10ms — no spinner needed. Smoke-tested as part of the test plan below.
+
 **PDF/PNG (`pdfExport.ts`, `Toolbar.tsx` PNG handler):**
 
 ```ts
@@ -225,6 +234,24 @@ const dataURL = stage.toDataURL({
 Konva's `stage.toDataURL({x, y, width, height})` renders the requested rectangle of stage coordinates regardless of current pan/zoom — so off-screen content is captured.
 
 **SVG (`svgExport.ts`):** the existing bbox logic (lines 35-40) is extended to also visit `getRenderedPoints` for each connection. Same `computeExportBounds` helper used.
+
+### Contributor dropdown bug (bundled fix)
+
+Found separately during this session: Anna's diagrams have warrants and supports whose contributor needs to flip to `teacher`, but the Properties Panel has no way to do that.
+
+**Bug 1 — `PropertiesPanel.tsx:10-15`.** `CONTRIBUTOR_TYPES` lists `given, student, joint, implicit` and omits `teacher`, even though `'teacher'` is a valid `ContributorType` (`elements.ts:11-16`). Argument elements (warrants, claims, etc.) set to any of the other values cannot be returned to teacher through the UI.
+
+Fix: add `{ value: 'teacher', label: 'Teacher' }` to `CONTRIBUTOR_TYPES`. Ordering: place between `given` and `student` so it reads in the conceptual order (Given → Teacher → Student → Joint → Implicit).
+
+**Bug 2 — `PropertiesPanel.tsx:233-326`.** The support-element branch renders Type / Subtype / Associated-with / Convert dropdowns, but no contributor selector at all. Once a support is created via the Palette, its contributor (`'teacher' | 'student'`) is locked.
+
+Fix: add a contributor dropdown in the support branch, populated from a new `SUPPORT_CONTRIBUTOR_TYPES = [{ value: 'teacher', label: 'Teacher' }, { value: 'student', label: 'Student' }]`. Bind to `selectedElement.contributor`; on change, call `updateElement(selectedElement.id, { contributor: e.target.value as SupportContributor })`. Visible for `SupportElement` but **not** for `TeacherSupportElement` (legacy element type without a `contributor` field — see `TeacherSupportShape.tsx:33`; treat as already-teacher).
+
+**Side effects to verify:**
+
+- `getSupportColors(supportType, contributor)` in `colors.ts:45` already differentiates teacher vs. student borders. Flipping contributor will re-render with the correct color.
+- Legend (`Legend.tsx:44`) filters by contributor; changing one element's contributor moves the count from one legend bucket to another. No fix needed.
+- Save → reload roundtrip: existing schema accepts both values; nothing to update.
 
 ## Testing
 
@@ -248,6 +275,14 @@ Konva's `stage.toDataURL({x, y, width, height})` renders the requested rectangle
 - Elements only → bbox covers all elements + margin.
 - Elements + connections with waypoints extending beyond element bbox → bbox expands to cover.
 - Single element → bbox is element + margin on all sides.
+- Perf smoke: 200 elements + 150 connections → `computeExportBounds` returns in under 50ms (loose bound — should be ~5ms on modern hardware).
+
+**Contributor dropdown tests** (manual, since it's a UI change):
+
+- Select a warrant; cycle contributor through every value in `CONTRIBUTOR_TYPES` including `teacher`; verify rendering color updates correctly each time.
+- Select a support; verify a Contributor dropdown appears with `Teacher` and `Student`; switch between values; verify color/border updates.
+- Select a `TeacherSupportElement` (legacy); verify no contributor dropdown appears (legacy element treated as fixed-teacher).
+- Save → reload → contributor changes persist.
 
 **Visual smoke tests** (manual, Claude for Chrome):
 
@@ -285,3 +320,4 @@ Konva's `stage.toDataURL({x, y, width, height})` renders the requested rectangle
 - Modified: `src/utils/pdfExport.ts` (use bounds)
 - Modified: `src/components/Toolbar/Toolbar.tsx` (PNG handler uses bounds)
 - Modified: `src/utils/svgExport.ts` (use bounds; include connection points)
+- Modified: `src/components/Properties/PropertiesPanel.tsx` (add `teacher` to `CONTRIBUTOR_TYPES`; add contributor dropdown for `SupportElement`; "Reset routing" button for selected connections)
