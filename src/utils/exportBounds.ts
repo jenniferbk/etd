@@ -69,15 +69,16 @@ function getRenderedPoints(
   const fromEl = elements.find((el) => el.id === connection.from);
   if (!fromEl) return null;
 
-  if (isArrowAttachment(connection.to)) {
-    const targetConn = connections.find((c) => c.id === connection.to.connectionId);
+  const toTarget = connection.to;
+  if (isArrowAttachment(toTarget)) {
+    const targetConn = connections.find((c) => c.id === toTarget.connectionId);
     if (!targetConn) return null;
     const parent = getRenderedPoints(targetConn, elements, connections);
     if (!parent) return null;
-    return getVerticalAttachmentPath(fromEl, parent, connection.to.position).points;
+    return getVerticalAttachmentPath(fromEl, parent, toTarget.position).points;
   }
 
-  const toEl = elements.find((el) => el.id === connection.to);
+  const toEl = elements.find((el) => el.id === toTarget);
   if (!toEl) return null;
 
   const waypoints: Position[] = getEffectiveWaypoints(connection, fromEl, toEl);
