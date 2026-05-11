@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -173,5 +173,54 @@ describe('computeSharedTrunkX (left-side sources)', () => {
     const result = computeSharedTrunkX(groups, target, 'left');
     expect(result).toBeGreaterThanOrEqual(400);
     expect(result).toBeLessThanOrEqual(420);
+  });
+});
+
+describe('computeEntryTValues', () => {
+  it('returns t=0.5 for both connections when N=2 (no spread)', () => {
+    const target = claimBox(500, 200);
+    const sources = [dataBox(100, 100, 80, 60), dataBox(100, 300, 80, 60)];
+    const sibs = [
+      { conn: { id:'1', from:'a', to:'t', type:'support' as const }, fromEl: sources[0] },
+      { conn: { id:'2', from:'b', to:'t', type:'support' as const }, fromEl: sources[1] },
+    ];
+    const map = computeEntryTValues(sibs, target);
+    expect(map.get('1')).toBe(0.5);
+    expect(map.get('2')).toBe(0.5);
+  });
+
+  it('returns evenly-spread t values for N=3, ordered by source.center.y', () => {
+    const target = claimBox(500, 200);
+    const top    = dataBox(100, 50,  80, 60);   // center y = 80
+    const middle = dataBox(100, 200, 80, 60);   // center y = 230
+    const bottom = dataBox(100, 400, 80, 60);   // center y = 430
+    const sibs = [
+      { conn: { id:'middle', from:'m', to:'t', type:'support' as const }, fromEl: middle },
+      { conn: { id:'top',    from:'a', to:'t', type:'support' as const }, fromEl: top },
+      { conn: { id:'bottom', from:'b', to:'t', type:'support' as const }, fromEl: bottom },
+    ];
+    const map = computeEntryTValues(sibs, target);
+    expect(map.get('top')).toBeCloseTo(0.25);
+    expect(map.get('middle')).toBeCloseTo(0.5);
+    expect(map.get('bottom')).toBeCloseTo(0.75);
+  });
+
+  it('returns evenly-spread t values for N=4', () => {
+    const target = claimBox(500, 200);
+    const ss = [
+      dataBox(100, 0,   80, 60),
+      dataBox(100, 100, 80, 60),
+      dataBox(100, 200, 80, 60),
+      dataBox(100, 300, 80, 60),
+    ];
+    const sibs = ss.map((fromEl, i) => ({
+      conn: { id: `s${i}`, from: `e${i}`, to: 't', type: 'support' as const },
+      fromEl,
+    }));
+    const map = computeEntryTValues(sibs, target);
+    expect(map.get('s0')).toBeCloseTo(0.2);
+    expect(map.get('s1')).toBeCloseTo(0.4);
+    expect(map.get('s2')).toBeCloseTo(0.6);
+    expect(map.get('s3')).toBeCloseTo(0.8);
   });
 });

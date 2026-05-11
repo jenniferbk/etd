@@ -538,3 +538,31 @@ export function computeSharedTrunkY(
     return Math.max(lower, Math.min(upper, raw));
   }
 }
+
+// Return a map of connection.id → t (0..1) for entry along the target's edge.
+// N <= 2: all at 0.5 (overlap; spec choice). N >= 3: i+1 / N+1, sorted by source.center.y.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function computeEntryTValues(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  _target: DiagramElement,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const N = siblings.length;
+  if (N === 0) return out;
+
+  if (N <= 2) {
+    for (const s of siblings) out.set(s.conn.id, 0.5);
+    return out;
+  }
+
+  const sorted = [...siblings].sort((a, b) => {
+    const ay = a.fromEl.position.y + a.fromEl.size.height / 2;
+    const by = b.fromEl.position.y + b.fromEl.size.height / 2;
+    return ay - by;
+  });
+
+  sorted.forEach((s, i) => {
+    out.set(s.conn.id, (i + 1) / (N + 1));
+  });
+  return out;
+}
