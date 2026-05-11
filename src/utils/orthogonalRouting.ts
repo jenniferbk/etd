@@ -426,3 +426,38 @@ export function anchoredZWaypoints(
     return [{ x: fromPoint.x, y: midY }, { x: toPoint.x, y: midY }];
   }
 }
+
+export interface SiblingApproachGroups {
+  left:     { conn: Connection; fromEl: DiagramElement }[];
+  right:    { conn: Connection; fromEl: DiagramElement }[];
+  above:    { conn: Connection; fromEl: DiagramElement }[];
+  below:    { conn: Connection; fromEl: DiagramElement }[];
+  excluded: { conn: Connection; fromEl: DiagramElement }[];
+}
+
+const SIDE_EPSILON = 1;  // px
+
+export function groupSiblingsByApproachSide(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  target: DiagramElement,
+): SiblingApproachGroups {
+  const tCenterX = target.position.x + target.size.width / 2;
+  const out: SiblingApproachGroups = { left: [], right: [], above: [], below: [], excluded: [] };
+
+  for (const s of siblings) {
+    const sCenterX = s.fromEl.position.x + s.fromEl.size.width / 2;
+    const dx = sCenterX - tCenterX;
+
+    // If x-centers are tied (within epsilon), exclude — fall through to default Z.
+    if (Math.abs(dx) <= SIDE_EPSILON) {
+      out.excluded.push(s);
+    }
+    // Prefer horizontal grouping if there's clear horizontal separation.
+    else if (dx < 0) {
+      out.left.push(s);
+    } else {
+      out.right.push(s);
+    }
+  }
+  return out;
+}

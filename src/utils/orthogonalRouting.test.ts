@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -98,5 +98,50 @@ describe('computeRule1Path', () => {
     const r = computeRule1Path(d, c);
     expect(r).not.toBeNull();
     expect(r?.[1]).toBe(100);
+  });
+});
+
+describe('groupSiblingsByApproachSide', () => {
+  it('groups sources by left/right based on center.x', () => {
+    const target = claimBox(500, 200);  // center x = 550
+    const leftA = dataBox(100, 200, 80, 60);   // center x = 140 < 550 → left
+    const leftB = dataBox(200, 350, 80, 60);   // center x = 240 < 550 → left
+    const rightA = dataBox(800, 200, 80, 60);  // center x = 840 > 550 → right
+    const groups = groupSiblingsByApproachSide(
+      [{ conn: { id:'1', from:'a', to:'t', type:'support' }, fromEl: leftA },
+       { conn: { id:'2', from:'b', to:'t', type:'support' }, fromEl: leftB },
+       { conn: { id:'3', from:'c', to:'t', type:'support' }, fromEl: rightA }],
+      target,
+    );
+    expect(groups.left.length).toBe(2);
+    expect(groups.right.length).toBe(1);
+    expect(groups.above.length).toBe(0);
+    expect(groups.below.length).toBe(0);
+  });
+
+  it('groups sources by above/below when center.y differs and center.x matches (excluded if same x)', () => {
+    const target = claimBox(500, 500);   // center (550, 530)
+    const above = dataBox(510, 100, 80, 60);   // center (550, 130) — same x, above
+    const below = dataBox(510, 900, 80, 60);   // center (550, 930) — same x, below
+    const groups = groupSiblingsByApproachSide(
+      [{ conn: { id:'1', from:'a', to:'t', type:'support' }, fromEl: above },
+       { conn: { id:'2', from:'b', to:'t', type:'support' }, fromEl: below }],
+      target,
+    );
+    // Equal-x case: tied; spec says exclude from Rule 2 grouping (fall through to default Z).
+    expect(groups.left.length + groups.right.length + groups.above.length + groups.below.length).toBe(0);
+    expect(groups.excluded.length).toBe(2);
+  });
+
+  it('prefers horizontal grouping when both horizontal and vertical separations exist', () => {
+    // If a source is both clearly-left AND clearly-above, classify as left (horizontal wins).
+    const target = claimBox(500, 500);  // center (550, 530)
+    const leftAndAbove = dataBox(100, 100, 80, 60);  // center (140, 130)
+    const groups = groupSiblingsByApproachSide(
+      [{ conn: { id:'1', from:'a', to:'t', type:'support' }, fromEl: leftAndAbove }],
+      target,
+    );
+    expect(groups.left.length).toBe(1);
+    expect(groups.above.length).toBe(0);
   });
 });
