@@ -1,7 +1,7 @@
 // Pure geometry for orthogonal (Manhattan) connector routing.
 // No React or Konva imports — these are unit-testable functions.
 
-import type { DiagramElement, Position, Connection, EdgeAnchor } from '../types';
+import type { DiagramElement, Position, Connection, EdgeAnchor, BoxEdge } from '../types';
 
 export type SegmentOrientation = 'horizontal' | 'vertical';
 
@@ -364,23 +364,19 @@ export function getSegments(points: number[]): Segment[] {
 
 // Top-level routing entry. Returns a flattened [x0,y0,x1,y1,...] polyline.
 // Applies the override hierarchy from the spec:
-//   stored waypoints  >  stored anchors  >  Rule 1  >  Rule 2 (added in Task 14)  >  default Z
+//   stored waypoints  >  stored anchors  >  Rule 1  >  Rule 2  >  default Z
 //
 // `siblings` is the set of OTHER connections also targeting `toEl`. Used by Rule 2.
-// Pass [] if Rule 2 isn't wired up yet — falls through to default Z when Rule 1 doesn't apply.
 export function computeConnectionPath(
   connection: Connection,
   fromEl: DiagramElement,
   toEl: DiagramElement,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _siblings: { conn: Connection; fromEl: DiagramElement }[] = [],
+  siblings: { conn: Connection; fromEl: DiagramElement }[] = [],
 ): number[] {
-  // Waypoints win.
+  // Manual routing wins.
   if (connection.waypoints && connection.waypoints.length > 0) {
     return getOrthogonalPath(fromEl, toEl, connection.waypoints);
   }
-
-  // Anchored endpoints — render a Z that respects them (no Rule 1, no Rule 2 for this conn).
   if (connection.fromAnchor || connection.toAnchor) {
     return getOrthogonalPath(fromEl, toEl, anchoredZWaypoints(connection, fromEl, toEl));
   }
@@ -389,7 +385,52 @@ export function computeConnectionPath(
   const rule1 = computeRule1Path(fromEl, toEl);
   if (rule1) return rule1;
 
-  // Rule 2 placeholder (filled in Task 14).
+  // Rule 2: only auto-routed siblings (no waypoints, no anchors, no Rule 1 match) count.
+  const autoSiblings = siblings.filter((s) => {
+    if (s.conn.waypoints && s.conn.waypoints.length > 0) return false;
+    if (s.conn.fromAnchor || s.conn.toAnchor) return false;
+    if (computeRule1Path(s.fromEl, toEl)) return false;
+    return true;
+  });
+
+  // Include self in the convergent set when there are auto siblings.
+  if (autoSiblings.length >= 1) {
+    const convergentSet = [{ conn: connection, fromEl }, ...autoSiblings];
+    const groups = groupSiblingsByApproachSide(convergentSet, toEl);
+    const mySide = (['left', 'right', 'above', 'below'] as const).find((side) =>
+      groups[side].some((s) => s.conn.id === connection.id),
+    );
+    if (mySide) {
+      const sideGroup = groups[mySide];
+      if (sideGroup.length >= 2) {
+        const tMap = computeEntryTValues(sideGroup, toEl);
+        const myT = tMap.get(connection.id) ?? 0.5;
+
+        if (mySide === 'left' || mySide === 'right') {
+          const trunkX = computeSharedTrunkX(sideGroup, toEl, mySide);
+          const entryEdge: BoxEdge = mySide === 'left' ? 'left' : 'right';
+          const entryPoint = resolveAnchor(toEl, { edge: entryEdge, t: myT });
+          const fromCy = fromEl.position.y + fromEl.size.height / 2;
+          const exitX = mySide === 'left'
+            ? fromEl.position.x + fromEl.size.width
+            : fromEl.position.x;
+          // Polyline: source-edge → (trunkX, fromCy) → (trunkX, entryY) → entry.
+          return [exitX, fromCy, trunkX, fromCy, trunkX, entryPoint.y, entryPoint.x, entryPoint.y];
+        } else {
+          const trunkY = computeSharedTrunkY(sideGroup, toEl, mySide);
+          const entryEdge: BoxEdge = mySide === 'above' ? 'top' : 'bottom';
+          const entryPoint = resolveAnchor(toEl, { edge: entryEdge, t: myT });
+          const fromCx = fromEl.position.x + fromEl.size.width / 2;
+          const exitY = mySide === 'above'
+            ? fromEl.position.y + fromEl.size.height
+            : fromEl.position.y;
+          return [fromCx, exitY, fromCx, trunkY, entryPoint.x, trunkY, entryPoint.x, entryPoint.y];
+        }
+      }
+    }
+  }
+
+  // Default Z.
   return getOrthogonalPath(fromEl, toEl, computeDefaultZWaypoints(fromEl, toEl));
 }
 
