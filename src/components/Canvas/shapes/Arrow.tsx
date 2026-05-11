@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Circle, Line } from 'react-konva';
+import { Circle, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor } from '../../../types';
 import { isArrowAttachment } from '../../../types';
@@ -205,6 +205,7 @@ export function ConnectionArrow({
 
   const [anchorDragOverride, setAnchorDragOverride] = useState<EdgeAnchor | null>(null);
   const [anchorDragEnd, setAnchorDragEnd] = useState<'from' | 'to' | null>(null);
+  const [hoveredAnchor, setHoveredAnchor] = useState<'from' | 'to' | null>(null);
   const anchorDragOverrideRef = useRef<EdgeAnchor | null>(null);
   useEffect(() => {
     anchorDragOverrideRef.current = anchorDragOverride;
@@ -658,7 +659,7 @@ export function ConnectionArrow({
             })
           }
 
-          {/* Edge-anchor handles (Task 16) */}
+          {/* Edge-anchor handles (Task 16) + hover-× reset badge (Task 18) */}
           {!isAttachment && (isHovered || isSelected) && !connectModeActive && (
             <>
               {/* Source-side anchor handle */}
@@ -671,7 +672,28 @@ export function ConnectionArrow({
                 strokeWidth={1.5}
                 onMouseDown={(e) => handleAnchorDragStart('from', e)}
                 onTouchStart={(e) => handleAnchorDragStart('from', e)}
+                onMouseEnter={() => setHoveredAnchor('from')}
+                onMouseLeave={() => setHoveredAnchor(null)}
               />
+              {hoveredAnchor === 'from' && connection.fromAnchor && (
+                <Text
+                  x={pathPoints[0] + 8}
+                  y={pathPoints[1] - 14}
+                  text="×"
+                  fontSize={14}
+                  fill="#666666"
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    updateConnectionAnchor(connection.id, 'from', undefined);
+                    setHoveredAnchor(null);
+                  }}
+                  onTap={(e) => {
+                    e.cancelBubble = true;
+                    updateConnectionAnchor(connection.id, 'from', undefined);
+                    setHoveredAnchor(null);
+                  }}
+                />
+              )}
               {/* Target-side anchor handle */}
               <Circle
                 x={pathPoints[pathPoints.length - 2]}
@@ -682,7 +704,28 @@ export function ConnectionArrow({
                 strokeWidth={1.5}
                 onMouseDown={(e) => handleAnchorDragStart('to', e)}
                 onTouchStart={(e) => handleAnchorDragStart('to', e)}
+                onMouseEnter={() => setHoveredAnchor('to')}
+                onMouseLeave={() => setHoveredAnchor(null)}
               />
+              {hoveredAnchor === 'to' && connection.toAnchor && (
+                <Text
+                  x={pathPoints[pathPoints.length - 2] + 8}
+                  y={pathPoints[pathPoints.length - 1] - 14}
+                  text="×"
+                  fontSize={14}
+                  fill="#666666"
+                  onClick={(e) => {
+                    e.cancelBubble = true;
+                    updateConnectionAnchor(connection.id, 'to', undefined);
+                    setHoveredAnchor(null);
+                  }}
+                  onTap={(e) => {
+                    e.cancelBubble = true;
+                    updateConnectionAnchor(connection.id, 'to', undefined);
+                    setHoveredAnchor(null);
+                  }}
+                />
+              )}
             </>
           )}
         </>
