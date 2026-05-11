@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -143,5 +143,35 @@ describe('groupSiblingsByApproachSide', () => {
     );
     expect(groups.left.length).toBe(1);
     expect(groups.above.length).toBe(0);
+  });
+});
+
+describe('computeSharedTrunkX (left-side sources)', () => {
+  it('places trunk 30% of the way from maxSourceRight to target.left', () => {
+    const target = claimBox(1000, 200);   // left = 1000
+    const sources = [
+      dataBox(100, 200, 80, 60),   // right = 180
+      dataBox(300, 200, 100, 60),  // right = 400 (max)
+    ];
+    // maxSourceRight = 400. trunkX = 400 + 0.3 * (1000 - 400) = 580.
+    const groups = [
+      { conn: { id:'1', from:'a', to:'t', type:'support' as const }, fromEl: sources[0] },
+      { conn: { id:'2', from:'b', to:'t', type:'support' as const }, fromEl: sources[1] },
+    ];
+    expect(computeSharedTrunkX(groups, target, 'left')).toBe(580);
+  });
+
+  it('clamps to maxSourceRight + 20 if sources are too close to target', () => {
+    const target = claimBox(420, 200);    // left = 420
+    const sources = [dataBox(300, 200, 100, 60)];  // right = 400
+    const groups = [
+      { conn: { id:'1', from:'a', to:'t', type:'support' as const }, fromEl: sources[0] },
+    ];
+    // 30% of (420 - 400) = 6 < 20px clamp.
+    // Both clamps (lower=maxSourceRight+20=420, upper=target.left-20=400) cross over.
+    // When they cross, prefer the lower bound clamped to within [target.left-20, target.left].
+    const result = computeSharedTrunkX(groups, target, 'left');
+    expect(result).toBeGreaterThanOrEqual(400);
+    expect(result).toBeLessThanOrEqual(420);
   });
 });

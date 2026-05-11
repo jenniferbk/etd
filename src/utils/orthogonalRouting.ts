@@ -461,3 +461,80 @@ export function groupSiblingsByApproachSide(
   }
   return out;
 }
+
+const TRUNK_RATIO = 0.3;
+const TRUNK_PAD_PX = 20;
+
+export function computeSharedTrunkX(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  target: DiagramElement,
+  side: 'left' | 'right',
+): number {
+  const targetLeft = target.position.x;
+  const targetRight = target.position.x + target.size.width;
+
+  if (side === 'left') {
+    let maxSourceRight = -Infinity;
+    for (const s of siblings) {
+      const right = s.fromEl.position.x + s.fromEl.size.width;
+      if (right > maxSourceRight) maxSourceRight = right;
+    }
+    const raw = maxSourceRight + TRUNK_RATIO * (targetLeft - maxSourceRight);
+    const lower = maxSourceRight + TRUNK_PAD_PX;
+    const upper = targetLeft - TRUNK_PAD_PX;
+    if (lower > upper) {
+      // Clamps cross — fall back to a value between maxSourceRight and target.left.
+      return Math.min(targetLeft, Math.max(maxSourceRight, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  } else {
+    // Right-side: sources are to the right of target; target is to their left.
+    let minSourceLeft = Infinity;
+    for (const s of siblings) {
+      if (s.fromEl.position.x < minSourceLeft) minSourceLeft = s.fromEl.position.x;
+    }
+    const raw = minSourceLeft - TRUNK_RATIO * (minSourceLeft - targetRight);
+    const upper = minSourceLeft - TRUNK_PAD_PX;
+    const lower = targetRight + TRUNK_PAD_PX;
+    if (lower > upper) {
+      return Math.max(targetRight, Math.min(minSourceLeft, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  }
+}
+
+export function computeSharedTrunkY(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  target: DiagramElement,
+  side: 'above' | 'below',
+): number {
+  const targetTop = target.position.y;
+  const targetBottom = target.position.y + target.size.height;
+
+  if (side === 'above') {
+    let maxSourceBottom = -Infinity;
+    for (const s of siblings) {
+      const bot = s.fromEl.position.y + s.fromEl.size.height;
+      if (bot > maxSourceBottom) maxSourceBottom = bot;
+    }
+    const raw = maxSourceBottom + TRUNK_RATIO * (targetTop - maxSourceBottom);
+    const lower = maxSourceBottom + TRUNK_PAD_PX;
+    const upper = targetTop - TRUNK_PAD_PX;
+    if (lower > upper) {
+      return Math.min(targetTop, Math.max(maxSourceBottom, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  } else {
+    let minSourceTop = Infinity;
+    for (const s of siblings) {
+      if (s.fromEl.position.y < minSourceTop) minSourceTop = s.fromEl.position.y;
+    }
+    const raw = minSourceTop - TRUNK_RATIO * (minSourceTop - targetBottom);
+    const upper = minSourceTop - TRUNK_PAD_PX;
+    const lower = targetBottom + TRUNK_PAD_PX;
+    if (lower > upper) {
+      return Math.max(targetBottom, Math.min(minSourceTop, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  }
+}
