@@ -37,9 +37,16 @@ export function PropertiesPanel() {
     label: s.label,
   }));
 
+  const connections = useDiagramStore((s) => s.connections);
+  const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);
+
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
     ? elements.find((el) => el.id === selectedIds[0])
+    : null;
+
+  const selectedConnection = selectedIds.length === 1 && !selectedElement
+    ? connections.find((c) => c.id === selectedIds[0])
     : null;
 
   const isOrphanedSubtype =
@@ -114,6 +121,39 @@ export function PropertiesPanel() {
     borderColor: theme.input.border,
     color: theme.input.text,
   };
+
+  if (selectedConnection) {
+    const hasManualRouting =
+      (selectedConnection.waypoints && selectedConnection.waypoints.length > 0) ||
+      selectedConnection.fromAnchor !== undefined ||
+      selectedConnection.toAnchor !== undefined;
+    return (
+      <div
+        className="h-16 border-t px-5 flex items-center gap-4 panel-transition"
+        style={{
+          background: theme.properties.bgGradient,
+          borderColor: theme.properties.border,
+          boxShadow: theme.properties.shadow,
+        }}
+      >
+        <span className="text-sm" style={{ color: theme.sidebar.muted }}>
+          Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
+        </span>
+        <button
+          onClick={() => resetConnectionRouting(selectedConnection.id)}
+          disabled={!hasManualRouting}
+          className="px-3 py-1.5 text-sm border rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            borderColor: theme.input.border,
+            color: theme.input.text,
+            backgroundColor: theme.input.bg,
+          }}
+        >
+          Reset routing
+        </button>
+      </div>
+    );
+  }
 
   if (!selectedElement) {
     return (

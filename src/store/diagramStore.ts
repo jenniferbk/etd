@@ -94,6 +94,7 @@ interface DiagramState {
   removeConnection: (id: string) => void;
   updateConnectionWaypoints: (id: string, waypoints: Position[] | undefined) => void;
   updateConnectionAnchor: (id: string, end: 'from' | 'to', anchor: EdgeAnchor | undefined) => void;
+  resetConnectionRouting: (id: string) => void;
 
   // Actions - Selection
   setSelectedIds: (ids: string[]) => void;
@@ -439,6 +440,18 @@ export const useDiagramStore = create<DiagramState>()(
             } else {
               next[key] = anchor;
             }
+            return next;
+          }),
+        })),
+
+      resetConnectionRouting: (id) =>
+        set((state) => ({
+          connections: state.connections.map((conn) => {
+            if (conn.id !== id) return conn;
+            const next = { ...conn };
+            delete next.waypoints;
+            delete next.fromAnchor;
+            delete next.toAnchor;
             return next;
           }),
         })),
