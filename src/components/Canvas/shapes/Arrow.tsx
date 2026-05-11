@@ -492,34 +492,68 @@ export function ConnectionArrow({
           hitStrokeWidth={20}
         />
       ) : (
-        segments.map((seg, idx) => (
-          <Line
-            key={`seg-${idx}`}
-            points={[seg.start.x, seg.start.y, seg.end.x, seg.end.y]}
-            stroke={strokeColor}
-            strokeWidth={strokeWidth}
-            onClick={handleArrowClick}
-            onTap={handleArrowClick}
-            onMouseDown={(e) => handleSegmentDragStart(idx, e)}
-            onTouchStart={(e) => handleSegmentDragStart(idx, e)}
-            onMouseEnter={(e) => {
-              handleMouseEnter();
-              if (!connectModeActive) {
-                const stage = e.target.getStage();
-                if (stage) {
-                  stage.container().style.cursor =
-                    seg.orientation === 'horizontal' ? 'ns-resize' : 'ew-resize';
+        <>
+          {segments.map((seg, idx) => (
+            <Line
+              key={`seg-${idx}`}
+              points={[seg.start.x, seg.start.y, seg.end.x, seg.end.y]}
+              stroke={strokeColor}
+              strokeWidth={strokeWidth}
+              onClick={handleArrowClick}
+              onTap={handleArrowClick}
+              onMouseDown={(e) => handleSegmentDragStart(idx, e)}
+              onTouchStart={(e) => handleSegmentDragStart(idx, e)}
+              onMouseEnter={(e) => {
+                handleMouseEnter();
+                if (!connectModeActive) {
+                  const stage = e.target.getStage();
+                  if (stage) {
+                    stage.container().style.cursor =
+                      seg.orientation === 'horizontal' ? 'ns-resize' : 'ew-resize';
+                  }
                 }
-              }
-            }}
-            onMouseLeave={(e) => {
-              handleMouseLeave();
-              const stage = e.target.getStage();
-              if (stage) stage.container().style.cursor = 'default';
-            }}
-            hitStrokeWidth={20}
-          />
-        ))
+              }}
+              onMouseLeave={(e) => {
+                handleMouseLeave();
+                const stage = e.target.getStage();
+                if (stage) stage.container().style.cursor = 'default';
+              }}
+              hitStrokeWidth={20}
+            />
+          ))}
+
+          {/* Segment midpoint-handles for discoverability (Task 15) */}
+          {(isHovered || isSelected) && !connectModeActive &&
+            segments.map((seg, idx) => {
+              const midX = (seg.start.x + seg.end.x) / 2;
+              const midY = (seg.start.y + seg.end.y) / 2;
+              return (
+                <Circle
+                  key={`mid-${idx}`}
+                  x={midX}
+                  y={midY}
+                  radius={5}
+                  fill="#FFFFFF"
+                  stroke="#333333"
+                  strokeWidth={1.5}
+                  onMouseDown={(e) => handleSegmentDragStart(idx, e)}
+                  onTouchStart={(e) => handleSegmentDragStart(idx, e)}
+                  onMouseEnter={(e) => {
+                    const stage = e.target.getStage();
+                    if (stage) {
+                      stage.container().style.cursor =
+                        seg.orientation === 'horizontal' ? 'ns-resize' : 'ew-resize';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    const stage = e.target.getStage();
+                    if (stage) stage.container().style.cursor = 'default';
+                  }}
+                />
+              );
+            })
+          }
+        </>
       )}
 
       {/* Arrow head at the end */}
