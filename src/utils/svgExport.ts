@@ -8,6 +8,7 @@ import {
   getOrthogonalPath,
   getVerticalAttachmentPath,
 } from './orthogonalRouting';
+import { computeExportBounds } from './exportBounds';
 
 interface SvgExportOptions {
   padding?: number;
@@ -25,21 +26,11 @@ export function exportToSvg(
     return '';
   }
 
-  // Calculate bounds
-  let minX = Infinity, minY = Infinity;
-  let maxX = -Infinity, maxY = -Infinity;
-
-  elements.forEach((el) => {
-    minX = Math.min(minX, el.position.x);
-    minY = Math.min(minY, el.position.y);
-    maxX = Math.max(maxX, el.position.x + el.size.width);
-    maxY = Math.max(maxY, el.position.y + el.size.height);
-  });
-
-  const width = maxX - minX + padding * 2;
-  const height = maxY - minY + padding * 2;
-  const offsetX = -minX + padding;
-  const offsetY = -minY + padding;
+  const bounds = computeExportBounds(elements, connections, padding);
+  const width = bounds.width;
+  const height = bounds.height;
+  const offsetX = -bounds.x;
+  const offsetY = -bounds.y;
 
   // Build SVG content
   const svgContent: string[] = [];
