@@ -1,38 +1,50 @@
 @import "tailwindcss";
 
 /* ============================================
-   Deep Void Theme - jenkleiman.com aesthetic
+   Sage Garden Theme
    ============================================ */
 
 /* CSS Custom Properties */
 :root {
-  /* Deep void base */
-  --void-950: #030509;
-  --void-900: #050a14;
-  --void-850: #0a1019;
-  --void-800: #141824;
-  --void-700: #1a2030;
-  --void-600: #1f2937;
-  --void-500: #2a3548;
-  --void-400: #374151;
+  /* Sage Garden — light theme tokens. See src/utils/theme.ts for the
+     authoritative source; CSS vars mirror the most-used values for
+     selectors that can't easily access the TS theme. */
 
-  /* Text colors */
-  --text-primary: #f3f4f6;
-  --text-secondary: #d1d5db;
-  --text-tertiary: #9ca3af;
-  --text-muted: #6b7280;
+  /* Surfaces */
+  --app-bg: #f4f7f1;
+  --chrome-bg: #f8faf4;
+  --sidebar-bg: #f0f4eb;
 
-  /* Cyan accent - bioluminescent */
-  --accent: #00f0ff;
-  --accent-hover: #00c0cc;
-  --accent-glow: rgba(0, 240, 255, 0.15);
-  --accent-glow-strong: rgba(0, 240, 255, 0.25);
+  /* Borders */
+  --border: #d6dfca;
+  --border-strong: #c9d4be;
 
-  /* Secondary */
-  --secondary: #0aff60;
-  --highlight: #ffd700;
+  /* Text (all WCAG AA on chrome-bg) */
+  --text: #2a3324;
+  --text-secondary: #4a5a3c;
 
-  /* Transitions */
+  /* Accent */
+  --accent: #6b7c54;
+  --accent-strong: #3d4a32;
+  --accent-warm: #8a6f47;
+
+  /* States */
+  --hover: #e7ede0;
+  --active: #dbe5cf;
+
+  /* Danger */
+  --danger: #b23a48;
+  --danger-bg: #fbe6e0;
+  --danger-border: #e6b8b8;
+
+  /* Focus ring */
+  --focus-ring: #2a3324;
+  --focus-ring-on-dark: #ffffff;
+
+  /* Modal scrim */
+  --scrim: rgba(50, 65, 30, 0.32);
+
+  /* Transitions (preserved from old file) */
   --transition-fast: 100ms ease-out;
   --transition-normal: 150ms ease-out;
   --transition-slow: 250ms ease-out;
@@ -54,12 +66,12 @@ body {
   font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--void-900);
-  color: var(--text-primary);
+  background: var(--app-bg);
+  color: var(--text);
 }
 
 /* ============================================
-   Focus States - Cyan accent
+   Focus States
    ============================================ */
 
 button:focus-visible,
@@ -67,8 +79,8 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 [tabindex]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--accent-glow-strong), 0 0 0 4px rgba(0, 240, 255, 0.1);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 /* ============================================
@@ -80,27 +92,27 @@ button, input, textarea, select {
 }
 
 input, textarea, select {
-  background: var(--void-800);
-  border: 1px solid var(--void-600);
-  color: var(--text-primary);
+  background: var(--sidebar-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
 }
 
 input:hover, textarea:hover, select:hover {
-  border-color: var(--void-500);
+  border-color: var(--border-strong);
 }
 
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent);
-  background: var(--void-700);
+  background: var(--hover);
 }
 
 input::placeholder, textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 select option {
-  background: var(--void-800);
-  color: var(--text-primary);
+  background: var(--sidebar-bg);
+  color: var(--text);
 }
 
 /* ============================================
@@ -117,14 +129,14 @@ select option {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--void-600);
+  background: var(--border);
   border-radius: 4px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--void-500);
+  background: var(--border-strong);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -135,7 +147,7 @@ select option {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--void-600) transparent;
+  scrollbar-color: var(--border) transparent;
 }
 
 /* ============================================
@@ -143,8 +155,8 @@ select option {
    ============================================ */
 
 ::selection {
-  background: var(--accent-glow-strong);
-  color: var(--text-primary);
+  background: var(--active);
+  color: var(--text);
 }
 
 /* ============================================
@@ -189,9 +201,9 @@ select option {
   }
 }
 
-@keyframes pulse-glow {
+@keyframes pulse-ring {
   0%, 100% {
-    box-shadow: 0 0 0 0 var(--accent-glow);
+    box-shadow: 0 0 0 0 rgba(107, 124, 84, 0.15);
   }
   50% {
     box-shadow: 0 0 0 8px transparent;
@@ -217,14 +229,6 @@ select option {
 /* ============================================
    Interactive Effects
    ============================================ */
-
-.glow-accent {
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
-
-.glow-accent-strong {
-  box-shadow: 0 0 0 4px var(--accent-glow-strong);
-}
 
 .hover-lift {
   transition: transform var(--transition-fast), box-shadow var(--transition-fast);
@@ -263,23 +267,23 @@ select option {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: var(--void-950);
+  background: var(--accent-strong);
+  color: #ffffff;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-hover);
+  background: #2f3a26;
 }
 
 .btn-secondary {
-  background: var(--void-800);
-  color: var(--text-primary);
-  border: 1px solid var(--void-600);
+  background: var(--sidebar-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--void-700);
-  border-color: var(--void-500);
+  background: var(--hover);
+  border-color: var(--border-strong);
 }
 
 .btn-ghost {
@@ -288,31 +292,31 @@ select option {
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background: var(--void-700);
-  color: var(--text-primary);
+  background: var(--hover);
+  color: var(--text);
 }
 
 /* ============================================
    Utility Classes
    ============================================ */
 
-.text-primary { color: var(--text-primary); }
+.text-primary { color: var(--text); }
 .text-secondary { color: var(--text-secondary); }
-.text-tertiary { color: var(--text-tertiary); }
+.text-tertiary { color: var(--text-secondary); }
 .text-accent { color: var(--accent); }
 
-.bg-surface { background: var(--void-800); }
-.bg-elevated { background: var(--void-700); }
+.bg-surface { background: var(--sidebar-bg); }
+.bg-elevated { background: var(--hover); }
 
-.border-subtle { border-color: var(--void-700); }
-.border-default { border-color: var(--void-600); }
+.border-subtle { border-color: var(--border); }
+.border-default { border-color: var(--border); }
 
 /* ============================================
    Label styling
    ============================================ */
 
 label {
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 0.6875rem;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -339,14 +343,12 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
-  border: 2px solid var(--void-900);
-  box-shadow: 0 0 6px var(--accent-glow);
-  transition: transform 100ms ease-out, box-shadow 100ms ease-out;
+  border: 2px solid var(--app-bg);
+  transition: transform 100ms ease-out;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {
   transform: scale(1.15);
-  box-shadow: 0 0 10px var(--accent-glow-strong);
 }
 
 input[type="range"]::-moz-range-thumb {
@@ -355,10 +357,10 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 50%;
   background: var(--accent);
   cursor: pointer;
-  border: 2px solid var(--void-900);
-  box-shadow: 0 0 6px var(--accent-glow);
+  border: 2px solid var(--app-bg);
 }
 
 input[type="range"]:focus::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px var(--accent-glow-strong);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
