@@ -211,7 +211,7 @@ export function PropertiesPanel() {
                   type="text"
                   value={selectedElement.label}
                   onChange={(e) => handleChange('label', e.target.value)}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-32 focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-32 focus:outline-none"
                   style={inputStyle}
                 />
               </div>
@@ -220,7 +220,7 @@ export function PropertiesPanel() {
                 <select
                   value={selectedElement.argumentType}
                   onChange={(e) => handleChange('argumentType', e.target.value)}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none"
                   style={selectStyle}
                 >
                   {ARGUMENT_TYPES.map((type) => (
@@ -239,7 +239,7 @@ export function PropertiesPanel() {
                 <select
                   value={selectedElement.contributor}
                   onChange={(e) => handleChange('contributor', e.target.value)}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none"
                   style={selectStyle}
                 >
                   {CONTRIBUTOR_TYPES.map((type) => (
@@ -259,7 +259,7 @@ export function PropertiesPanel() {
                       convertToSupport(selectedElement.id, supportType, subtype);
                     }
                   }}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none"
                   style={selectStyle}
                 >
                   <option value="">To Support...</option>
@@ -283,7 +283,7 @@ export function PropertiesPanel() {
                 <select
                   value={selectedElement.supportType}
                   onChange={(e) => changeSupportType(selectedElement.id, e.target.value as SupportType)}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none"
                   style={selectStyle}
                 >
                   {SUPPORT_TYPES.map((type) => (
@@ -303,7 +303,7 @@ export function PropertiesPanel() {
                         contributor: e.target.value as SupportContributor,
                       } as Partial<DiagramElement>)
                     }
-                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none"
                     style={selectStyle}
                   >
                     {SUPPORT_CONTRIBUTOR_TYPES.map((type) => (
@@ -320,8 +320,8 @@ export function PropertiesPanel() {
                   <select
                     value={isOrphanedSubtype ? '__orphan__' : (selectedElement.subtype ?? '')}
                     onChange={(e) => changeSupportType(selectedElement.id, 'other', e.target.value as SupportSubtype)}
-                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
-                    style={{ ...selectStyle, color: isOrphanedSubtype ? '#CC0000' : selectStyle.color }}
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none"
+                    style={{ ...selectStyle, color: isOrphanedSubtype ? theme.danger.fg : selectStyle.color }}
                   >
                     {isOrphanedSubtype && (
                       <option value="__orphan__" disabled>
@@ -347,7 +347,7 @@ export function PropertiesPanel() {
                         associatedWith: next === '' ? undefined : next,
                       } as Partial<DiagramElement>);
                     }}
-                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2"
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none"
                     style={selectStyle}
                   >
                     <option value="">(none)</option>
@@ -378,7 +378,7 @@ export function PropertiesPanel() {
                       convertToArgument(selectedElement.id, e.target.value as ArgumentType);
                     }
                   }}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus:outline-none"
                   style={selectStyle}
                 >
                   <option value="">To Argument...</option>
@@ -399,7 +399,7 @@ export function PropertiesPanel() {
                   type="text"
                   value={selectedElement.label}
                   onChange={(e) => handleChange('label', e.target.value)}
-                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-32 focus:outline-none focus:ring-2"
+                  className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-32 focus:outline-none"
                   style={inputStyle}
                 />
               </div>
@@ -426,7 +426,7 @@ export function PropertiesPanel() {
           <textarea
             value={selectedElement.content}
             onChange={(e) => handleChange('content', e.target.value)}
-            className="w-full px-3 py-2 text-sm border rounded-lg resize-y min-h-[60px] transition-all duration-150 focus:outline-none focus:ring-2"
+            className="w-full px-3 py-2 text-sm border rounded-lg resize-y min-h-[60px] transition-all duration-150 focus:outline-none"
             style={inputStyle}
             rows={3}
             placeholder="Enter element content..."
@@ -442,7 +442,7 @@ export function PropertiesPanel() {
               value={selectedElement.attribution?.speaker || ''}
               onChange={(e) => handleAttributionChange('speaker', e.target.value)}
               placeholder="S1"
-              className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-20 focus:outline-none focus:ring-2"
+              className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-20 focus:outline-none"
               style={inputStyle}
             />
           </div>
@@ -453,7 +453,7 @@ export function PropertiesPanel() {
               value={selectedElement.attribution?.timestamp || ''}
               onChange={(e) => handleAttributionChange('timestamp', e.target.value)}
               placeholder="00:00"
-              className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-20 focus:outline-none focus:ring-2"
+              className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 w-20 focus:outline-none"
               style={inputStyle}
             />
           </div>
