@@ -129,28 +129,38 @@ export function PropertiesPanel() {
       selectedConnection.toAnchor !== undefined;
     return (
       <div
-        className="h-16 border-t px-5 flex items-center gap-4 panel-transition"
+        className="min-h-28 border-t px-5 py-4 panel-transition"
         style={{
           background: theme.properties.bgGradient,
           borderColor: theme.properties.border,
           boxShadow: theme.properties.shadow,
         }}
       >
-        <span className="text-sm" style={{ color: theme.sidebar.muted }}>
-          Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
-        </span>
-        <button
-          onClick={() => resetConnectionRouting(selectedConnection.id)}
-          disabled={!hasManualRouting}
-          className="px-3 py-1.5 text-sm border rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{
-            borderColor: theme.input.border,
-            color: theme.input.text,
-            backgroundColor: theme.input.bg,
-          }}
-        >
-          Reset routing
-        </button>
+        <div className="flex items-center gap-4 h-full">
+          <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
+            Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
+          </span>
+          <button
+            onClick={() => resetConnectionRouting(selectedConnection.id)}
+            disabled={!hasManualRouting}
+            className="px-3 py-1.5 text-sm border rounded-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+            style={{
+              borderColor: theme.input.border,
+              color: theme.input.text,
+              backgroundColor: theme.input.bg,
+            }}
+            onMouseEnter={(e) => {
+              if (!hasManualRouting) return;
+              e.currentTarget.style.backgroundColor = theme.input.bgHover;
+            }}
+            onMouseLeave={(e) => {
+              if (!hasManualRouting) return;
+              e.currentTarget.style.backgroundColor = theme.input.bg;
+            }}
+          >
+            Reset routing
+          </button>
+        </div>
       </div>
     );
   }
@@ -158,15 +168,24 @@ export function PropertiesPanel() {
   if (!selectedElement) {
     return (
       <div
-        className="h-16 border-t px-5 flex items-center justify-center text-sm panel-transition"
+        className="min-h-28 border-t panel-transition"
         style={{
           background: theme.properties.bgGradient,
           borderColor: theme.properties.border,
-          color: theme.sidebar.muted,
           boxShadow: theme.properties.shadow,
         }}
       >
-        Select an element to edit its properties
+        <div
+          className="m-4 rounded-md flex items-center justify-center text-sm italic h-[calc(100%-2rem)] min-h-20"
+          style={{
+            color: theme.sidebar.textSecondary,
+            borderWidth: '1px',
+            borderStyle: 'dashed',
+            borderColor: theme.sidebar.border,
+          }}
+        >
+          No element selected · click an element on the canvas to edit it
+        </div>
       </div>
     );
   }
