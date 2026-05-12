@@ -87,24 +87,51 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
       />
 
       <div
-        className="px-5 py-4 border-b flex items-center justify-between"
+        className="px-5 py-3 border-b"
         style={{ borderColor: theme.sidebar.border }}
       >
-        <h2
-          className="font-semibold text-sm uppercase tracking-wider"
-          style={{ color: theme.sidebar.text }}
-        >
-          Transcript
-        </h2>
-        {transcript && (
-          <button
-            onClick={handleClose}
-            className="p-1 rounded hover:opacity-80"
-            title="Hide panel"
-            style={{ color: theme.sidebar.textSecondary }}
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <h2
+            className="font-semibold text-sm uppercase tracking-wider"
+            style={{ color: theme.sidebar.text }}
           >
-            <PanelRightClose size={16} />
-          </button>
+            Transcript
+          </h2>
+          {transcript && (
+            <button
+              onClick={handleClose}
+              className="p-1 rounded transition-colors duration-150"
+              title="Hide panel"
+              aria-label="Hide transcript panel"
+              style={{ color: theme.sidebar.textSecondary }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = theme.sidebar.hover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              <PanelRightClose size={16} />
+            </button>
+          )}
+        </div>
+        {transcript && (
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span
+              className="font-mono truncate flex-1 min-w-0"
+              style={{ color: theme.sidebar.textSecondary }}
+              title={transcript.filename}
+            >
+              {transcript.filename}
+            </span>
+            <span
+              className="flex-shrink-0"
+              style={{ color: theme.sidebar.muted }}
+            >
+              {transcript.lines.length} line{transcript.lines.length === 1 ? '' : 's'}
+              {transcript.parseWarnings.length > 0 && ` · ${transcript.parseWarnings.length} skipped`}
+            </span>
+          </div>
         )}
       </div>
 
@@ -133,23 +160,6 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
 
       {transcript && (
         <>
-          <div
-            className="px-5 py-2 text-xs"
-            style={{ color: theme.sidebar.muted, borderColor: theme.sidebar.border, borderBottomWidth: '1px' }}
-          >
-            <div
-              className="truncate"
-              style={{ color: theme.sidebar.textSecondary }}
-              title={transcript.filename}
-            >
-              {transcript.filename}
-            </div>
-            <div>
-              {transcript.lines.length} line{transcript.lines.length === 1 ? '' : 's'}
-              {transcript.parseWarnings.length > 0 && ` · ${transcript.parseWarnings.length} skipped`}
-            </div>
-          </div>
-
           <div className="flex-1 overflow-y-auto">
             {transcript.lines.map((line, idx) => (
               <TranscriptPanelItem
