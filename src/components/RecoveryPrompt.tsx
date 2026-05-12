@@ -11,8 +11,8 @@ interface RecoveryPromptProps {
 export function RecoveryPrompt({ timestamp, onRecover, onDiscard }: RecoveryPromptProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ backgroundColor: theme.scrim, zIndex: theme.z.modalScrim }}
     >
       <div
         className="w-full max-w-md mx-4 rounded-xl shadow-2xl overflow-hidden"
