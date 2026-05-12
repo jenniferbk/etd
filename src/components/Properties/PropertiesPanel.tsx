@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useDiagramStore } from '../../store';
-import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype } from '../../types';
+import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
@@ -9,9 +9,15 @@ import { useImagePaste } from '../../hooks/useImagePaste';
 // Contributor type options
 const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
   { value: 'given', label: 'Given' },
+  { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
   { value: 'joint', label: 'Joint' },
   { value: 'implicit', label: 'Implicit' },
+];
+
+const SUPPORT_CONTRIBUTOR_TYPES: { value: SupportContributor; label: string }[] = [
+  { value: 'teacher', label: 'Teacher' },
+  { value: 'student', label: 'Student' },
 ];
 
 export function PropertiesPanel() {
@@ -31,9 +37,16 @@ export function PropertiesPanel() {
     label: s.label,
   }));
 
+  const connections = useDiagramStore((s) => s.connections);
+  const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);
+
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
     ? elements.find((el) => el.id === selectedIds[0])
+    : null;
+
+  const selectedConnection = selectedIds.length === 1 && !selectedElement
+    ? connections.find((c) => c.id === selectedIds[0])
     : null;
 
   const isOrphanedSubtype =
@@ -108,6 +121,39 @@ export function PropertiesPanel() {
     borderColor: theme.input.border,
     color: theme.input.text,
   };
+
+  if (selectedConnection) {
+    const hasManualRouting =
+      (selectedConnection.waypoints && selectedConnection.waypoints.length > 0) ||
+      selectedConnection.fromAnchor !== undefined ||
+      selectedConnection.toAnchor !== undefined;
+    return (
+      <div
+        className="h-16 border-t px-5 flex items-center gap-4 panel-transition"
+        style={{
+          background: theme.properties.bgGradient,
+          borderColor: theme.properties.border,
+          boxShadow: theme.properties.shadow,
+        }}
+      >
+        <span className="text-sm" style={{ color: theme.sidebar.muted }}>
+          Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
+        </span>
+        <button
+          onClick={() => resetConnectionRouting(selectedConnection.id)}
+          disabled={!hasManualRouting}
+          className="px-3 py-1.5 text-sm border rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            borderColor: theme.input.border,
+            color: theme.input.text,
+            backgroundColor: theme.input.bg,
+          }}
+        >
+          Reset routing
+        </button>
+      </div>
+    );
+  }
 
   if (!selectedElement) {
     return (
@@ -247,6 +293,27 @@ export function PropertiesPanel() {
                   ))}
                 </select>
               </div>
+              {isSupportElement(selectedElement) && (
+                <div className="flex flex-col gap-1.5">
+                  <label style={labelStyle}>Contributor</label>
+                  <select
+                    value={selectedElement.contributor}
+                    onChange={(e) =>
+                      updateElement(selectedElement.id, {
+                        contributor: e.target.value as SupportContributor,
+                      } as Partial<DiagramElement>)
+                    }
+                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus:outline-none focus:ring-2"
+                    style={selectStyle}
+                  >
+                    {SUPPORT_CONTRIBUTOR_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {selectedElement.supportType === 'other' && (
                 <div className="flex flex-col gap-1.5">
                   <label style={labelStyle}>Subtype</label>

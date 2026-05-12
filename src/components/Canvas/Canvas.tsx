@@ -123,6 +123,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     bringToFront,
     sendToBack,
     changeContributor,
+    changeSupportType,
+    convertToArgument,
+    convertToSupport,
     moveLegend,
     addElement,
   } = useDiagramStore();
@@ -562,6 +565,43 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [contextMenu.elementId, changeContributor]
   );
 
+  const handleContextMenuChangeSupportContributor = useCallback(
+    (contributor: SupportContributor) => {
+      if (contextMenu.elementId) {
+        updateElement(contextMenu.elementId, { contributor } as Partial<DiagramElement>);
+      }
+    },
+    [contextMenu.elementId, updateElement]
+  );
+
+  const handleContextMenuConvertToArgument = useCallback(
+    (argumentType: ArgumentType) => {
+      if (!contextMenu.elementId) return;
+      const el = elements.find((e) => e.id === contextMenu.elementId);
+      if (!el) return;
+      if (el.type === 'argument') {
+        updateElement(contextMenu.elementId, { argumentType } as Partial<DiagramElement>);
+      } else {
+        convertToArgument(contextMenu.elementId, argumentType);
+      }
+    },
+    [contextMenu.elementId, elements, updateElement, convertToArgument]
+  );
+
+  const handleContextMenuConvertToSupport = useCallback(
+    (supportType: SupportType) => {
+      if (!contextMenu.elementId) return;
+      const el = elements.find((e) => e.id === contextMenu.elementId);
+      if (!el) return;
+      if (el.type === 'support' || el.type === 'teacherSupport') {
+        changeSupportType(contextMenu.elementId, supportType);
+      } else {
+        convertToSupport(contextMenu.elementId, supportType);
+      }
+    },
+    [contextMenu.elementId, elements, changeSupportType, convertToSupport]
+  );
+
   // Handle double-click for inline editing
   const handleElementDoubleClick = useCallback(
     (element: DiagramElement) => {
@@ -978,6 +1018,21 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           onBringToFront={handleContextMenuBringToFront}
           onSendToBack={handleContextMenuSendToBack}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
+          onChangeSupportContributor={contextMenu.elementType === 'support' ? handleContextMenuChangeSupportContributor : undefined}
+          onConvertToArgument={
+            (contextMenu.elementType === 'argument' ||
+             contextMenu.elementType === 'support' ||
+             contextMenu.elementType === 'teacherSupport')
+              ? handleContextMenuConvertToArgument
+              : undefined
+          }
+          onConvertToSupport={
+            (contextMenu.elementType === 'argument' ||
+             contextMenu.elementType === 'support' ||
+             contextMenu.elementType === 'teacherSupport')
+              ? handleContextMenuConvertToSupport
+              : undefined
+          }
         />
       )}
 

@@ -1,7 +1,7 @@
 // Pure geometry for orthogonal (Manhattan) connector routing.
 // No React or Konva imports — these are unit-testable functions.
 
-import type { DiagramElement, Position, Connection } from '../types';
+import type { DiagramElement, Position, Connection, EdgeAnchor, BoxEdge } from '../types';
 
 export type SegmentOrientation = 'horizontal' | 'vertical';
 
@@ -16,6 +16,108 @@ function getCenter(el: DiagramElement): Position {
     x: el.position.x + el.size.width / 2,
     y: el.position.y + el.size.height / 2,
   };
+}
+
+export function resolveAnchor(el: DiagramElement, anchor: EdgeAnchor): Position {
+  const left = el.position.x;
+  const right = el.position.x + el.size.width;
+  const top = el.position.y;
+  const bottom = el.position.y + el.size.height;
+  const t = Math.max(0, Math.min(1, anchor.t));
+  switch (anchor.edge) {
+    case 'left':   return { x: left,                       y: top + t * el.size.height };
+    case 'right':  return { x: right,                      y: top + t * el.size.height };
+    case 'top':    return { x: left + t * el.size.width,   y: top };
+    case 'bottom': return { x: left + t * el.size.width,   y: bottom };
+  }
+}
+
+// Offset a point along the line from `from` towards `towards` by `distance` px.
+// Clamps the offset to 40% of the segment length so the dot can't cross the midpoint.
+// Returns `from` unchanged when the segment has zero length.
+export function offsetAlongLine(
+  from: { x: number; y: number },
+  towards: { x: number; y: number },
+  distance: number,
+): { x: number; y: number } {
+  const dx = towards.x - from.x;
+  const dy = towards.y - from.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return from;
+  // Clamp to 40% of segment length so the dot can't cross the midpoint.
+  const offset = Math.min(distance, len * 0.4);
+  return { x: from.x + (offset / len) * dx, y: from.y + (offset / len) * dy };
+}
+
+export function determineFacingEdge(self: DiagramElement, other: DiagramElement): BoxEdge {
+  const sCx = self.position.x + self.size.width / 2;
+  const sCy = self.position.y + self.size.height / 2;
+  const oCx = other.position.x + other.size.width / 2;
+  const oCy = other.position.y + other.size.height / 2;
+  const dx = oCx - sCx;
+  const dy = oCy - sCy;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+  return dy >= 0 ? 'bottom' : 'top';
+}
+
+export function pointerToAnchorT(
+  pointer: { x: number; y: number },
+  el: DiagramElement,
+  edge: BoxEdge,
+): number {
+  if (edge === 'left' || edge === 'right') {
+    const t = (pointer.y - el.position.y) / el.size.height;
+    return Math.max(0, Math.min(1, t));
+  }
+  const t = (pointer.x - el.position.x) / el.size.width;
+  return Math.max(0, Math.min(1, t));
+}
+
+// Rule 1 routing: when source is a `data` argument and target is a `claim`,
+// AND target's center falls inside the source's vertical or horizontal extent,
+// AND target is fully to one side of source — return a single straight 2-point
+// line at target.center.{y|x}. Returns null when conditions don't hold; caller
+// should fall through to Rule 2 / default Z.
+export function computeRule1Path(
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): number[] | null {
+  if (fromEl.type !== 'argument' || toEl.type !== 'argument') return null;
+  if (fromEl.argumentType !== 'data' || toEl.argumentType !== 'claim') return null;
+
+  const fromLeft = fromEl.position.x;
+  const fromRight = fromLeft + fromEl.size.width;
+  const fromTop = fromEl.position.y;
+  const fromBottom = fromTop + fromEl.size.height;
+
+  const toLeft = toEl.position.x;
+  const toRight = toLeft + toEl.size.width;
+  const toTop = toEl.position.y;
+  const toBottom = toTop + toEl.size.height;
+  const toCenterX = toLeft + toEl.size.width / 2;
+  const toCenterY = toTop + toEl.size.height / 2;
+
+  // Horizontal case: target.center.y inside source's vertical extent, target fully on one side.
+  const yInside = toCenterY >= fromTop && toCenterY <= fromBottom;
+  const targetToRight = toLeft >= fromRight;
+  const targetToLeft = toRight <= fromLeft;
+  if (yInside && (targetToRight || targetToLeft)) {
+    const sourceX = targetToRight ? fromRight : fromLeft;
+    const targetX = targetToRight ? toLeft : toRight;
+    return [sourceX, toCenterY, targetX, toCenterY];
+  }
+
+  // Vertical case: target.center.x inside source's horizontal extent, target above/below.
+  const xInside = toCenterX >= fromLeft && toCenterX <= fromRight;
+  const targetBelow = toTop >= fromBottom;
+  const targetAbove = toBottom <= fromTop;
+  if (xInside && (targetBelow || targetAbove)) {
+    const sourceY = targetBelow ? fromBottom : fromTop;
+    const targetY = targetBelow ? toTop : toBottom;
+    return [toCenterX, sourceY, toCenterX, targetY];
+  }
+
+  return null;
 }
 
 // Compute the default Z-elbow virtual waypoints for a connection that has no stored waypoints.
@@ -299,4 +401,236 @@ export function getSegments(points: number[]): Segment[] {
     segs.push({ start, end, orientation: horizontal ? 'horizontal' : 'vertical' });
   }
   return segs;
+}
+
+// Top-level routing entry. Returns a flattened [x0,y0,x1,y1,...] polyline.
+// Applies the override hierarchy from the spec:
+//   stored waypoints  >  stored anchors  >  Rule 1  >  Rule 2  >  default Z
+//
+// `siblings` is the set of OTHER connections also targeting `toEl`. Used by Rule 2.
+export function computeConnectionPath(
+  connection: Connection,
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+  siblings: { conn: Connection; fromEl: DiagramElement }[] = [],
+): number[] {
+  // Manual routing wins.
+  if (connection.waypoints && connection.waypoints.length > 0) {
+    return getOrthogonalPath(fromEl, toEl, connection.waypoints);
+  }
+  if (connection.fromAnchor || connection.toAnchor) {
+    return getOrthogonalPath(fromEl, toEl, anchoredZWaypoints(connection, fromEl, toEl));
+  }
+
+  // Rule 1.
+  const rule1 = computeRule1Path(fromEl, toEl);
+  if (rule1) return rule1;
+
+  // Rule 2: only auto-routed siblings (no waypoints, no anchors, no Rule 1 match) count.
+  const autoSiblings = siblings.filter((s) => {
+    if (s.conn.waypoints && s.conn.waypoints.length > 0) return false;
+    if (s.conn.fromAnchor || s.conn.toAnchor) return false;
+    if (computeRule1Path(s.fromEl, toEl)) return false;
+    return true;
+  });
+
+  // Include self in the convergent set when there are auto siblings.
+  if (autoSiblings.length >= 1) {
+    const convergentSet = [{ conn: connection, fromEl }, ...autoSiblings];
+    const groups = groupSiblingsByApproachSide(convergentSet, toEl);
+    const mySide = (['left', 'right', 'above', 'below'] as const).find((side) =>
+      groups[side].some((s) => s.conn.id === connection.id),
+    );
+    if (mySide) {
+      const sideGroup = groups[mySide];
+      if (sideGroup.length >= 2) {
+        const tMap = computeEntryTValues(sideGroup, toEl);
+        const myT = tMap.get(connection.id) ?? 0.5;
+
+        if (mySide === 'left' || mySide === 'right') {
+          const trunkX = computeSharedTrunkX(sideGroup, toEl, mySide);
+          const entryEdge: BoxEdge = mySide === 'left' ? 'left' : 'right';
+          const entryPoint = resolveAnchor(toEl, { edge: entryEdge, t: myT });
+          const fromCy = fromEl.position.y + fromEl.size.height / 2;
+          const exitX = mySide === 'left'
+            ? fromEl.position.x + fromEl.size.width
+            : fromEl.position.x;
+          // Polyline: source-edge → (trunkX, fromCy) → (trunkX, entryY) → entry.
+          return [exitX, fromCy, trunkX, fromCy, trunkX, entryPoint.y, entryPoint.x, entryPoint.y];
+        } else {
+          const trunkY = computeSharedTrunkY(sideGroup, toEl, mySide);
+          const entryEdge: BoxEdge = mySide === 'above' ? 'top' : 'bottom';
+          const entryPoint = resolveAnchor(toEl, { edge: entryEdge, t: myT });
+          const fromCx = fromEl.position.x + fromEl.size.width / 2;
+          const exitY = mySide === 'above'
+            ? fromEl.position.y + fromEl.size.height
+            : fromEl.position.y;
+          return [fromCx, exitY, fromCx, trunkY, entryPoint.x, trunkY, entryPoint.x, entryPoint.y];
+        }
+      }
+    }
+  }
+
+  // Default Z.
+  return getOrthogonalPath(fromEl, toEl, computeDefaultZWaypoints(fromEl, toEl));
+}
+
+// When at least one anchor is set, compute Z-shape waypoints that respect the
+// fixed endpoint(s). Falls back to default Z behavior on the unanchored side.
+export function anchoredZWaypoints(
+  connection: Connection,
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): Position[] {
+  const fromCenter = {
+    x: fromEl.position.x + fromEl.size.width / 2,
+    y: fromEl.position.y + fromEl.size.height / 2,
+  };
+  const toCenter = {
+    x: toEl.position.x + toEl.size.width / 2,
+    y: toEl.position.y + toEl.size.height / 2,
+  };
+  const fromPoint = connection.fromAnchor
+    ? resolveAnchor(fromEl, connection.fromAnchor)
+    : fromCenter;
+  const toPoint = connection.toAnchor
+    ? resolveAnchor(toEl, connection.toAnchor)
+    : toCenter;
+
+  const dx = toPoint.x - fromPoint.x;
+  const dy = toPoint.y - fromPoint.y;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    const midX = (fromPoint.x + toPoint.x) / 2;
+    return [{ x: midX, y: fromPoint.y }, { x: midX, y: toPoint.y }];
+  } else {
+    const midY = (fromPoint.y + toPoint.y) / 2;
+    return [{ x: fromPoint.x, y: midY }, { x: toPoint.x, y: midY }];
+  }
+}
+
+export interface SiblingApproachGroups {
+  left:     { conn: Connection; fromEl: DiagramElement }[];
+  right:    { conn: Connection; fromEl: DiagramElement }[];
+  above:    { conn: Connection; fromEl: DiagramElement }[];
+  below:    { conn: Connection; fromEl: DiagramElement }[];
+  excluded: { conn: Connection; fromEl: DiagramElement }[];
+}
+
+const SIDE_EPSILON = 1;  // px
+
+export function groupSiblingsByApproachSide(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  target: DiagramElement,
+): SiblingApproachGroups {
+  const tCenterX = target.position.x + target.size.width / 2;
+  const out: SiblingApproachGroups = { left: [], right: [], above: [], below: [], excluded: [] };
+
+  for (const s of siblings) {
+    const sCenterX = s.fromEl.position.x + s.fromEl.size.width / 2;
+    const dx = sCenterX - tCenterX;
+
+    // If x-centers are tied (within epsilon), exclude — fall through to default Z.
+    if (Math.abs(dx) <= SIDE_EPSILON) {
+      out.excluded.push(s);
+    }
+    // Prefer horizontal grouping if there's clear horizontal separation.
+    else if (dx < 0) {
+      out.left.push(s);
+    } else {
+      out.right.push(s);
+    }
+  }
+  return out;
+}
+
+const TRUNK_RATIO = 0.3;
+const TRUNK_PAD_PX = 20;
+
+export function computeSharedTrunkX(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  target: DiagramElement,
+  side: 'left' | 'right',
+): number {
+  const targetLeft = target.position.x;
+  const targetRight = target.position.x + target.size.width;
+
+  if (side === 'left') {
+    let maxSourceRight = -Infinity;
+    for (const s of siblings) {
+      const right = s.fromEl.position.x + s.fromEl.size.width;
+      if (right > maxSourceRight) maxSourceRight = right;
+    }
+    const raw = maxSourceRight + TRUNK_RATIO * (targetLeft - maxSourceRight);
+    const lower = maxSourceRight + TRUNK_PAD_PX;
+    const upper = targetLeft - TRUNK_PAD_PX;
+    if (lower > upper) {
+      // Clamps cross — fall back to a value between maxSourceRight and target.left.
+      return Math.min(targetLeft, Math.max(maxSourceRight, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  } else {
+    // Right-side: sources are to the right of target; target is to their left.
+    let minSourceLeft = Infinity;
+    for (const s of siblings) {
+      if (s.fromEl.position.x < minSourceLeft) minSourceLeft = s.fromEl.position.x;
+    }
+    const raw = minSourceLeft - TRUNK_RATIO * (minSourceLeft - targetRight);
+    const upper = minSourceLeft - TRUNK_PAD_PX;
+    const lower = targetRight + TRUNK_PAD_PX;
+    if (lower > upper) {
+      return Math.max(targetRight, Math.min(minSourceLeft, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  }
+}
+
+export function computeSharedTrunkY(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  target: DiagramElement,
+  side: 'above' | 'below',
+): number {
+  const targetTop = target.position.y;
+  const targetBottom = target.position.y + target.size.height;
+
+  if (side === 'above') {
+    let maxSourceBottom = -Infinity;
+    for (const s of siblings) {
+      const bot = s.fromEl.position.y + s.fromEl.size.height;
+      if (bot > maxSourceBottom) maxSourceBottom = bot;
+    }
+    const raw = maxSourceBottom + TRUNK_RATIO * (targetTop - maxSourceBottom);
+    const lower = maxSourceBottom + TRUNK_PAD_PX;
+    const upper = targetTop - TRUNK_PAD_PX;
+    if (lower > upper) {
+      return Math.min(targetTop, Math.max(maxSourceBottom, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  } else {
+    let minSourceTop = Infinity;
+    for (const s of siblings) {
+      if (s.fromEl.position.y < minSourceTop) minSourceTop = s.fromEl.position.y;
+    }
+    const raw = minSourceTop - TRUNK_RATIO * (minSourceTop - targetBottom);
+    const upper = minSourceTop - TRUNK_PAD_PX;
+    const lower = targetBottom + TRUNK_PAD_PX;
+    if (lower > upper) {
+      return Math.max(targetBottom, Math.min(minSourceTop, raw));
+    }
+    return Math.max(lower, Math.min(upper, raw));
+  }
+}
+
+// All convergent siblings enter the target at t=0.5 (its center). This makes
+// the final horizontal/vertical segment overlap across siblings, so the lines
+// visually merge into one before reaching the target — matching Anna's mental
+// model that multiple lines of reasoning unify on entry to a claim. The
+// shared trunk x is still computed separately by computeSharedTrunkX.
+export function computeEntryTValues(
+  siblings: { conn: Connection; fromEl: DiagramElement }[],
+  _target: DiagramElement,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const s of siblings) out.set(s.conn.id, 0.5);
+  return out;
 }

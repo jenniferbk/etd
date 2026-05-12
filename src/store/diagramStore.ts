@@ -4,7 +4,7 @@ import type {
   DiagramElement, Connection, Position, Size, ContributorType,
   ImageSettings, SupportType, SupportSubtype, ArgumentType,
   SupportContributor, ArgumentElement, SupportElement,
-  Transcript, TranscriptLine,
+  Transcript, TranscriptLine, EdgeAnchor,
 } from '../types';
 import type { StyleConfig } from '../types/styleConfig';
 import { createCurrentDefaults, createV1_2_MigrationDefaults } from '../utils/styleConfigDefaults';
@@ -93,6 +93,8 @@ interface DiagramState {
   addConnection: (connection: Connection) => void;
   removeConnection: (id: string) => void;
   updateConnectionWaypoints: (id: string, waypoints: Position[] | undefined) => void;
+  updateConnectionAnchor: (id: string, end: 'from' | 'to', anchor: EdgeAnchor | undefined) => void;
+  resetConnectionRouting: (id: string) => void;
 
   // Actions - Selection
   setSelectedIds: (ids: string[]) => void;
@@ -424,6 +426,33 @@ export const useDiagramStore = create<DiagramState>()(
               return next;
             }
             return { ...conn, waypoints };
+          }),
+        })),
+
+      updateConnectionAnchor: (id, end, anchor) =>
+        set((state) => ({
+          connections: state.connections.map((conn) => {
+            if (conn.id !== id) return conn;
+            const key = end === 'from' ? 'fromAnchor' : 'toAnchor';
+            const next = { ...conn };
+            if (anchor === undefined) {
+              delete next[key];
+            } else {
+              next[key] = anchor;
+            }
+            return next;
+          }),
+        })),
+
+      resetConnectionRouting: (id) =>
+        set((state) => ({
+          connections: state.connections.map((conn) => {
+            if (conn.id !== id) return conn;
+            const next = { ...conn };
+            delete next.waypoints;
+            delete next.fromAnchor;
+            delete next.toAnchor;
+            return next;
           }),
         })),
 

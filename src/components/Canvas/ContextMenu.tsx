@@ -6,9 +6,10 @@ import {
   ArrowDownToLine,
   Users,
   ImagePlus,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { theme } from '../../utils/theme';
-import type { ContributorType } from '../../types';
+import type { ContributorType, SupportContributor, ArgumentType, SupportType } from '../../types';
 
 interface ContextMenuProps {
   x: number;
@@ -21,6 +22,9 @@ interface ContextMenuProps {
   onBringToFront: () => void;
   onSendToBack: () => void;
   onChangeContributor?: (contributor: ContributorType) => void;
+  onChangeSupportContributor?: (contributor: SupportContributor) => void;
+  onConvertToArgument?: (argumentType: ArgumentType) => void;
+  onConvertToSupport?: (supportType: SupportType) => void;
   onAddImage?: () => void;
 }
 
@@ -34,6 +38,9 @@ export function ContextMenu({
   onBringToFront,
   onSendToBack,
   onChangeContributor,
+  onChangeSupportContributor,
+  onConvertToArgument,
+  onConvertToSupport,
   onAddImage,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -67,9 +74,30 @@ export function ContextMenu({
 
   const contributors: { type: ContributorType; label: string }[] = [
     { type: 'given', label: 'Given' },
+    { type: 'teacher', label: 'Teacher' },
     { type: 'student', label: 'Student' },
     { type: 'joint', label: 'Joint' },
     { type: 'implicit', label: 'Implicit' },
+  ];
+
+  const supportContributors: { type: SupportContributor; label: string }[] = [
+    { type: 'teacher', label: 'Teacher' },
+    { type: 'student', label: 'Student' },
+  ];
+
+  const ARGUMENT_TYPES_FOR_CONVERT: { type: ArgumentType; label: string }[] = [
+    { type: 'claim', label: 'Claim' },
+    { type: 'data', label: 'Data' },
+    { type: 'warrant', label: 'Warrant' },
+    { type: 'backing', label: 'Backing' },
+    { type: 'qualifier', label: 'Qualifier' },
+    { type: 'rebuttal', label: 'Rebuttal' },
+  ];
+
+  const SUPPORT_TYPES_FOR_CONVERT: { type: SupportType; label: string }[] = [
+    { type: 'action', label: 'Action' },
+    { type: 'question', label: 'Question' },
+    { type: 'other', label: 'Other' },
   ];
 
   return (
@@ -170,6 +198,34 @@ export function ContextMenu({
         </>
       )}
 
+      {/* Change contributor (only for support elements) */}
+      {elementType === 'support' && onChangeSupportContributor && (
+        <>
+          <div
+            className="my-1 border-t"
+            style={{ borderColor: theme.sidebar.border }}
+          />
+          <div className="px-3 py-1 text-xs font-medium" style={{ color: theme.sidebar.muted }}>
+            <div className="flex items-center gap-1">
+              <Users size={12} />
+              Contributor
+            </div>
+          </div>
+          {supportContributors.map(({ type, label }) => (
+            <button
+              key={type}
+              onClick={() => {
+                onChangeSupportContributor(type);
+                onClose();
+              }}
+              className={`${menuItemClass} pl-6`}
+            >
+              {label}
+            </button>
+          ))}
+        </>
+      )}
+
       {/* Add image (for argument and infoBox elements) */}
       {(elementType === 'argument' || elementType === 'infoBox') && onAddImage && (
         <>
@@ -187,6 +243,78 @@ export function ContextMenu({
             <ImagePlus size={16} />
             Add Image
           </button>
+        </>
+      )}
+
+      {/* Change Type (unified section for argument, support, and teacherSupport) */}
+      {(elementType === 'argument' || elementType === 'support' || elementType === 'teacherSupport') &&
+       (onConvertToArgument || onConvertToSupport) && (
+        <>
+          <div
+            className="my-1 border-t"
+            style={{ borderColor: theme.sidebar.border }}
+          />
+          <div className="px-3 py-1 text-xs font-medium" style={{ color: theme.sidebar.muted }}>
+            <div className="flex items-center gap-1">
+              <ArrowRightLeft size={12} />
+              Change Type
+            </div>
+          </div>
+          {elementType === 'argument' ? (
+            <>
+              {/* Within-group: argument types */}
+              {onConvertToArgument && ARGUMENT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`arg-${type}`}
+                  onClick={() => { onConvertToArgument(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+              <div
+                className="mx-3 my-0.5 border-t opacity-50"
+                style={{ borderColor: theme.sidebar.border }}
+              />
+              {/* Cross-group: support types */}
+              {onConvertToSupport && SUPPORT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`sup-${type}`}
+                  onClick={() => { onConvertToSupport(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              {/* Within-group: support types */}
+              {onConvertToSupport && SUPPORT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`sup-${type}`}
+                  onClick={() => { onConvertToSupport(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+              <div
+                className="mx-3 my-0.5 border-t opacity-50"
+                style={{ borderColor: theme.sidebar.border }}
+              />
+              {/* Cross-group: argument types */}
+              {onConvertToArgument && ARGUMENT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`arg-${type}`}
+                  onClick={() => { onConvertToArgument(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+            </>
+          )}
         </>
       )}
     </div>

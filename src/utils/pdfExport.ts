@@ -1,5 +1,7 @@
 import { jsPDF } from 'jspdf';
 import Konva from 'konva';
+import type { DiagramElement, Connection } from '../types';
+import { computeExportBounds } from './exportBounds';
 
 interface PdfExportOptions {
   filename?: string;
@@ -7,45 +9,41 @@ interface PdfExportOptions {
   quality?: number;
 }
 
-export async function exportToPdf(options: PdfExportOptions = {}): Promise<void> {
+export async function exportToPdf(
+  elements: DiagramElement[],
+  connections: Connection[],
+  options: PdfExportOptions = {},
+): Promise<void> {
   const {
     filename = `toulmin-diagram-${Date.now()}.pdf`,
     orientation = 'landscape',
     quality = 2,
   } = options;
 
-  // Get the Konva stage
   const stages = Konva.stages;
   if (stages.length === 0) {
     throw new Error('No canvas found to export');
   }
-
   const stage = stages[0];
 
-  // Generate high-res PNG from canvas
+  const bounds = computeExportBounds(elements, connections);
+
   const dataURL = stage.toDataURL({
+    x: bounds.x,
+    y: bounds.y,
+    width: bounds.width,
+    height: bounds.height,
     pixelRatio: quality,
     mimeType: 'image/png',
   });
 
-  // Create PDF
   const pdf = new jsPDF({
     orientation,
     unit: 'px',
-    format: [stage.width(), stage.height()],
+    format: [bounds.width, bounds.height],
   });
 
-  // Add the image to PDF
-  pdf.addImage(
-    dataURL,
-    'PNG',
-    0,
-    0,
-    stage.width(),
-    stage.height()
-  );
-
-  // Save PDF
+  pdf.addImage(dataURL, 'PNG', 0, 0, bounds.width, bounds.height);
   pdf.save(filename);
 }
 

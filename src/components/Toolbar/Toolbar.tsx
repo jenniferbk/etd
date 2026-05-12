@@ -34,6 +34,7 @@ import {
 } from '../../utils/diagramxExport';
 import { Tooltip } from '../ui/Tooltip';
 import { importDrawingFile } from '../../utils/drawingImporter';
+import { computeExportBounds } from '../../utils/exportBounds';
 
 // Helper to create a safe filename from diagram name
 function toFilename(name: string): string {
@@ -137,19 +138,22 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const handleExportPNG = async () => {
     setExporting('png');
     try {
-      await new Promise(resolve => setTimeout(resolve, 100)); // Allow UI to update
+      await new Promise(resolve => setTimeout(resolve, 100));
       const stages = Konva.stages;
       if (stages.length === 0) {
         alert('No canvas found to export');
         return;
       }
-
       const stage = stages[0];
+      const bounds = computeExportBounds(elements, connections);
       const dataURL = stage.toDataURL({
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
         pixelRatio: 2,
         mimeType: 'image/png',
       });
-
       const a = document.createElement('a');
       a.href = dataURL;
       a.download = `${toFilename(diagramName)}.png`;
@@ -200,7 +204,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const handleExportPDF = async () => {
     setExporting('pdf');
     try {
-      await exportToPdf({
+      await exportToPdf(elements, connections, {
         filename: `${toFilename(diagramName)}.pdf`,
         orientation: 'landscape',
         quality: 2,
