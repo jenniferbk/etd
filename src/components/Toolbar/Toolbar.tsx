@@ -3,22 +3,15 @@ import Konva from 'konva';
 import {
   Save,
   FolderOpen,
-  Download,
-  Image,
-  FileText,
-  FileJson,
-  Trash2,
-  ZoomIn,
-  ZoomOut,
   Undo2,
   Redo2,
-  Info,
   LayoutGrid,
   FileInput,
   PanelRight,
+  ZoomIn,
+  ZoomOut,
   Crosshair,
   Maximize2,
-  Settings,
   ImagePlus,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
@@ -34,6 +27,9 @@ import {
 } from '../../utils/diagramxExport';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { IconButton } from './IconButton';
+import { ExportMenu } from './ExportMenu';
+import { MoreMenu } from './MoreMenu';
+import { ToolbarGroup } from './ToolbarGroup';
 import { computeExportBounds } from '../../utils/exportBounds';
 import { ImageImportModal } from './ImageImportModal';
 
@@ -68,7 +64,6 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
-  const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | 'diagramx' | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const temporal = useTemporalStore();
 
@@ -138,57 +133,46 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
 
   // Export diagram as PNG
   const handleExportPNG = async () => {
-    setExporting('png');
-    try {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const stages = Konva.stages;
-      if (stages.length === 0) {
-        alert('No canvas found to export');
-        return;
-      }
-      const stage = stages[0];
-      const bounds = computeExportBounds(elements, connections);
-      const dataURL = stage.toDataURL({
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
-        pixelRatio: 2,
-        mimeType: 'image/png',
-      });
-      const a = document.createElement('a');
-      a.href = dataURL;
-      a.download = `${toFilename(diagramName)}.png`;
-      a.click();
-    } finally {
-      setExporting(null);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    const stages = Konva.stages;
+    if (stages.length === 0) {
+      alert('No canvas found to export');
+      return;
     }
+    const stage = stages[0];
+    const bounds = computeExportBounds(elements, connections);
+    const dataURL = stage.toDataURL({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      pixelRatio: 2,
+      mimeType: 'image/png',
+    });
+    const a = document.createElement('a');
+    a.href = dataURL;
+    a.download = `${toFilename(diagramName)}.png`;
+    a.click();
   };
 
   // Export diagram as SVG
   const handleExportSVG = async () => {
-    setExporting('svg');
-    try {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      if (elements.length === 0) {
-        alert('No elements to export');
-        return;
-      }
-      const svgContent = exportToSvg(elements, connections, styleConfig);
-      downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
-    } finally {
-      setExporting(null);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    if (elements.length === 0) {
+      alert('No elements to export');
+      return;
     }
+    const svgContent = exportToSvg(elements, connections, styleConfig);
+    downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
   };
 
   // Export diagram as DiagramMix .diagramx (Level A MVP)
   const handleExportDiagramx = async () => {
-    setExporting('diagramx');
+    if (elements.length === 0) {
+      alert('No elements to export');
+      return;
+    }
     try {
-      if (elements.length === 0) {
-        alert('No elements to export');
-        return;
-      }
       const json = exportToDiagramx(elements, connections, diagramName, styleConfig);
       downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
       if (hasEmbeddedImages(elements)) {
@@ -197,14 +181,11 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
     } catch (err) {
       console.error('.diagramx export failed:', err);
       alert('Failed to export .diagramx');
-    } finally {
-      setExporting(null);
     }
   };
 
   // Export diagram as PDF
   const handleExportPDF = async () => {
-    setExporting('pdf');
     try {
       await exportToPdf(elements, connections, {
         filename: `${toFilename(diagramName)}.pdf`,
@@ -214,8 +195,6 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
     } catch (err) {
       console.error('PDF export failed:', err);
       alert('Failed to export PDF');
-    } finally {
-      setExporting(null);
     }
   };
 
@@ -258,8 +237,8 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
         </div>
 
         <div className="flex items-center">
-          {/* Undo/Redo */}
-          <div className="flex items-center gap-0.5">
+          {/* History — Undo / Redo */}
+          <ToolbarGroup label="History">
             <IconButton
               onClick={() => temporal.undo()}
               disabled={!canUndo}
@@ -274,12 +253,12 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               tooltip="Redo"
               shortcut="Ctrl+Shift+Z"
             />
-          </div>
+          </ToolbarGroup>
 
           <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* File operations */}
-          <div className="flex items-center gap-0.5">
+          {/* File — Save / Open / Import / Export▾ */}
+          <ToolbarGroup label="File">
             <IconButton
               onClick={handleSave}
               icon={Save}
@@ -297,6 +276,12 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               icon={ImagePlus}
               tooltip="Import diagram from image"
             />
+            <ExportMenu
+              onExportPNG={handleExportPNG}
+              onExportSVG={handleExportSVG}
+              onExportPDF={handleExportPDF}
+              onExportDiagramx={handleExportDiagramx}
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -304,46 +289,16 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               onChange={handleFileChange}
               className="hidden"
             />
-          </div>
+          </ToolbarGroup>
 
           <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* Export */}
-          <div className="flex items-center gap-0.5">
-            <IconButton
-              onClick={handleExportPNG}
-              icon={Image}
-              tooltip="Export as PNG"
-              isLoading={exporting === 'png'}
-            />
-            <IconButton
-              onClick={handleExportSVG}
-              icon={Download}
-              tooltip="Export as SVG"
-              isLoading={exporting === 'svg'}
-            />
-            <IconButton
-              onClick={handleExportPDF}
-              icon={FileText}
-              tooltip="Export as PDF"
-              isLoading={exporting === 'pdf'}
-            />
-            <IconButton
-              onClick={handleExportDiagramx}
-              icon={FileJson}
-              tooltip="Export as DiagramMix (.diagramx)"
-              isLoading={exporting === 'diagramx'}
-            />
-          </div>
-
-          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
-
-          {/* View options */}
-          <div className="flex items-center gap-0.5">
+          {/* View — Legend / Load transcript / Transcript panel */}
+          <ToolbarGroup label="View">
             <IconButton
               onClick={toggleLegend}
               icon={LayoutGrid}
-              tooltip="Toggle Legend"
+              tooltip="Toggle legend"
               isActive={legendConfig.visible}
             />
             <IconButton
@@ -357,12 +312,12 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               tooltip="Toggle transcript panel"
               isActive={transcriptPanelOpen}
             />
-          </div>
+          </ToolbarGroup>
 
           <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* Zoom controls */}
-          <div className="flex items-center gap-0.5">
+          {/* Zoom — Zoom out / % / Zoom in / Fit / Reset (order per spec §5.1) */}
+          <ToolbarGroup label="Zoom">
             <IconButton
               onClick={() => setZoom(zoom / 1.2)}
               icon={ZoomOut}
@@ -382,39 +337,26 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               shortcut="Ctrl+="
             />
             <IconButton
-              onClick={handleResetView}
-              icon={Crosshair}
-              tooltip="Reset view (100%, centered)"
-            />
-            <IconButton
               onClick={fitToView}
               icon={Maximize2}
               tooltip="Fit to window"
               shortcut="Ctrl+0"
             />
-          </div>
+            <IconButton
+              onClick={handleResetView}
+              icon={Crosshair}
+              tooltip="Reset view (100%, centered)"
+            />
+          </ToolbarGroup>
 
           <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* Clear, Settings, and About */}
-          <div className="flex items-center gap-0.5">
-            <IconButton
-              onClick={handleClear}
-              icon={Trash2}
-              tooltip="Clear diagram"
-              variant="danger"
-            />
-            <IconButton
-              onClick={onOpenSettings}
-              icon={Settings}
-              tooltip="Element styles"
-            />
-            <IconButton
-              onClick={() => setShowAbout(true)}
-              icon={Info}
-              tooltip="About & Shortcuts"
-            />
-          </div>
+          {/* Overflow — More menu (Settings / About / Clear) */}
+          <MoreMenu
+            onOpenSettings={onOpenSettings}
+            onOpenAbout={() => setShowAbout(true)}
+            onClear={handleClear}
+          />
         </div>
       </div>
 
