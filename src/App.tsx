@@ -11,6 +11,7 @@ import { parseTranscript } from './utils/transcriptParser';
 import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
+import { Toaster } from './components/ui/Toaster';
 import { theme } from './utils/theme';
 
 function App() {
@@ -521,6 +522,8 @@ function App() {
           onClose={closeLightbox}
         />
       )}
+
+      <Toaster />
     </div>
   );
 }
