@@ -14,7 +14,6 @@ import {
   Redo2,
   Info,
   LayoutGrid,
-  Loader2,
   FileInput,
   PanelRight,
   Crosshair,
@@ -33,8 +32,8 @@ import {
   exportToDiagramx,
   hasEmbeddedImages,
 } from '../../utils/diagramxExport';
-import { Tooltip } from '../ui/Tooltip';
 import { importDrawingFile } from '../../utils/drawingImporter';
+import { IconButton } from './IconButton';
 import { computeExportBounds } from '../../utils/exportBounds';
 import { ImageImportModal } from './ImageImportModal';
 
@@ -228,66 +227,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
     }
   };
 
-  const iconButtonClass = `
-    w-9 h-9 flex items-center justify-center rounded-lg
-    transition-all duration-150 ease-out
-    disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100
-  `;
-
   const dividerClass = 'w-px h-6 mx-2';
-
-  const IconButton = ({
-    onClick,
-    disabled,
-    icon: Icon,
-    tooltip,
-    shortcut,
-    variant,
-    isActive,
-    isLoading,
-  }: {
-    onClick: () => void;
-    disabled?: boolean;
-    icon: typeof Save;
-    tooltip: string;
-    shortcut?: string;
-    variant?: 'danger';
-    isActive?: boolean;
-    isLoading?: boolean;
-  }) => {
-    const [isHovered, setIsHovered] = useState(false);
-
-    return (
-      <Tooltip content={tooltip} shortcut={shortcut}>
-        <button
-          onClick={onClick}
-          disabled={disabled || isLoading}
-          className={`${iconButtonClass} ${isActive ? '' : ''}`}
-          style={{
-            color: variant === 'danger' && isHovered
-              ? theme.danger.fg
-              : theme.sidebar.text,
-            backgroundColor: isActive
-              ? theme.sidebar.surfaceHover
-              : isHovered
-                ? variant === 'danger'
-                  ? theme.danger.bg
-                  : theme.sidebar.surfaceHover
-                : 'transparent',
-            transform: isHovered && !disabled ? 'scale(1.05)' : 'scale(1)',
-          }}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          {isLoading ? (
-            <Loader2 size={18} className="animate-spin" style={{ color: theme.sidebar.accent }} />
-          ) : (
-            <Icon size={18} />
-          )}
-        </button>
-      </Tooltip>
-    );
-  };
 
   return (
     <>
