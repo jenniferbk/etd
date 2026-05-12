@@ -45,7 +45,6 @@ export const useToastStore = create<ToastState>((set, get) => ({
         const oldestPersistentId = persistent[0].id;
         toasts = toasts.filter((t) => t.id !== oldestPersistentId);
         if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
           console.warn(
             `[toastStore] evicted oldest persistent toast (${oldestPersistentId}) to keep at ${MAX_PERSISTENT}`,
           );

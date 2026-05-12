@@ -81,7 +81,6 @@ export function Modal({
     // No prior trigger (e.g., Recovery modal opens on app load). Fall through
     // to document.body — log in dev so unintended fallbacks are visible.
     if (import.meta.env.DEV) {
-      // eslint-disable-next-line no-console
       console.warn('[Modal] return-focus fell through to document.body — no triggering element');
     }
   }, []);

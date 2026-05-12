@@ -53,7 +53,7 @@ export function ImageUpload({
       // Reset input
       e.target.value = '';
     },
-    [onImageChange]
+    [onImageChange, addToast]
   );
 
   const handleClear = useCallback(() => {
