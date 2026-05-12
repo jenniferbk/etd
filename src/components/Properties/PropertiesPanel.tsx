@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { Copy, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
@@ -21,7 +22,7 @@ const SUPPORT_CONTRIBUTOR_TYPES: { value: SupportContributor; label: string }[] 
 ];
 
 export function PropertiesPanel() {
-  const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings, changeSupportType, convertToArgument, convertToSupport } = useDiagramStore();
+  const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings, changeSupportType, convertToArgument, convertToSupport, duplicateElements, removeElement } = useDiagramStore();
   const styleConfig = useDiagramStore((s) => s.styleConfig);
 
   const ARGUMENT_TYPES = (
@@ -491,6 +492,57 @@ export function PropertiesPanel() {
             />
           </div>
         )}
+
+        {/* Actions */}
+        <div className="flex flex-col gap-1.5 ml-auto flex-shrink-0 self-start">
+          <span style={labelStyle}>Actions</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => duplicateElements([selectedElement.id])}
+              className="px-3 py-2 text-sm border rounded-md inline-flex items-center gap-1.5 transition-colors duration-150"
+              style={{
+                backgroundColor: theme.button.secondary.bg,
+                color: theme.button.secondary.text,
+                borderColor: theme.button.secondary.border,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = theme.button.secondary.bgHover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = theme.button.secondary.bg;
+              }}
+              title="Duplicate (⌘D)"
+            >
+              <Copy size={14} aria-hidden="true" />
+              Duplicate
+            </button>
+            <button
+              type="button"
+              onClick={() => removeElement(selectedElement.id)}
+              className="px-3 py-2 text-sm rounded-md inline-flex items-center gap-1.5 transition-colors duration-150"
+              style={{
+                backgroundColor: theme.button.danger.bg,
+                color: theme.button.danger.text,
+                borderWidth: '1px',
+                borderStyle: 'solid',
+                borderColor: theme.button.danger.bg,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = theme.button.danger.bgHover;
+                e.currentTarget.style.borderColor = theme.button.danger.bgHover;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = theme.button.danger.bg;
+                e.currentTarget.style.borderColor = theme.button.danger.bg;
+              }}
+              title="Delete (Del / Backspace)"
+            >
+              <Trash2 size={14} aria-hidden="true" />
+              Delete
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
