@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { MoreHorizontal, Settings, Info, Trash2 } from 'lucide-react';
 import { IconButton } from './IconButton';
 import { MenuItem } from './MenuItem';
@@ -15,12 +15,12 @@ const ITEM_COUNT = 3;
 
 export function MoreMenu({ onOpenSettings, onOpenAbout, onClear }: MoreMenuProps) {
   const { isOpen, toggle, close, menuRef, triggerRef } = useMenu();
-  const [activeIndex, setActiveIndex] = useState(0);
+  const activeIndexRef = useRef(0);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   useEffect(() => {
     if (isOpen) {
-      setActiveIndex(0);
+      activeIndexRef.current = 0;
       requestAnimationFrame(() => itemRefs.current[0]?.focus());
     }
   }, [isOpen]);
@@ -33,21 +33,21 @@ export function MoreMenu({ onOpenSettings, onOpenAbout, onClear }: MoreMenuProps
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const next = (activeIndex + 1) % ITEM_COUNT;
-      setActiveIndex(next);
+      const next = (activeIndexRef.current + 1) % ITEM_COUNT;
+      activeIndexRef.current = next;
       itemRefs.current[next]?.focus();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      const prev = (activeIndex - 1 + ITEM_COUNT) % ITEM_COUNT;
-      setActiveIndex(prev);
+      const prev = (activeIndexRef.current - 1 + ITEM_COUNT) % ITEM_COUNT;
+      activeIndexRef.current = prev;
       itemRefs.current[prev]?.focus();
     } else if (e.key === 'Home') {
       e.preventDefault();
-      setActiveIndex(0);
+      activeIndexRef.current = 0;
       itemRefs.current[0]?.focus();
     } else if (e.key === 'End') {
       e.preventDefault();
-      setActiveIndex(ITEM_COUNT - 1);
+      activeIndexRef.current = ITEM_COUNT - 1;
       itemRefs.current[ITEM_COUNT - 1]?.focus();
     }
   }
