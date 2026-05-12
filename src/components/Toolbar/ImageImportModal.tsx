@@ -1,6 +1,7 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { useDiagramStore } from '../../store';
 import { importImage, type ImportResult } from '../../utils/imageImport';
+import { theme } from '../../utils/theme';
 
 const DISCLOSURE_ACK_KEY = 'etd-image-import-disclosure-acked-v1';
 
@@ -92,24 +93,50 @@ export function ImageImportModal({ open, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ backgroundColor: theme.scrim, zIndex: theme.z.modalScrim }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+      <div
+        className="rounded-lg max-w-md w-full mx-4 p-6"
+        style={{
+          backgroundColor: theme.toolbar.bg,
+          border: `1px solid ${theme.toolbar.border}`,
+          boxShadow: theme.shadow.xl,
+          zIndex: theme.z.modal,
+        }}
+      >
         {state.kind === 'disclosure' && (
           <>
             <h2 className="text-lg font-semibold mb-3">Import diagram from image</h2>
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+            <p className="text-sm mb-3" style={{ color: theme.sidebar.text }}>
               This sends the image to Google Gemini for extraction. Don't import images that
               contain student PII you can't share with a third-party API.
             </p>
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
+            <p className="text-sm mb-6" style={{ color: theme.sidebar.text }}>
               Extraction takes 10–30 seconds. The result loads into the editor and
               replaces any unsaved diagram — save first if you want to keep it.
             </p>
             <div className="flex gap-2 justify-end">
-              <button onClick={onClose} className="px-3 py-1.5 text-sm border rounded-lg">Cancel</button>
-              <button onClick={handleAck} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg">
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 text-sm rounded-lg"
+                style={{
+                  backgroundColor: theme.button.secondary.bg,
+                  color: theme.button.secondary.text,
+                  border: `1px solid ${theme.button.secondary.border}`,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAck}
+                className="px-3 py-1.5 text-sm rounded-lg"
+                style={{
+                  backgroundColor: theme.button.primary.bg,
+                  color: theme.button.primary.text,
+                }}
+              >
                 Continue →
               </button>
             </div>
@@ -119,7 +146,7 @@ export function ImageImportModal({ open, onClose }: Props) {
         {state.kind === 'picker' && (
           <>
             <h2 className="text-lg font-semibold mb-3">Import diagram from image</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm mb-4" style={{ color: theme.sidebar.textSecondary }}>
               Choose a photo of a hand-drawn ETD diagram. Max 8 MB.
             </p>
             <input
@@ -133,7 +160,17 @@ export function ImageImportModal({ open, onClose }: Props) {
               }}
             />
             <div className="flex justify-end">
-              <button onClick={onClose} className="px-3 py-1.5 text-sm border rounded-lg">Cancel</button>
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 text-sm rounded-lg"
+                style={{
+                  backgroundColor: theme.button.secondary.bg,
+                  color: theme.button.secondary.text,
+                  border: `1px solid ${theme.button.secondary.border}`,
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </>
         )}
@@ -141,14 +178,30 @@ export function ImageImportModal({ open, onClose }: Props) {
         {state.kind === 'loading' && (
           <>
             <h2 className="text-lg font-semibold mb-3">Extracting diagram from image…</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">This usually takes 10–30 seconds.</p>
+            <p className="text-sm mb-4" style={{ color: theme.sidebar.textSecondary }}>This usually takes 10–30 seconds.</p>
             <div className="mb-4">
-              <div className="h-1 w-full bg-gray-200 rounded overflow-hidden">
-                <div className="h-full bg-blue-500 animate-pulse w-1/2" />
+              <div
+                className="h-1 w-full rounded overflow-hidden"
+                style={{ backgroundColor: theme.sidebar.borderSubtle }}
+              >
+                <div
+                  className="h-full animate-pulse w-1/2"
+                  style={{ backgroundColor: theme.sidebar.accent }}
+                />
               </div>
             </div>
             <div className="flex justify-end">
-              <button onClick={handleCancel} className="px-3 py-1.5 text-sm border rounded-lg">Cancel</button>
+              <button
+                onClick={handleCancel}
+                className="px-3 py-1.5 text-sm rounded-lg"
+                style={{
+                  backgroundColor: theme.button.secondary.bg,
+                  color: theme.button.secondary.text,
+                  border: `1px solid ${theme.button.secondary.border}`,
+                }}
+              >
+                Cancel
+              </button>
             </div>
           </>
         )}
@@ -156,12 +209,26 @@ export function ImageImportModal({ open, onClose }: Props) {
         {state.kind === 'error' && (
           <>
             <h2 className="text-lg font-semibold mb-3">Import failed</h2>
-            <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">{errorMessage(state.result)}</p>
+            <p className="text-sm mb-6" style={{ color: theme.sidebar.text }}>{errorMessage(state.result)}</p>
             <div className="flex gap-2 justify-end">
-              <button onClick={onClose} className="px-3 py-1.5 text-sm border rounded-lg">Cancel</button>
+              <button
+                onClick={onClose}
+                className="px-3 py-1.5 text-sm rounded-lg"
+                style={{
+                  backgroundColor: theme.button.secondary.bg,
+                  color: theme.button.secondary.text,
+                  border: `1px solid ${theme.button.secondary.border}`,
+                }}
+              >
+                Cancel
+              </button>
               <button
                 onClick={() => setState({ kind: 'picker' })}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg"
+                className="px-3 py-1.5 text-sm rounded-lg"
+                style={{
+                  backgroundColor: theme.button.primary.bg,
+                  color: theme.button.primary.text,
+                }}
               >
                 Try again
               </button>
