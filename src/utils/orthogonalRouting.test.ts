@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -280,5 +280,65 @@ describe('computeConnectionPath — Rule 2 integration', () => {
     // Rule 1 fires — single 2-point line.
     const p = computeConnectionPath(conn1, d, c1, []);
     expect(p.length).toBe(4);
+  });
+});
+
+describe('determineFacingEdge', () => {
+  it('returns right when other is to the right (horizontal wins on tie)', () => {
+    const self = dataBox(0, 0, 100, 100);     // center (50, 50)
+    const other = claimBox(300, 0, 100, 100); // center (350, 50)
+    expect(determineFacingEdge(self, other)).toBe('right');
+  });
+
+  it('returns left when other is to the left', () => {
+    const self = dataBox(300, 0, 100, 100);
+    const other = claimBox(0, 0, 100, 100);
+    expect(determineFacingEdge(self, other)).toBe('left');
+  });
+
+  it('returns bottom when other is below and vertical separation dominates', () => {
+    const self = dataBox(0, 0, 100, 100);
+    const other = claimBox(0, 500, 100, 100);
+    expect(determineFacingEdge(self, other)).toBe('bottom');
+  });
+
+  it('returns top when other is above and vertical separation dominates', () => {
+    const self = dataBox(0, 500, 100, 100);
+    const other = claimBox(0, 0, 100, 100);
+    expect(determineFacingEdge(self, other)).toBe('top');
+  });
+
+  it('prefers horizontal when |dx| == |dy| (ties go to horizontal)', () => {
+    const self = dataBox(0, 0, 100, 100);    // center (50, 50)
+    const other = claimBox(200, 200, 100, 100); // center (250, 250), dx=200, dy=200
+    expect(determineFacingEdge(self, other)).toBe('right');
+  });
+});
+
+describe('pointerToAnchorT', () => {
+  it('maps pointer y to t along left edge', () => {
+    const el = dataBox(100, 200, 50, 80);  // y range [200, 280]
+    expect(pointerToAnchorT({ x: 100, y: 240 }, el, 'left')).toBeCloseTo(0.5);
+  });
+
+  it('maps pointer y to t along right edge', () => {
+    const el = dataBox(100, 200, 50, 80);
+    expect(pointerToAnchorT({ x: 200, y: 220 }, el, 'right')).toBeCloseTo(0.25);
+  });
+
+  it('maps pointer x to t along top edge', () => {
+    const el = dataBox(100, 200, 80, 50);  // x range [100, 180]
+    expect(pointerToAnchorT({ x: 140, y: 200 }, el, 'top')).toBeCloseTo(0.5);
+  });
+
+  it('maps pointer x to t along bottom edge', () => {
+    const el = dataBox(100, 200, 80, 50);
+    expect(pointerToAnchorT({ x: 120, y: 250 }, el, 'bottom')).toBeCloseTo(0.25);
+  });
+
+  it('clamps t to [0, 1] when pointer is outside the edge', () => {
+    const el = dataBox(0, 0, 100, 100);
+    expect(pointerToAnchorT({ x: 0, y: -500 }, el, 'left')).toBe(0);
+    expect(pointerToAnchorT({ x: 0, y: 5000 }, el, 'left')).toBe(1);
   });
 });

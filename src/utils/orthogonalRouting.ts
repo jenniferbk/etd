@@ -32,6 +32,30 @@ export function resolveAnchor(el: DiagramElement, anchor: EdgeAnchor): Position 
   }
 }
 
+export function determineFacingEdge(self: DiagramElement, other: DiagramElement): BoxEdge {
+  const sCx = self.position.x + self.size.width / 2;
+  const sCy = self.position.y + self.size.height / 2;
+  const oCx = other.position.x + other.size.width / 2;
+  const oCy = other.position.y + other.size.height / 2;
+  const dx = oCx - sCx;
+  const dy = oCy - sCy;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
+  return dy >= 0 ? 'bottom' : 'top';
+}
+
+export function pointerToAnchorT(
+  pointer: { x: number; y: number },
+  el: DiagramElement,
+  edge: BoxEdge,
+): number {
+  if (edge === 'left' || edge === 'right') {
+    const t = (pointer.y - el.position.y) / el.size.height;
+    return Math.max(0, Math.min(1, t));
+  }
+  const t = (pointer.x - el.position.x) / el.size.width;
+  return Math.max(0, Math.min(1, t));
+}
+
 // Rule 1 routing: when source is a `data` argument and target is a `claim`,
 // AND target's center falls inside the source's vertical or horizontal extent,
 // AND target is fully to one side of source — return a single straight 2-point
@@ -582,7 +606,6 @@ export function computeSharedTrunkY(
 
 // Return a map of connection.id → t (0..1) for entry along the target's edge.
 // N <= 2: all at 0.5 (overlap; spec choice). N >= 3: i+1 / N+1, sorted by source.center.y.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function computeEntryTValues(
   siblings: { conn: Connection; fromEl: DiagramElement }[],
   _target: DiagramElement,

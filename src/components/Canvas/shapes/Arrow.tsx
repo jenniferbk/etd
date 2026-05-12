@@ -12,6 +12,8 @@ import {
   getVerticalAttachmentPath,
   type SegmentOrientation,
   computeConnectionPath,
+  determineFacingEdge,
+  pointerToAnchorT,
 } from '../../../utils/orthogonalRouting';
 
 const MIN_SEGMENT_PX = 4;
@@ -77,30 +79,6 @@ function clampToMinSegment(
     }
   }
   return newPerp;
-}
-
-function determineFacingEdge(self: DiagramElement, other: DiagramElement): BoxEdge {
-  const sCx = self.position.x + self.size.width / 2;
-  const sCy = self.position.y + self.size.height / 2;
-  const oCx = other.position.x + other.size.width / 2;
-  const oCy = other.position.y + other.size.height / 2;
-  const dx = oCx - sCx;
-  const dy = oCy - sCy;
-  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? 'right' : 'left';
-  return dy >= 0 ? 'bottom' : 'top';
-}
-
-function pointerToAnchorT(
-  pointer: { x: number; y: number },
-  el: DiagramElement,
-  edge: BoxEdge,
-): number {
-  if (edge === 'left' || edge === 'right') {
-    const t = (pointer.y - el.position.y) / el.size.height;
-    return Math.max(0, Math.min(1, t));
-  }
-  const t = (pointer.x - el.position.x) / el.size.width;
-  return Math.max(0, Math.min(1, t));
 }
 
 interface ArrowProps {
