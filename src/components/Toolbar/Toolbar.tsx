@@ -311,7 +311,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
             type="text"
             value={diagramName}
             onChange={(e) => setDiagramName(e.target.value)}
-            className="text-base font-semibold tracking-tight bg-transparent border-none outline-none focus:ring-0 min-w-[200px]"
+            className="text-base font-semibold tracking-tight bg-transparent border-none outline-none min-w-[200px]"
             style={{ color: theme.sidebar.text }}
             placeholder="Untitled Diagram"
           />

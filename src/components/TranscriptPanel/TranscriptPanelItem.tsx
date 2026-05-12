@@ -242,7 +242,7 @@ export function TranscriptPanelItem({
       {incompatible && (
         <div
           className="text-[10px] mt-1"
-          style={{ color: '#ef4444' }}
+          style={{ color: theme.danger.fg }}
         >
           Support requires teacher or student contributor.
         </div>

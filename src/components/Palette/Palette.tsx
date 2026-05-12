@@ -345,9 +345,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                 <button
                   key={type}
                   onClick={() => setSelectedSupportContributor(type)}
-                  className={`flex-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-150 ${
-                    selectedSupportContributor === type ? 'ring-2 ring-offset-1' : ''
-                  }`}
+                  className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-150"
                   style={{
                     backgroundColor: selectedSupportContributor === type ? color + '20' : theme.sidebar.surface,
                     color: selectedSupportContributor === type ? color : theme.sidebar.textSecondary,
