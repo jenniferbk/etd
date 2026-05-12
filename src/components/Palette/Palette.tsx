@@ -198,9 +198,9 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
             : ''
         }`}
         style={connectMode ? {
-          backgroundColor: theme.sidebar.accent,
-          color: theme.colors.void[950],
-          boxShadow: `0 4px 14px ${theme.colors.accent.glow}`,
+          backgroundColor: theme.button.primary.bg,
+          color: theme.button.primary.text,
+          boxShadow: theme.shadow.md,
         } : {
           backgroundColor: theme.sidebar.surface,
           color: theme.sidebar.text,
@@ -222,7 +222,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
           className="ml-auto px-1.5 py-0.5 text-[10px] rounded font-mono"
           style={{
             backgroundColor: connectMode ? 'rgba(0,0,0,0.2)' : theme.sidebar.bg,
-            color: connectMode ? theme.colors.void[950] : theme.sidebar.muted,
+            color: connectMode ? theme.button.primary.text : theme.sidebar.muted,
           }}
         >
           C
