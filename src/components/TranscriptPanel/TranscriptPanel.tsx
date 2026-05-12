@@ -28,6 +28,21 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
     return set;
   }, [elements, transcript]);
 
+  const selectedIds = useDiagramStore((s) => s.selectedIds);
+
+  const linkedLineIndexes = useMemo(() => {
+    if (!transcript) return new Set<number>();
+    const selected = new Set(selectedIds);
+    const set = new Set<number>();
+    for (const el of elements) {
+      if (!selected.has(el.id)) continue;
+      if (el.sourceTranscript?.transcriptId === transcript.id) {
+        set.add(el.sourceTranscript.lineIndex);
+      }
+    }
+    return set;
+  }, [elements, selectedIds, transcript]);
+
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredLines = useMemo(() => {
@@ -217,6 +232,7 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
                 line={line}
                 transcriptId={transcript.id}
                 used={usedLineIndexes.has(line.index)}
+                linkedToSelection={linkedLineIndexes.has(line.index)}
                 dismissed={line.dismissed === true}
                 altRow={idx % 2 === 1}
                 onContributorChange={(value) =>
