@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanelRightClose, Search } from 'lucide-react';
+import { PanelRightClose, Search, FileText, Upload } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import { parseTranscript } from '../../utils/transcriptParser';
@@ -149,24 +149,35 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
       </div>
 
       {!transcript && (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div className="flex-1 flex flex-col items-center justify-center px-6 text-center gap-3">
+          <FileText
+            size={28}
+            aria-hidden="true"
+            style={{ color: theme.sidebar.muted }}
+          />
           <p
-            className="text-sm mb-4"
+            className="text-sm leading-relaxed"
             style={{ color: theme.sidebar.textSecondary }}
           >
-            No transcript loaded.
+            No transcript loaded · load a .txt file to link argument elements to spoken lines.
           </p>
           <button
             onClick={handleLoadClick}
-            className="px-4 py-2 text-sm font-medium rounded-lg"
+            className="px-3 py-2 text-sm font-medium rounded-md border transition-colors duration-150 inline-flex items-center gap-2"
             style={{
-              backgroundColor: theme.sidebar.surface,
-              color: theme.sidebar.text,
-              borderWidth: '1px',
-              borderColor: theme.sidebar.border,
+              backgroundColor: theme.button.secondary.bg,
+              color: theme.button.secondary.text,
+              borderColor: theme.button.secondary.border,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = theme.button.secondary.bgHover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = theme.button.secondary.bg;
             }}
           >
-            Load transcript (.txt)
+            <Upload size={14} aria-hidden="true" />
+            Load transcript
           </button>
         </div>
       )}
