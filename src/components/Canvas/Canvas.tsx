@@ -123,6 +123,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     bringToFront,
     sendToBack,
     changeContributor,
+    convertToArgument,
+    convertToSupport,
     moveLegend,
     addElement,
   } = useDiagramStore();
@@ -562,6 +564,33 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [contextMenu.elementId, changeContributor]
   );
 
+  const handleContextMenuChangeSupportContributor = useCallback(
+    (contributor: SupportContributor) => {
+      if (contextMenu.elementId) {
+        updateElement(contextMenu.elementId, { contributor } as Partial<DiagramElement>);
+      }
+    },
+    [contextMenu.elementId, updateElement]
+  );
+
+  const handleContextMenuConvertToArgument = useCallback(
+    (argumentType: ArgumentType) => {
+      if (contextMenu.elementId) {
+        convertToArgument(contextMenu.elementId, argumentType);
+      }
+    },
+    [contextMenu.elementId, convertToArgument]
+  );
+
+  const handleContextMenuConvertToSupport = useCallback(
+    (supportType: SupportType) => {
+      if (contextMenu.elementId) {
+        convertToSupport(contextMenu.elementId, supportType);
+      }
+    },
+    [contextMenu.elementId, convertToSupport]
+  );
+
   // Handle double-click for inline editing
   const handleElementDoubleClick = useCallback(
     (element: DiagramElement) => {
@@ -978,6 +1007,17 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           onBringToFront={handleContextMenuBringToFront}
           onSendToBack={handleContextMenuSendToBack}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
+          onChangeSupportContributor={contextMenu.elementType === 'support' ? handleContextMenuChangeSupportContributor : undefined}
+          onConvertToArgument={
+            (contextMenu.elementType === 'support' || contextMenu.elementType === 'teacherSupport')
+              ? handleContextMenuConvertToArgument
+              : undefined
+          }
+          onConvertToSupport={
+            contextMenu.elementType === 'argument'
+              ? handleContextMenuConvertToSupport
+              : undefined
+          }
         />
       )}
 
