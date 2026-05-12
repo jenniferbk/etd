@@ -35,11 +35,15 @@ export function AboutModal({ onClose }: AboutModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ zIndex: theme.z.modalScrim }}
       onClick={onClose}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="absolute inset-0 backdrop-blur-sm"
+        style={{ backgroundColor: theme.scrim }}
+      />
 
       {/* Modal */}
       <div
@@ -60,8 +64,10 @@ export function AboutModal({ onClose }: AboutModalProps) {
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-[#45475a] transition-colors"
+            className="p-1 rounded-lg transition-colors"
             style={{ color: theme.sidebar.muted }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <X size={20} />
           </button>
@@ -138,7 +144,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
                   {shortcuts.map((shortcut, index) => (
                     <tr
                       key={shortcut.keys}
-                      className={index % 2 === 0 ? 'bg-[#313244]/50' : ''}
+                      style={index % 2 === 0 ? { backgroundColor: theme.sidebar.hover } : undefined}
                     >
                       <td
                         className="px-3 py-2 font-mono text-xs"
