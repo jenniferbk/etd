@@ -239,20 +239,30 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
         {expandedSections.arguments && (
           <div className="grid grid-cols-2 gap-2 px-1">
             {ARGUMENT_TYPES.map(({ type, label }) => {
-              // Implicit contributor can only create warrants
+              // Implicit contributor can only create warrants.
               const isDisabled = selectedContributor === 'implicit' && type !== 'warrant';
               return (
                 <button
                   key={type}
                   onClick={() => !isDisabled && handleAddArgument(type)}
                   disabled={isDisabled}
-                  className="px-3 py-2.5 text-left text-sm rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                  className="px-3 py-2 text-left text-sm rounded-md transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: theme.sidebar.surface,
                     color: theme.sidebar.text,
-                    borderWidth: '2px',
-                    borderColor: CONTRIBUTOR_TYPES.find((c) => c.type === selectedContributor)?.color,
-                    borderStyle: selectedContributor === 'student' ? 'dashed' : 'solid',
+                    borderWidth: '1px',
+                    borderColor: theme.sidebar.border,
+                    borderStyle: 'solid',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (isDisabled) return;
+                    e.currentTarget.style.backgroundColor = theme.sidebar.surfaceHover;
+                    e.currentTarget.style.borderColor = theme.sidebar.accent;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (isDisabled) return;
+                    e.currentTarget.style.backgroundColor = theme.sidebar.surface;
+                    e.currentTarget.style.borderColor = theme.sidebar.border;
                   }}
                 >
                   {label}
