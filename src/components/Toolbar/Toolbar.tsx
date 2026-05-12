@@ -362,7 +362,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
         </div>
       </div>
 
-      {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      <AboutModal open={showAbout} onClose={() => setShowAbout(false)} />
       <ImageImportModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
     </>
   );
