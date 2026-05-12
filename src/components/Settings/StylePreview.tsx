@@ -80,8 +80,9 @@ export function StylePreview({ kind, typeKey, config }: StylePreviewProps) {
             onClick={() => handleContributorChange(c)}
             className="px-2 py-1 text-xs rounded"
             style={{
-              backgroundColor: contributor === c ? theme.sidebar.accent : theme.sidebar.surface,
-              color: contributor === c ? theme.colors.void[950] : theme.sidebar.text,
+              backgroundColor: contributor === c ? theme.button.primary.bg : theme.sidebar.surface,
+              color: contributor === c ? theme.button.primary.text : theme.sidebar.text,
+              border: contributor === c ? 'none' : `1px solid ${theme.sidebar.border}`,
             }}
           >
             {c}
