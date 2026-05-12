@@ -3,8 +3,8 @@ import { z } from 'zod';
 const positionSchema = z.object({ x: z.number(), y: z.number() });
 const sizeSchema = z.object({ width: z.number(), height: z.number() });
 const attributionSchema = z.object({
-  speaker: z.string().optional(),
-  timestamp: z.string().optional(),
+  speaker: z.string().default(''),
+  timestamp: z.string().default(''),
 }).optional();
 
 const argumentElementSchema = z.object({
