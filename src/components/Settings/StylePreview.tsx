@@ -91,7 +91,7 @@ export function StylePreview({ kind, typeKey, config }: StylePreviewProps) {
       </div>
 
       {/* Konva stage */}
-      <div style={{ border: `1px solid ${theme.sidebar.border}`, borderRadius: 6, backgroundColor: '#FFFFFF', display: 'inline-block' }}>
+      <div style={{ border: `1px solid ${theme.sidebar.border}`, borderRadius: 6, backgroundColor: theme.canvas.bg, display: 'inline-block' }}>
         <Stage width={PREVIEW_WIDTH} height={PREVIEW_HEIGHT}>
           <Layer>
             <Group x={x} y={y}>
