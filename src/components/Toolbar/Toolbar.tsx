@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
+import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { SAVE_SCHEMA_VERSION } from '../../utils/schema';
 import { AboutModal } from './AboutModal';
@@ -201,11 +202,16 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   };
 
   // Clear diagram
-  const handleClear = () => {
+  const handleClear = async () => {
     if (elements.length === 0 && connections.length === 0) return;
-    if (confirm('Are you sure you want to clear the diagram? This cannot be undone.')) {
-      clearDiagram();
-    }
+    const ok = await confirmAsync({
+      title: 'Clear diagram?',
+      message: 'This will remove every element and connection. This cannot be undone.',
+      confirmLabel: 'Clear diagram',
+      cancelLabel: 'Cancel',
+      variant: 'destructive',
+    });
+    if (ok) clearDiagram();
   };
 
   const dividerClass = 'w-px h-6 mx-2';
