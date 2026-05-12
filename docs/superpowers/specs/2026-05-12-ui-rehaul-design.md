@@ -1,7 +1,7 @@
 # UI rehaul — design
 
 **Date:** 2026-05-12
-**Status:** Brainstorm complete; adversarial review applied (v2); pending implementation plan
+**Status:** Brainstorm complete; two adversarial review passes applied (v3); pending implementation plan
 **Brainstorm artifacts:** `.superpowers/brainstorm/45154-1778595783/content/` (mockups for each section)
 
 ## 1. Context
@@ -28,6 +28,8 @@ These remain exactly as they are today and are off-limits to every PR in this re
 - **Element rendering:** contributor-colored borders (`#228B22` given, `#0000CD` student, `#CC0000` teacher, `#800080` joint, `#000000` implicit); white fills; cloud shape for implicit; dashed warrant attachments; element typography; underlined labels; embedded timestamps; embedded images.
 - **Support fills:** `#E0FFFF` (question), `#FFFACD` (other support).
 - **Connection rendering:** the in-canvas line styling for both finalized connections and the in-progress drag preview (Konva-rendered).
+- **Marquee selection rectangle:** rendered via `react-konva` `<Rect>` in `src/components/Canvas/SelectionRect.tsx` (fill `rgba(74, 144, 217, 0.1)`, stroke `#4A90D9` from `colors.ts`). The marquee is inside the Konva stage and stays sealed.
+- **Selection highlight on a selected element:** Konva-rendered, sealed.
 - **Functional behavior:** selection, drag, connect mode, undo / redo, save / load / export / import, auto-save, transcript parsing and linking, keyboard shortcuts.
 - **Anything in `src/components/Canvas/**`** that renders shapes via Konva.
 - **`src/utils/colors.ts`** (the contributor + support color source of truth).
@@ -53,14 +55,17 @@ All text tokens below pass WCAG AA (≥4.5:1) against `chrome-bg` (`#f8faf4`) fo
 | `border-strong` | `#c9d4be` | — | Outer frame edges, modal outlines |
 | `text` | `#2a3324` | 11.4:1 | Primary text |
 | `text-secondary` | `#4a5a3c` | 5.85:1 | Secondary text, labels, uppercase group labels, placeholder text |
-| `accent` | `#6b7c54` | ≥3:1 (non-text / large only) | Sage — primary buttons (used with white text), focus rings, active states. Not used as body text on chrome-bg. |
-| `accent-warm` | `#8a6f47` | ≥3:1 (non-text / large only) | Clay — secondary highlights, sparingly. Not used as body text. |
+| `accent` | `#6b7c54` | 3.95:1 | Sage — accent details, indicators, light/decorative accents. **Not used for primary button backgrounds** (fails AA at 3.39:1 with white text) or focus rings on hover/active backgrounds. |
+| `accent-strong` | `#3d4a32` | 9.8:1 | Primary button background with white text (passes AA). Replaces `accent` anywhere a 4.5:1 contrast bar applies. |
+| `accent-warm` | `#8a6f47` | 4.05:1 (large only) | Clay — secondary highlights, sparingly. Not used as body text. |
 | `hover` | `#e7ede0` | — | Icon button hover background |
 | `active` | `#dbe5cf` | — | Active toggle background |
 | `danger` | `#b23a48` | 5.6:1 | Destructive action text/border — saturated wine-red, distinguishable from sage `text` under red-green color deficiency by both hue and lightness |
 | `danger-bg` | `#fbe6e0` | — | Destructive action hover background |
 | `danger-border` | `#e6b8b8` | — | Destructive button border |
-| `focus-ring` | `#6b7c54` | — | 2px solid outline + 2px offset on every focusable chrome element |
+| `focus-ring` | `#2a3324` | 11.4:1 on chrome / ≥4.5:1 on hover & active | 2px solid outline + 2px offset on every focusable chrome element. Uses `text` value so the ring is visible against every chrome background, including `hover` (`#e7ede0`) and `active` (`#dbe5cf`). |
+
+**Text on hover and active backgrounds:** the `hover` and `active` background tokens are too light for `text-secondary` (`#4a5a3c`) to pass AA. When chrome elements (icon buttons, dropdown items, palette pills) display text on a `hover` or `active` background, the text uses the `text` token (`#2a3324`), which passes AA against both backgrounds.
 
 The previous draft included `text-muted` (`#6b7a55`, 3.55:1) and `text-faint` (`#8a9778`, 2.45:1). Both failed WCAG AA on `chrome-bg` and have been removed. Anywhere a "muted" or "faint" treatment is needed, use `text-secondary` instead — uppercase Label-scale typography (§4.2) already provides enough visual hierarchy without dropping contrast.
 
@@ -97,9 +102,30 @@ Tailwind-aligned: `4 / 8 / 12 / 16 / 24 / 32 / 48`. Icon button padding: 8. Comp
 
 Scrim color for modal overlays: `rgba(50, 65, 30, 0.32)` — sage-tinted darkening rather than pure black.
 
+### 4.6 Z-index ladder
+
+A single explicit ladder for every overlay, popover, and floating element. Implemented as named tokens in `theme.ts`:
+
+| Token | Value | Use |
+|---|---|---|
+| `z-canvas-bg` | `0` | Canvas background, grid |
+| `z-canvas-overlay` | `1` | Empty-state HTML overlay (sibling-of-Stage, `pointer-events: none`) |
+| `z-panel` | `auto` | Side panels, properties strip |
+| `z-toolbar` | `10` | Static toolbar |
+| `z-hover-zone` | `20` | Full-screen hover detect strip (current `z-20`) |
+| `z-fs-toolbar` | `30` | Full-screen sliding toolbar (current `z-30`) |
+| `z-dropdown` | `40` | Export dropdown, More menu |
+| `z-fs-hint` | `50` | Full-screen entry hint pill (above dropdowns) |
+| `z-modal-scrim` | `1000` | Modal backdrop |
+| `z-modal` | `1001` | Modal frame (above its own scrim) |
+| `z-lightbox` | `1100` | Image lightbox (above standard modals) |
+| `z-toast` | `2000` | Toast notifications (above everything) |
+
+No raw `z-index` values in components. All layering reads from these tokens.
+
 ## 5. Toolbar
 
-A hybrid: 13 visible interactive affordances grouped into 4 clusters, plus an `Export ▾` dropdown and a `···` More overflow menu for the rest. Same icons (lucide-react) and handlers as today — only the layout and packaging change. The `100%` zoom indicator is a non-interactive display, not counted in the 13.
+A hybrid: 14 visible interactive affordances grouped into 4 clusters, plus an `Export ▾` dropdown and a `···` More overflow menu for the rest. Same icons (lucide-react) and handlers as today — only the layout and packaging change. The `100%` zoom indicator is a non-interactive display, not counted in the 14.
 
 ### 5.1 Visible affordances (left to right)
 
@@ -109,7 +135,7 @@ A hybrid: 13 visible interactive affordances grouped into 4 clusters, plus an `E
 | History | Undo, Redo | `⌘Z`, `⇧⌘Z` |
 | File | Save, Open, Import-image, **Export ▾** | Export becomes a single dropdown button (4 variants behind it) |
 | View | Legend toggle, **Load transcript**, Transcript panel toggle | Load transcript is a session-start primary action for the research workflow and stays visible. Active state uses `active`. |
-| Zoom | Zoom out, `100%` indicator, Zoom in, Fit to window | `⌘-`, `⌘+`, `⌘0` |
+| Zoom | Zoom out, `100%` indicator, Zoom in, Fit to window, **Reset view** | Reset view (`Crosshair` icon, returns to 100% / centered) stays visible. It's a panic button distinct from Fit to window — Fit fails on an empty canvas, Reset always works. `⌘-`, `⌘+`, `⌘0`. |
 | Overflow | `···` More menu | Sage accent color |
 
 Group dividers: 1px vertical line in `border` token, 22px tall, 2–4px horizontal margin. Group labels appear on hover above each group (`text-secondary`, uppercase, `letter-spacing: 0.08em`).
@@ -122,11 +148,10 @@ Opens below the Export button on click. Contains: Export as PNG, Export as SVG, 
 
 Opens below the `···` button. Sections:
 
-- **View:** Reset view (100%, centered)
 - **Settings:** Element styles, About & shortcuts (`?`)
 - **(separated, danger):** Clear diagram
 
-Four items. Closes on outside click, Escape, or item selection. Destructive items use `danger` border and `danger-bg` hover background. Keyboard navigation: arrow keys move focus, Enter activates, Esc closes.
+Three items. Closes on outside click, Escape, or item selection. Destructive items use `danger` border and `danger-bg` hover background. Keyboard navigation: arrow keys move focus, Enter activates, Esc closes.
 
 ### 5.4 Implementation hooks
 
@@ -163,13 +188,13 @@ Same four-region layout — toolbar top, palette left, canvas center, transcript
 
 Several pieces of UI are dynamic and worth calling out so PR work doesn't accidentally restyle Konva-internal rendering:
 
-- **Marquee selection rectangle** (the rubber-band drawn while marquee-selecting): a chrome surface, not Konva. Restyle: 1px solid `accent` border + `accent` fill at 12% opacity (`rgba(107, 124, 84, 0.12)`).
+- **Marquee selection rectangle:** rendered via `react-konva` `<Rect>` in `src/components/Canvas/SelectionRect.tsx`. Fill `rgba(74, 144, 217, 0.1)`, stroke `#4A90D9` (from `colors.ts:selectionHighlight`). **Sealed** — verified by code-read 2026-05-12. The marquee lives inside the Konva stage and is part of element-rendering territory.
 - **Connection-in-progress line** (Konva-rendered, follows the cursor while connecting): **sealed**, no change.
-- **Selection highlight on a Konva element** (rendered inside the stage when an element is selected): **sealed**, no change.
-- **Mode cursors:** crosshair while connect mode is active; grab / grabbing while panning. These are CSS `cursor` declarations on chrome wrappers, not Konva. The rehaul keeps the cursors but confirms they survive the styling sweep — no change in shape or behavior.
+- **Selection highlight on a selected element:** **sealed**, no change.
+- **Mode cursors:** crosshair while connect mode is active (`cursor-crosshair` Tailwind class on `Canvas.tsx:832`); grab while panning (`cursor-grab` same line); not-allowed for disabled buttons (`cursor-not-allowed` in Toolbar, Properties, Palette). These are pure CSS cursor declarations, no color information, no behavior change. The Tailwind rule (§11 PR 1) explicitly permits `cursor-*` utilities.
 - **Resize handles on canvas elements** (if present): Konva-rendered, sealed.
 
-Rule of thumb: anything drawn by Konva on the stage is sealed; anything outside the stage (CSS rectangles, HTML overlays, cursor declarations) is chrome.
+Rule of thumb: anything drawn by Konva on the stage is sealed; anything outside the stage (CSS-only declarations, HTML overlays) is chrome.
 
 ## 7. Modals — shared frame
 
@@ -187,18 +212,31 @@ A new `components/ui/Modal.tsx` component provides a shared frame for every moda
 The shared `Modal` component must implement standard modal accessibility:
 
 - **Focus trap.** When the modal opens, focus moves to the first interactive element inside (typically the primary button, or the close `×` if no primary). Tab and Shift+Tab cycle focus within the modal — focus never escapes.
-- **Return focus on close.** The element that triggered the modal regains focus when the modal closes.
-- **Escape closes.** Esc dismisses the modal as if the close `×` had been clicked, unless the modal opts out (e.g., Settings with unsaved changes confirms before close).
+- **Initial focus for destructive confirmations.** Confirmation modals where one path is destructive (Clear diagram, transcript-orphan) initially focus the **non-destructive** option (Cancel) so a stray Enter cannot trigger destruction.
+- **Return focus on close.** The element that triggered the modal regains focus when the modal closes. **Fallback:** if the triggering element no longer exists or is no longer focusable (e.g., it was inside a now-closed More menu), focus returns to the originating toolbar group's first focusable button. If that is also unavailable, focus moves to `document.body` and the modal manager records a console warning in development builds.
+- **Escape closes.** Esc dismisses the modal as if the close `×` had been clicked. For confirmation modals with a destructive action, Esc behaves as Cancel (never confirms). Modals with unsaved changes (Settings) prompt before close.
 - **Scrim click closes** — preserved from current behavior, with the same opt-out for unsaved changes.
 - **ARIA:** `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing at the title element.
 
 Existing modals partly implement these behaviors (Esc-to-close is wired in `App.tsx` lines 357–371). The shared `Modal` centralizes the rest so every refit gets the full treatment for free.
 
+### 7.1.1 Confirmation modal pattern
+
+Confirmation modals (Clear diagram, transcript-orphan) follow a strict pattern:
+
+- **Two buttons minimum:** Cancel (secondary, white outlined) on the left, Confirm (primary or danger, filled) on the right.
+- **Cancel is initially focused** for any destructive Confirm.
+- **Enter activates the focused button** (Cancel by default — must explicitly Tab to Confirm).
+- **Esc = Cancel.**
+- **Scrim click = Cancel.**
+
+Single-button "OK"-style dismissals are reserved for informational modals (none today) and remain valid; in those, the OK button receives focus and Enter activates it.
+
 ### 7.2 Modal refits
 
 | Modal | Notes |
 |---|---|
-| Settings (Element styles) | Sidebar lists Argument / Support categories using the correct taxonomy. Main pane shows form fields. **Live preview is the existing `StylePreview` component** — already Konva-based and faithful; the rehaul only restyles its wrapper (contributor button row, frame border, label), not the preview itself. |
+| Settings (Element styles) | Sidebar lists Argument / Support categories using the correct taxonomy. Main pane shows form fields. **The Konva-rendered preview inside `StylePreview` stays faithful and untouched.** Its surrounding chrome (contributor toggle button row, "Preview" label, frame border, cloud-shape caption) is currently styled with `theme.sidebar.*` and `theme.colors.void[950]` (verified `StylePreview.tsx:73, 82–84, 93, 142–144`) — those references migrate to Sage Garden tokens as part of PR 1's audit. |
 | About & shortcuts | Single column. Section headers in `text-secondary` uppercase. Keyboard shortcuts use `<kbd>` styled as 2px-bottom-border chips. |
 | Image Import | Drop zone with dashed `border-strong`, sage hover. File picker preserved. Loading state preserved. Error states migrated from `alert()` to the new toast component (§9). |
 | Image Lightbox | Centered image, `shadow-lg`, scrim covers full viewport. Existing controls. |
@@ -225,22 +263,42 @@ A new `components/ui/Toast.tsx` plus a small `useToasts()` store hook:
 - Bottom-right corner, 24px from edges. Stacks vertically with 8px gap.
 - Per toast: 320–520px wide, `chrome-bg` background, `border-strong` outline, 3px left border in the variant color, `shadow-md`.
 - Variants: `info` (sage left border), `warning` (clay left border), `error` (`danger` left border).
-- Auto-dismiss after 5 seconds for `info` / `warning`; `error` toasts persist until manually dismissed.
-- Each toast has a close `×` button.
-- Click any non-button area of an `error` toast to copy its message to clipboard (for bug reports).
+- **Dismiss policy:** `info` toasts auto-dismiss after 5 seconds. `warning` and `error` toasts persist until manually dismissed — warnings often contain actionable information (e.g., "Embedded images were dropped from the DiagramMix export") that a user may need to read after the moment.
+- Each toast has a close `×` button (top-right inside the toast frame).
+- **Copy:** `error` toasts have a small "Copy" button next to the close `×`. Click copies the error text to the clipboard for bug reports. No click-anywhere-to-copy behavior — that conflicts with selection and accidental clicks.
 
 ### 9.2 What replaces what
 
+PR 4 must **replace every call to `alert()` in the codebase** with a toast of the appropriate variant. The table below is illustrative, not exhaustive — verification is `grep -rn "alert(" src/` returning zero results after PR 4.
+
+**Known sites (16, verified 2026-05-12):**
+
+| File:line | Today | After |
+|---|---|---|
+| `App.tsx:209` | `alert('No valid transcript lines found in …')` | `error` toast |
+| `App.tsx:217` | `alert('Failed to read transcript file.')` | `error` toast |
+| `TranscriptPanel.tsx:57` | `alert('No valid transcript lines found in …')` (duplicate of App.tsx logic) | `error` toast |
+| `TranscriptPanel.tsx:64` | `alert('Failed to read transcript file.')` (duplicate) | `error` toast |
+| `Toolbar.tsx:125` | `alert('Invalid diagram file format')` | `error` toast |
+| `Toolbar.tsx:128` | `alert('Failed to parse diagram file')` | `error` toast |
+| `Toolbar.tsx:134` | `alert(err.message ?? 'Failed to load file')` | `error` toast |
+| `Toolbar.tsx:147` | `alert('No canvas found to export')` | `error` toast |
+| `Toolbar.tsx:175, 190` | `alert('No elements to export')` (SVG, DiagramMix) | `info` toast: "No elements to export yet." |
+| `Toolbar.tsx:196` | `alert('Embedded images were dropped — DiagramMix does not support inline images.')` | `warning` toast (persistent) |
+| `Toolbar.tsx:200` | `alert('Failed to export .diagramx')` | `error` toast |
+| `Toolbar.tsx:217` | `alert('Failed to export PDF')` | `error` toast |
+| `ImageUpload.tsx:34` | `alert('Please select an image file')` | `error` toast |
+| `ImageUpload.tsx:40` | `alert('Image must be less than 5MB')` | `error` toast |
+| `useImagePaste.ts:25` | `alert('Image must be less than 5MB')` | `error` toast |
+
+**Confirmation modals (kept, restyled):**
+
 | Today | After |
 |---|---|
-| `alert('No elements to export')` (PNG / SVG / DiagramMix) | `info` toast: "No elements to export yet." |
-| `alert('Invalid diagram file format')` / `alert('Failed to parse diagram file')` | `error` toast: "Couldn't read that diagram file. Make sure it's a valid ETD JSON." |
-| `alert('Failed to read transcript file.')` | `error` toast: same wording. |
-| `alert('Embedded images were dropped — DiagramMix does not support inline images.')` | `warning` toast. |
-| `alert(err.message)` (image import / .drawing import failures) | `error` toast with the underlying message. |
-| `alert('Failed to load file')` / `alert('Failed to export PDF')` / `alert('Failed to export .diagramx')` | `error` toast for each. |
-| `confirm('Are you sure you want to clear the diagram?')` | **Stays a modal** — destructive, irreversible. Restyled in Sage Garden. |
-| `confirm('Loading a new transcript will orphan …')` | **Stays a modal** — same reasoning. |
+| `confirm('Are you sure you want to clear the diagram?')` | Sage Garden confirmation modal per §7.1.1. |
+| `confirm('Loading a new transcript will orphan N existing element reference(s). Proceed?')` | Sage Garden confirmation modal per §7.1.1. |
+
+**Note on duplication.** `App.tsx` and `TranscriptPanel.tsx` both contain transcript-load logic with identical alerts — PR 4 should consider whether to dedupe, but at minimum both call sites get toast-replaced.
 
 ### 9.3 Implementation note
 
@@ -261,23 +319,47 @@ Five incremental PRs, each independently shippable to jenkleiman.com. After each
 
 The Deep Void → Sage Garden swap is wider than "change `theme.ts`." Several components inline hardcoded colors that survive a token swap, and a few use Tailwind color utilities. PR 1 addresses all of these so the app does not ship in a half-themed state.
 
-**Files known to need changes beyond `theme.ts`:**
+**PR 1 is an audit-and-migration PR, not a token swap.** The implementer must:
 
-- `src/App.tsx`:
-  - `bg-gray-50` Tailwind class on the root `<div>` → replace with a `chrome-bg` (or `app-bg`) token style.
-  - Full-screen toolbar wrapper `boxShadow: '0 2px 12px rgba(0,0,0,0.15)'` → replace with `shadow-md`.
-  - Full-screen entry hint pill `background: 'rgba(0, 0, 0, 0.75)', color: 'white'` → replace with the sage-toned pill per §10.
-- `src/components/Toolbar/Toolbar.tsx`:
-  - `IconButton` danger hover `backgroundColor: 'rgba(239, 68, 68, 0.15)'` → `danger-bg` token.
-  - `IconButton` danger color reference `theme.colors.error` (currently `#ef4444`) → `danger` token (`#b23a48`).
-  - Any other inline color literal in this file.
-- Any component referencing `theme.colors.*` keys that are Deep-Void–specific (`error`, `success`, `accent.glow`, `highlight`, `secondary`, `void.*`): either renamed under the Sage palette or removed.
+1. Rewrite `src/utils/theme.ts` and `src/index.css` to express Sage Garden tokens (palette, type, spacing, radii, shadows, z-index ladder).
+2. Audit every component for hardcoded hex literals, `rgba()` values, Tailwind color utilities, and references to removed `theme.colors.*` keys.
+3. Migrate every find to the new tokens.
 
-**Tailwind decision.** Tailwind stays for layout primitives (`flex`, `gap-*`, `min-w-*`, `h-screen`, etc.) but Tailwind color classes (`bg-gray-*`, `text-*`, `border-gray-*`, etc.) are not used. All color comes from `theme.ts` tokens via inline style or CSS variables. PR 1 includes a sweep removing existing Tailwind color classes.
+Verification command after the audit: `grep -rn "#[0-9a-fA-F]\{3,8\}\|rgba(\|theme\.colors\.\(void\|error\|success\|accent\.glow\|highlight\|secondary\)\|bg-gray\|text-gray\|border-gray\|bg-blue\|text-blue\|bg-red\|text-red\|bg-zinc\|text-zinc\|bg-\[#\|text-\[#\|hover:bg-\[" src/` should return only canvas/element-rendering hits (which are sealed) — every chrome match must be migrated.
 
-**Touches:** `src/utils/theme.ts`, `src/App.tsx`, `src/components/Toolbar/Toolbar.tsx`, any other component the audit turns up.
-**Off-limits:** `src/utils/colors.ts`, `src/components/Canvas/**`.
-**Verify:** load `test_diagram.json`, confirm canvas + elements pixel-identical; chrome turns sage with no remnants of black shadow, red Tailwind, or `#ef4444`. Run an AA contrast check on the chrome (axe DevTools or equivalent) — no violations.
+**Known sites to migrate (verified by code-read 2026-05-12, not exhaustive):**
+
+| File | Issue |
+|---|---|
+| `src/index.css` (entire file) | 364 lines including a `:root` block of `--void-*`, `--accent`, `--accent-glow`, `--secondary`, `--highlight`, `--text-*` CSS custom properties. Rewrite the `:root` to express Sage Garden tokens; rewrite any selectors that reference Deep Void variables. |
+| `src/App.tsx` | `bg-gray-50` Tailwind class on root → `chrome-bg` token; full-screen wrapper `boxShadow: '0 2px 12px rgba(0,0,0,0.15)'` → `shadow-md`; entry hint pill `rgba(0, 0, 0, 0.75)` + white → sage-toned pill per §10. |
+| `src/components/Toolbar/Toolbar.tsx` | `IconButton` danger hover `rgba(239, 68, 68, 0.15)` → `danger-bg`; reference to `theme.colors.error` (line 268) → `danger` token. |
+| `src/components/Toolbar/AboutModal.tsx` | Hardcoded Catppuccin hex `hover:bg-[#45475a]` (line 63), `bg-[#313244]/50` (line 141) → theme tokens. These are not even from the current Deep Void theme and need to go. |
+| `src/components/Toolbar/ImageImportModal.tsx` | Tailwind color utilities throughout: `bg-white`, `dark:bg-gray-900`, `text-gray-700`, `dark:text-gray-300`, `bg-blue-600` (×2), `bg-gray-200`, `bg-blue-500`, `text-gray-600`, `dark:text-gray-400` (lines 98–164). Migrate to token-driven styles. |
+| `src/components/Settings/SettingsModal.tsx:144` | `theme.colors.void[950]` → token. |
+| `src/components/Settings/StylePreview.tsx` | `theme.colors.void[950]` (line 84); `theme.sidebar.muted` / `surface` / `text` / `border` / `accent` (lines 73, 82–83, 93, 142–144). Migrate wrapper styling; the Konva-rendered preview content stays unchanged. |
+| `src/components/Palette/Palette.tsx` | `theme.colors.void[950]` (lines 202, 225); `theme.colors.accent.glow` (line 203). Migrate. |
+
+**Tailwind rule (concrete).** The following Tailwind classes are **forbidden** anywhere in the codebase after PR 1:
+
+- Any class setting `color`, `background-color`, `border-color`, `ring-color`, `outline-color`, `fill`, `stroke`, or `accent-color`. This includes named-color utilities (`bg-blue-600`, `text-gray-700`, `border-red-500`, etc.), arbitrary-value color utilities (`bg-[#45475a]`, `text-[#313244]`), and color-from-variable utilities.
+- Opacity modifiers on color utilities (`bg-opacity-*`, `text-opacity-*`, `/50`, `/75`, etc.) — color and opacity together come from `rgba()` values or pre-computed tokens.
+- `dark:*` variants of any of the above (the app does not implement a dark mode).
+
+The following Tailwind utilities are **permitted**:
+
+- Layout: `flex`, `grid`, `gap-*`, `min-w-*`, `max-w-*`, `h-*`, `w-*`, `p-*`, `m-*`, `px-*`, `py-*`, etc.
+- Typography (non-color): `text-sm`, `text-base`, `font-medium`, `tracking-*`, `leading-*`.
+- Borders (non-color): `rounded-*`, `border` (width only), `border-2`.
+- Cursor utilities: `cursor-pointer`, `cursor-not-allowed`, `cursor-crosshair`, `cursor-grab` — these set the CSS `cursor` property only, no color.
+- Animation: `animate-*`, `transition-*`, `duration-*`, `ease-*`.
+- Interactivity: `disabled:*`, `hover:*`, `focus:*` modifiers when paired with permitted utilities.
+
+All color information after PR 1 flows from `theme.ts` tokens via inline `style={{...}}` or CSS variables in `index.css`.
+
+**Touches:** `src/utils/theme.ts`, `src/index.css`, every file in the verification grep that matched chrome.
+**Off-limits:** `src/utils/colors.ts`, `src/components/Canvas/**`, the Konva-rendered content inside `src/components/Settings/StylePreview.tsx` (its wrapper styling migrates).
+**Verify:** load `test_diagram.json`, confirm canvas + elements pixel-identical; chrome turns sage with no remnants of black shadow, red Tailwind, Catppuccin hex, or removed `theme.colors.*` keys. The verification grep returns only canvas/element hits. Run an AA contrast check (axe DevTools or equivalent) — no violations.
 
 ### PR 2 — Toolbar
 
@@ -335,24 +417,29 @@ Each PR enforces these protections:
 
 ## 13. Open questions
 
-None at this time. All directional choices answered during brainstorm and the Gemini adversarial review:
+None at this time. All directional choices answered during brainstorm and two Gemini adversarial reviews:
 
 - Aesthetic: Sage Garden (light, organic, calm).
-- Toolbar: hybrid — 13 visible (including Load transcript) + Export dropdown + 4-item More overflow.
+- Toolbar: hybrid — 14 visible (including Load transcript and Reset view) + Export dropdown + 3-item More overflow.
 - Panels: keep 4-region layout, just breathe.
-- Scope: chrome only, canvas + elements + connection rendering sealed; HTML overlay is sibling-of-Stage with `pointer-events: none`.
+- Scope: chrome only, canvas + elements + connection rendering + marquee selection sealed; HTML overlay is sibling-of-Stage with `pointer-events: none`.
 - Intensity: considered rehaul (palette + toolbar + panels + modals + notifications + empty states + polish).
 - Recovery: stays a modal.
 - Build: 5 incremental PRs.
-- Accessibility: WCAG AA contrast required for chrome text; destructive actions never color-alone.
+- Accessibility: WCAG AA contrast for chrome text; AA non-text contrast for focus rings against every chrome background; destructive actions combine `danger` token + icon + text (never color alone); confirmation modals default-focus Cancel; warning toasts persist.
+- Toast policy: only `info` auto-dismisses (5s). `warning` + `error` persist. `error` has explicit Copy button (no click-anywhere-to-copy).
+- Z-index: explicit numeric ladder per §4.6, no raw z-index values in components.
+- `alert()`: every call site replaced in PR 4. Verification is `grep` returning zero hits.
+- Tailwind: layout / typography / cursor / animation utilities allowed; every color-related utility forbidden, including arbitrary-value (`bg-[#…]`) and opacity modifiers.
 - Tablet / mobile: out of scope; deferred until requested.
 
 ## 14. References
 
 - Brainstorm mockups: `.superpowers/brainstorm/45154-1778595783/content/` (Section 1 visual language, Section 2 toolbar, Section 3 panels, Section 4 modals, Section 5 build, corrected-element-rendering screen).
-- Adversarial review (Gemini 2.5 Pro, 2026-05-12): conducted on the v1 draft; findings folded into v2.
+- Adversarial reviews (Gemini 2.5 Pro, 2026-05-12): v1 draft reviewed → v2; v2 reviewed → v3. Both rounds folded in.
 - Element rendering rules: `src/utils/colors.ts`, `docs/REQUIREMENTS.md` §2.2 and §2.3.
-- Existing theme tokens (to be replaced): `src/utils/theme.ts`.
-- Existing Settings preview (inherited unchanged): `src/components/Settings/StylePreview.tsx`.
+- Existing theme tokens (to be replaced): `src/utils/theme.ts`, `src/index.css` (`:root` CSS custom properties).
+- Existing Settings preview (Konva content unchanged; wrapper migrates): `src/components/Settings/StylePreview.tsx`.
+- Marquee selection (verified Konva-rendered, sealed): `src/components/Canvas/SelectionRect.tsx`.
 - Deferred work that may interact with this rehaul: `2026-04-26-configurable-element-styles-design.md`.
 - Project memories that constrain this work: `etd-design-decisions-anchor-on-annas-diagrams.md`, `etd-ui-rehaul-scope.md`, `etd-element-taxonomy.md`.
