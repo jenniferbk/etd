@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { PanelRightClose, Search, FileText, Upload } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
+import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { parseTranscript } from '../../utils/transcriptParser';
 import { TranscriptPanelItem } from './TranscriptPanelItem';
@@ -70,9 +71,12 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
         (el) => el.sourceTranscript?.transcriptId === transcript.id,
       ).length;
       if (orphanCount > 0) {
-        const proceed = confirm(
-          `Loading a new transcript will orphan ${orphanCount} existing element reference(s). Proceed?`,
-        );
+        const proceed = await confirmAsync({
+          title: 'Replace transcript?',
+          message: `Loading a new transcript will orphan ${orphanCount} existing element reference(s). Proceed?`,
+          confirmLabel: 'Replace transcript',
+          cancelLabel: 'Cancel',
+        });
         if (!proceed) {
           e.target.value = '';
           return;

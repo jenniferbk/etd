@@ -14,6 +14,7 @@ import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
 import { useToastStore } from './store/toastStore';
+import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
 
 function App() {
@@ -194,9 +195,12 @@ function App() {
           (el) => el.sourceTranscript?.transcriptId === current.transcript!.id,
         ).length;
         if (orphanCount > 0) {
-          const proceed = confirm(
-            `Loading a new transcript will orphan ${orphanCount} existing element reference(s). Proceed?`,
-          );
+          const proceed = await confirmAsync({
+            title: 'Replace transcript?',
+            message: `Loading a new transcript will orphan ${orphanCount} existing element reference(s). Proceed?`,
+            confirmLabel: 'Replace transcript',
+            cancelLabel: 'Cancel',
+          });
           if (!proceed) {
             e.target.value = '';
             return;
