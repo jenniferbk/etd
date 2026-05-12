@@ -41,23 +41,22 @@ export function getContributorColor(contributor: string): string {
   }
 }
 
-// Get colors for support type based on contributor
+// Get colors for support type based on contributor.
+// Border is always contributor-derived (teacher=red, student=blue).
+// Fill is type-derived so the support type is still visually distinct:
+//   action  → white
+//   question → light cyan
+//   other   → lemon chiffon
 export function getSupportColors(supportType: string, contributor: 'teacher' | 'student' = 'teacher'): { border: string; fill: string } {
+  const border = contributor === 'teacher' ? COLORS.teacherAction : COLORS.studentAction;
   switch (supportType) {
-    case 'action':
-      return {
-        border: contributor === 'teacher' ? COLORS.teacherAction : COLORS.studentAction,
-        fill: '#FFFFFF'
-      };
     case 'question':
-      return { border: COLORS.question, fill: COLORS.questionFill };
+      return { border, fill: COLORS.questionFill };
     case 'other':
-      return { border: COLORS.otherSupport, fill: COLORS.otherSupportFill };
+      return { border, fill: COLORS.otherSupportFill };
+    case 'action':
     default:
-      return {
-        border: contributor === 'teacher' ? COLORS.teacherAction : COLORS.studentAction,
-        fill: '#FFFFFF'
-      };
+      return { border, fill: '#FFFFFF' };
   }
 }
 
