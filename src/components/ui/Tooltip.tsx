@@ -48,13 +48,14 @@ export function Tooltip({
       {children}
       {isVisible && (
         <div
-          className="tooltip-animate absolute left-1/2 -translate-x-1/2 z-50 px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none"
+          className="tooltip-animate absolute left-1/2 -translate-x-1/2 px-2.5 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap pointer-events-none"
           style={{
             ...positionStyles,
             backgroundColor: theme.sidebar.surface,
             color: theme.sidebar.text,
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            boxShadow: theme.shadow.md,
             border: `1px solid ${theme.sidebar.border}`,
+            zIndex: theme.z.dropdown,
           }}
         >
           <div className="flex items-center gap-2">
