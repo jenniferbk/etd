@@ -192,35 +192,40 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
       {/* Connect Mode Toggle */}
       <button
         onClick={onToggleConnectMode}
-        className={`w-full px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2.5 ${
-          connectMode
-            ? 'shadow-lg'
-            : ''
-        }`}
+        className="w-full px-4 py-2.5 text-sm font-medium rounded-md transition-colors duration-150 flex items-center justify-center gap-2"
         style={connectMode ? {
           backgroundColor: theme.button.primary.bg,
           color: theme.button.primary.text,
-          boxShadow: theme.shadow.md,
+          boxShadow: theme.shadow.sm,
         } : {
           backgroundColor: theme.sidebar.surface,
           color: theme.sidebar.text,
+          borderWidth: '1px',
+          borderColor: theme.sidebar.border,
+          borderStyle: 'solid',
         }}
         onMouseEnter={(e) => {
-          if (!connectMode) {
+          if (connectMode) {
+            e.currentTarget.style.backgroundColor = theme.button.primary.bgHover;
+          } else {
             e.currentTarget.style.backgroundColor = theme.sidebar.surfaceHover;
           }
         }}
         onMouseLeave={(e) => {
-          if (!connectMode) {
+          if (connectMode) {
+            e.currentTarget.style.backgroundColor = theme.button.primary.bg;
+          } else {
             e.currentTarget.style.backgroundColor = theme.sidebar.surface;
           }
         }}
       >
-        <Link2 size={18} />
-        {connectMode ? 'Connecting...' : 'Connect Mode'}
+        <Link2 size={16} />
+        {connectMode ? 'Connecting…' : 'Connect Mode'}
         <kbd
           className="ml-auto px-1.5 py-0.5 text-[10px] rounded font-mono"
           style={{
+            // Translucent dark-sage overlay on the primary-button background.
+            // Single allowed rgba literal in PR 3 — carried over verbatim from pre-PR-3.
             backgroundColor: connectMode ? 'rgba(61, 74, 50, 0.35)' : theme.sidebar.bg,
             color: connectMode ? theme.button.primary.text : theme.sidebar.muted,
           }}
@@ -347,36 +352,45 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
           <div className="space-y-2 px-1">
             {/* Contributor Selector for Support */}
             <div className="flex gap-2 mb-2">
-              {SUPPORT_CONTRIBUTORS.map(({ type, label, color }) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedSupportContributor(type)}
-                  className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg transition-all duration-150"
-                  style={{
-                    backgroundColor: selectedSupportContributor === type ? color + '20' : theme.sidebar.surface,
-                    color: selectedSupportContributor === type ? color : theme.sidebar.textSecondary,
-                    borderWidth: '2px',
-                    borderColor: selectedSupportContributor === type ? color : 'transparent',
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+              {SUPPORT_CONTRIBUTORS.map(({ type, label, color }) => {
+                const isSelected = selectedSupportContributor === type;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => setSelectedSupportContributor(type)}
+                    className="flex-1 px-2 py-1.5 text-xs font-medium rounded-md transition-colors duration-150 flex items-center justify-center gap-1.5"
+                    style={{
+                      backgroundColor: isSelected ? theme.sidebar.surfaceActive : theme.sidebar.surface,
+                      color: isSelected ? theme.sidebar.text : theme.sidebar.textSecondary,
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                      borderColor: isSelected ? theme.sidebar.accent : theme.sidebar.border,
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    {label}
+                  </button>
+                );
+              })}
             </div>
             <button
               onClick={() => handleAddSupport('action')}
-              className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-full transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+              className="w-full px-4 py-2 text-left text-sm border rounded-full transition-colors duration-150 font-medium"
               style={{
                 borderColor: getSupportColors('action', selectedSupportContributor).border,
                 color: getSupportColors('action', selectedSupportContributor).border,
-                backgroundColor: 'transparent'
+                backgroundColor: 'transparent',
               }}
             >
               {styleConfig.supportTypes.action.label}
             </button>
             <button
               onClick={() => handleAddSupport('question')}
-              className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+              className="w-full px-4 py-2 text-left text-sm border rounded-lg transition-colors duration-150 font-medium"
               style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill, color: '#0d7377' }}
             >
               {styleConfig.supportTypes.question.label}
@@ -384,7 +398,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
             <div className="space-y-2">
               <button
                 onClick={() => handleAddSupport('other')}
-                className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+                className="w-full px-4 py-2 text-left text-sm border rounded-lg transition-colors duration-150 font-medium"
                 style={{ borderColor: COLORS.otherSupport, backgroundColor: COLORS.otherSupportFill, color: '#9a7b0a' }}
               >
                 {styleConfig.supportTypes.other.label}
@@ -424,15 +438,15 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
           <div className="px-1">
             <button
               onClick={handleAddInfoBox}
-              className="w-full px-4 py-2.5 text-left text-sm border-2 rounded-lg transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] font-medium"
+              className="w-full px-4 py-2 text-left text-sm border rounded-md transition-colors duration-150 font-medium"
               style={{
                 borderColor: theme.sidebar.border,
                 color: theme.sidebar.text,
                 backgroundColor: 'transparent',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = theme.sidebar.muted;
-                e.currentTarget.style.backgroundColor = theme.sidebar.surface;
+                e.currentTarget.style.borderColor = theme.sidebar.accent;
+                e.currentTarget.style.backgroundColor = theme.sidebar.surfaceHover;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.borderColor = theme.sidebar.border;
