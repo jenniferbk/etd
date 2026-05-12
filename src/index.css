@@ -374,3 +374,27 @@ input[type="range"]:focus::-webkit-slider-thumb {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* ============================================
+   Toolbar group hover labels (PR 2)
+   ============================================ */
+
+.toolbar-group-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toolbar-group:hover .toolbar-group-label,
+.toolbar-group:focus-within .toolbar-group-label {
+  opacity: 1;
+}
