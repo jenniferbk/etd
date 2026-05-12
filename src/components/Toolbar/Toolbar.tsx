@@ -265,13 +265,13 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
           className={`${iconButtonClass} ${isActive ? '' : ''}`}
           style={{
             color: variant === 'danger' && isHovered
-              ? theme.colors.error
+              ? theme.danger.fg
               : theme.sidebar.text,
             backgroundColor: isActive
               ? theme.sidebar.surfaceHover
               : isHovered
                 ? variant === 'danger'
-                  ? 'rgba(239, 68, 68, 0.15)'
+                  ? theme.danger.bg
                   : theme.sidebar.surfaceHover
                 : 'transparent',
             transform: isHovered && !disabled ? 'scale(1.05)' : 'scale(1)',
