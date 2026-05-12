@@ -82,8 +82,10 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded hover:bg-white/10"
+            className="p-1 rounded transition-colors"
             aria-label="Close settings"
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             <X size={18} style={{ color: theme.sidebar.muted }} />
           </button>
@@ -141,7 +143,7 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
             <button
               onClick={handleApply}
               className="px-4 py-2 text-sm rounded-lg font-medium"
-              style={{ backgroundColor: theme.sidebar.accent, color: theme.colors.void[950] }}
+              style={{ backgroundColor: theme.button.primary.bg, color: theme.button.primary.text }}
             >
               Apply
             </button>
