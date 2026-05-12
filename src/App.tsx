@@ -395,7 +395,7 @@ function App() {
   ]);
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 relative">
+    <div className="h-screen flex flex-col relative" style={{ backgroundColor: theme.sidebar.bg }}>
       {/* Hidden file input for Ctrl+O loading */}
       <input
         ref={fileInputRef}
@@ -417,14 +417,15 @@ function App() {
           mouse handlers). Until Task 3 lands, the wrapper is just hidden via the
           translate-up transform. */}
       <div
-        className={fullScreen ? 'absolute top-0 left-0 right-0 z-30' : 'relative'}
+        className={fullScreen ? 'absolute top-0 left-0 right-0' : 'relative'}
         style={
           fullScreen
             ? {
+                zIndex: theme.z.fsToolbar,
                 transform: toolbarHovered ? 'translateY(0)' : 'translateY(-100%)',
                 transition: prefersReducedMotion ? 'none' : 'transform 180ms ease',
                 paddingBottom: 24,
-                boxShadow: toolbarHovered ? '0 2px 12px rgba(0,0,0,0.15)' : 'none',
+                boxShadow: toolbarHovered ? theme.shadow.md : 'none',
               }
             : undefined
         }
@@ -486,8 +487,8 @@ function App() {
       {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
       {fullScreen && (
         <div
-          className="absolute top-0 left-0 right-0 z-20"
-          style={{ height: 12 }}
+          className="absolute top-0 left-0 right-0"
+          style={{ height: 12, zIndex: theme.z.hoverZone }}
           onMouseEnter={handleHoverZoneEnter}
         />
       )}
@@ -495,10 +496,13 @@ function App() {
       {/* Entry hint — disappears after 2.5s */}
       {fullScreen && showHint && (
         <div
-          className="absolute bottom-4 right-4 z-40 px-3 py-1.5 rounded-md text-xs pointer-events-none"
+          className="absolute bottom-4 right-4 px-3 py-1.5 rounded-md text-xs pointer-events-none"
           style={{
-            background: 'rgba(0, 0, 0, 0.75)',
-            color: 'white',
+            zIndex: theme.z.fsHint,
+            background: theme.sidebar.bg,
+            color: theme.sidebar.text,
+            border: `1px solid ${theme.sidebar.border}`,
+            boxShadow: theme.shadow.sm,
             transition: prefersReducedMotion ? 'none' : 'opacity 400ms ease',
           }}
         >
