@@ -46,8 +46,10 @@ export function ImageLightbox({ imageData, elementLabel, onClose }: ImageLightbo
         </div>
         <button
           onClick={onClose}
-          className="p-2 rounded-lg transition-colors hover:bg-white/10"
+          className="p-2 rounded-lg transition-colors"
           style={{ color: 'white' }}
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.10)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
         >
           <X size={24} />
         </button>

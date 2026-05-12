@@ -364,3 +364,13 @@ input[type="range"]:focus::-webkit-slider-thumb {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* ============================================
+   Settings Sidebar Row
+   ============================================ */
+
+.sidebar-row-hover:hover { background-color: var(--hover); }
+.sidebar-row-hover:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

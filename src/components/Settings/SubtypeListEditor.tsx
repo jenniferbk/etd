@@ -160,8 +160,10 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
       )}
       <button
         onClick={() => onRemove(subtype.id)}
-        className="p-1 rounded hover:bg-white/10"
+        className="p-1 rounded transition-colors"
         aria-label={`Remove subtype ${subtype.label}`}
+        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
       >
         <Trash2 size={14} style={{ color: theme.sidebar.muted }} />
       </button>

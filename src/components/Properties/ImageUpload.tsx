@@ -97,24 +97,36 @@ export function ImageUpload({
                 className="w-full h-20 object-contain rounded-lg border"
                 style={{ borderColor: theme.sidebar.border, backgroundColor: theme.sidebar.surface }}
               />
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-1">
+              <div
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-1"
+                style={{ backgroundColor: 'rgba(0, 0, 0, 0.50)' }}
+              >
                 <button
                   onClick={() => setShowCropModal(true)}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.20)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.30)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.20)'; }}
                   title="Crop image"
                 >
                   <Crop size={14} style={{ color: '#fff' }} />
                 </button>
                 <button
                   onClick={handleClick}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.20)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.30)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.20)'; }}
                   title="Replace image"
                 >
                   <Replace size={14} style={{ color: '#fff' }} />
                 </button>
                 <button
                   onClick={handleClear}
-                  className="p-1.5 rounded-lg bg-white/20 hover:bg-red-500/50 transition-colors"
+                  className="p-1.5 rounded-lg transition-colors"
+                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.20)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(178, 58, 72, 0.50)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.20)'; }}
                   title="Remove image"
                 >
                   <X size={14} style={{ color: '#fff' }} />
