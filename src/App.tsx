@@ -9,9 +9,8 @@ import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 import { parseTranscript } from './utils/transcriptParser';
 import { SAVE_SCHEMA_VERSION } from './utils/schema';
-import { TranscriptPanel } from './components/TranscriptPanel';
+import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
-import { PanelRightOpen } from 'lucide-react';
 import { theme } from './utils/theme';
 
 function App() {
@@ -466,20 +465,7 @@ function App() {
           {transcriptPanelOpen ? (
             <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
           ) : (
-            <button
-              type="button"
-              onClick={() => setTranscriptPanelOpen(true)}
-              title="Show transcript panel"
-              aria-label="Show transcript panel"
-              className="w-8 border-l flex items-start justify-center pt-4 hover:opacity-80"
-              style={{
-                background: theme.sidebar.bgGradient,
-                borderColor: theme.sidebar.border,
-                color: theme.sidebar.textSecondary,
-              }}
-            >
-              <PanelRightOpen size={16} />
-            </button>
+            <TranscriptClosedStrip onOpen={() => setTranscriptPanelOpen(true)} />
           )}
         </div>
       </div>
