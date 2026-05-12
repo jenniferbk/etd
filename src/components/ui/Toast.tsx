@@ -73,6 +73,7 @@ export function Toast({ toast, onDismiss }: ToastProps) {
       <button
         onClick={onDismiss}
         aria-label="Dismiss notification"
+        title="Dismiss"
         className="p-1 rounded transition-colors flex-shrink-0"
         style={{ color: theme.sidebar.textSecondary }}
         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
