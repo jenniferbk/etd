@@ -286,8 +286,8 @@ export function ImageCropModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.85)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ backgroundColor: theme.scrim, zIndex: theme.z.modal }}
       onClick={(e) => e.target === e.currentTarget && onCancel()}
     >
       <div
@@ -307,8 +307,8 @@ export function ImageCropModal({
               onClick={() => setLockAspectRatio(!lockAspectRatio)}
               className="p-2 rounded-lg transition-colors"
               style={{
-                backgroundColor: lockAspectRatio ? theme.sidebar.accent : theme.sidebar.surface,
-                color: lockAspectRatio ? 'white' : theme.sidebar.text,
+                backgroundColor: lockAspectRatio ? theme.button.primary.bg : theme.sidebar.surface,
+                color: lockAspectRatio ? theme.button.primary.text : theme.sidebar.text,
               }}
               title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
             >
@@ -316,16 +316,20 @@ export function ImageCropModal({
             </button>
             <button
               onClick={handleReset}
-              className="p-2 rounded-lg transition-colors hover:bg-[#3d3d5c]"
+              className="p-2 rounded-lg transition-colors"
               style={{ color: theme.sidebar.text }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
               title="Reset crop"
             >
               <RotateCcw size={18} />
             </button>
             <button
               onClick={onCancel}
-              className="p-2 rounded-lg transition-colors hover:bg-[#3d3d5c]"
+              className="p-2 rounded-lg transition-colors"
               style={{ color: theme.sidebar.text }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               <X size={18} />
             </button>
@@ -358,8 +362,10 @@ export function ImageCropModal({
           <div className="flex items-center gap-3">
             <button
               onClick={onCancel}
-              className="px-4 py-2 rounded-lg font-medium transition-colors hover:bg-[#3d3d5c]"
+              className="px-4 py-2 rounded-lg font-medium transition-colors"
               style={{ color: theme.sidebar.text }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               Cancel
             </button>
@@ -367,8 +373,8 @@ export function ImageCropModal({
               onClick={handleSave}
               className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
               style={{
-                backgroundColor: theme.sidebar.accent,
-                color: 'white',
+                backgroundColor: theme.button.primary.bg,
+                color: theme.button.primary.text,
               }}
             >
               <Check size={18} />
