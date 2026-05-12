@@ -15,6 +15,7 @@ import {
   ImagePlus,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
+import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { SAVE_SCHEMA_VERSION } from '../../utils/schema';
 import { AboutModal } from './AboutModal';
@@ -66,6 +67,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const [showAbout, setShowAbout] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const temporal = useTemporalStore();
+  const addToast = useToastStore((s) => s.addToast);
 
   const canUndo = temporal.pastStates.length > 0;
   const canRedo = temporal.futureStates.length > 0;
@@ -116,16 +118,16 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
           if (data.elements && data.connections) {
             loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig);
           } else {
-            alert('Invalid diagram file format');
+            addToast('error', 'Invalid diagram file format');
           }
         } catch {
-          alert('Failed to parse diagram file');
+          addToast('error', 'Failed to parse diagram file');
         }
       };
       reader.readAsText(file);
     } catch (err) {
       console.error('Failed to load file:', err);
-      alert(err instanceof Error ? err.message : 'Failed to load file');
+      addToast('error', err instanceof Error ? err.message : 'Failed to load file');
     }
     // Reset input so same file can be loaded again
     e.target.value = '';
@@ -136,7 +138,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
     await new Promise(resolve => setTimeout(resolve, 100));
     const stages = Konva.stages;
     if (stages.length === 0) {
-      alert('No canvas found to export');
+      addToast('error', 'No canvas found to export');
       return;
     }
     const stage = stages[0];
@@ -159,7 +161,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const handleExportSVG = async () => {
     await new Promise(resolve => setTimeout(resolve, 100));
     if (elements.length === 0) {
-      alert('No elements to export');
+      addToast('info', 'No elements to export yet.');
       return;
     }
     const svgContent = exportToSvg(elements, connections, styleConfig);
@@ -169,18 +171,18 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   // Export diagram as DiagramMix .diagramx (Level A MVP)
   const handleExportDiagramx = async () => {
     if (elements.length === 0) {
-      alert('No elements to export');
+      addToast('info', 'No elements to export yet.');
       return;
     }
     try {
       const json = exportToDiagramx(elements, connections, diagramName, styleConfig);
       downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
       if (hasEmbeddedImages(elements)) {
-        alert('Embedded images were dropped — DiagramMix does not support inline images.');
+        addToast('warning', 'Embedded images were dropped — DiagramMix does not support inline images.');
       }
     } catch (err) {
       console.error('.diagramx export failed:', err);
-      alert('Failed to export .diagramx');
+      addToast('error', 'Failed to export .diagramx');
     }
   };
 
@@ -194,7 +196,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
       });
     } catch (err) {
       console.error('PDF export failed:', err);
-      alert('Failed to export PDF');
+      addToast('error', 'Failed to export PDF');
     }
   };
 
