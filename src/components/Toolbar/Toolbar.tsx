@@ -20,6 +20,7 @@ import {
   Crosshair,
   Maximize2,
   Settings,
+  ImagePlus,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { theme } from '../../utils/theme';
@@ -35,6 +36,7 @@ import {
 import { Tooltip } from '../ui/Tooltip';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { computeExportBounds } from '../../utils/exportBounds';
+import { ImageImportModal } from './ImageImportModal';
 
 // Helper to create a safe filename from diagram name
 function toFilename(name: string): string {
@@ -68,6 +70,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showAbout, setShowAbout] = useState(false);
   const [exporting, setExporting] = useState<'png' | 'svg' | 'pdf' | 'diagramx' | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const temporal = useTemporalStore();
 
   const canUndo = temporal.pastStates.length > 0;
@@ -349,6 +352,11 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               tooltip="Load diagram"
               shortcut="Ctrl+O"
             />
+            <IconButton
+              onClick={() => setImportModalOpen(true)}
+              icon={ImagePlus}
+              tooltip="Import diagram from image"
+            />
             <input
               ref={fileInputRef}
               type="file"
@@ -471,6 +479,7 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
       </div>
 
       {showAbout && <AboutModal onClose={() => setShowAbout(false)} />}
+      <ImageImportModal open={importModalOpen} onClose={() => setImportModalOpen(false)} />
     </>
   );
 }
