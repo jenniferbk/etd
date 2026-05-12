@@ -166,10 +166,18 @@ export function ImageUpload({
         ) : (
           <button
             onClick={handleClick}
-            className="w-full py-3 px-4 rounded-lg border-2 border-dashed transition-all hover:border-[#60a5fa] hover:bg-[#60a5fa]/5 flex items-center justify-center gap-2"
+            className="w-full py-3 px-4 rounded-lg border-2 border-dashed transition-all flex items-center justify-center gap-2"
             style={{
               borderColor: theme.sidebar.border,
               color: theme.sidebar.muted,
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = theme.sidebar.accent;
+              e.currentTarget.style.backgroundColor = theme.colors.accent[50];
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = theme.sidebar.border;
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
             <ImagePlus size={16} />

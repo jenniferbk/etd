@@ -221,7 +221,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
         <kbd
           className="ml-auto px-1.5 py-0.5 text-[10px] rounded font-mono"
           style={{
-            backgroundColor: connectMode ? 'rgba(0,0,0,0.2)' : theme.sidebar.bg,
+            backgroundColor: connectMode ? 'rgba(61, 74, 50, 0.35)' : theme.sidebar.bg,
             color: connectMode ? theme.button.primary.text : theme.sidebar.muted,
           }}
         >

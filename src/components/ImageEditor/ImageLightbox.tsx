@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { X } from 'lucide-react';
+import { theme } from '../../utils/theme';
 
 interface ImageLightboxProps {
   imageData: string;
@@ -25,8 +26,8 @@ export function ImageLightbox({ imageData, elementLabel, onClose }: ImageLightbo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)', zIndex: theme.z.lightbox }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       {/* Header */}
