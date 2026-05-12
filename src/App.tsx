@@ -12,6 +12,7 @@ import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
+import { useToastStore } from './store/toastStore';
 import { theme } from './utils/theme';
 
 function App() {
@@ -206,7 +207,7 @@ function App() {
         const text = await file.text();
         const parsed = parseTranscript(text, file.name);
         if (parsed.lines.length === 0) {
-          alert(`No valid transcript lines found in ${file.name}.`);
+          useToastStore.getState().addToast('error', `No valid transcript lines found in ${file.name}.`);
           e.target.value = '';
           return;
         }
@@ -214,7 +215,7 @@ function App() {
         setTranscriptPanelOpen(true);
       } catch (err) {
         console.error('Failed to read transcript file:', err);
-        alert('Failed to read transcript file.');
+        useToastStore.getState().addToast('error', 'Failed to read transcript file.');
       }
       e.target.value = '';
     },

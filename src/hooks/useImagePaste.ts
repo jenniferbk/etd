@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { useToastStore } from '../store/toastStore';
 
 interface UseImagePasteOptions {
   onImagePaste: (imageData: string) => void;
@@ -22,7 +23,7 @@ export function useImagePaste({ onImagePaste, enabled = true }: UseImagePasteOpt
 
           // Validate size
           if (blob.size > 5 * 1024 * 1024) {
-            alert('Image must be less than 5MB');
+            useToastStore.getState().addToast('error', 'Image must be less than 5MB');
             return;
           }
 

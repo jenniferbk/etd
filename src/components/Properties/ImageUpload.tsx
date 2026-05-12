@@ -1,5 +1,6 @@
 import { useRef, useCallback, useState } from 'react';
 import { ImagePlus, X, Crop, Replace } from 'lucide-react';
+import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { ImageCropModal } from '../ImageEditor/ImageCropModal';
 import type { CropArea } from '../../types';
@@ -23,6 +24,7 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showCropModal, setShowCropModal] = useState(false);
+  const addToast = useToastStore((s) => s.addToast);
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,13 +33,13 @@ export function ImageUpload({
 
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select an image file');
+        addToast('error', 'Please select an image file');
         return;
       }
 
       // Validate file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image must be less than 5MB');
+        addToast('error', 'Image must be less than 5MB');
         return;
       }
 

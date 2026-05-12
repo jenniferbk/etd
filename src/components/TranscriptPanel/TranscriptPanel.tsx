@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { PanelRightClose, Search, FileText, Upload } from 'lucide-react';
 import { useDiagramStore } from '../../store';
+import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { parseTranscript } from '../../utils/transcriptParser';
 import { TranscriptPanelItem } from './TranscriptPanelItem';
@@ -14,6 +15,7 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
   const setTranscript = useDiagramStore((s) => s.setTranscript);
   const updateTranscriptLine = useDiagramStore((s) => s.updateTranscriptLine);
   const elements = useDiagramStore((s) => s.elements);
+  const addToast = useToastStore((s) => s.addToast);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Derived: which line indexes are "used" (referenced by at least one element).
@@ -82,14 +84,14 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
       const text = await file.text();
       const parsed = parseTranscript(text, file.name);
       if (parsed.lines.length === 0) {
-        alert(`No valid transcript lines found in ${file.name}.`);
+        addToast('error', `No valid transcript lines found in ${file.name}.`);
         e.target.value = '';
         return;
       }
       setTranscript(parsed);
     } catch (err) {
       console.error('Failed to read transcript file:', err);
-      alert('Failed to read transcript file.');
+      addToast('error', 'Failed to read transcript file.');
     }
     e.target.value = '';
   };
