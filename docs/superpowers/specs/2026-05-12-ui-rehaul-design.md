@@ -1,36 +1,40 @@
 # UI rehaul — design
 
 **Date:** 2026-05-12
-**Status:** Brainstorm complete; pending implementation plan
+**Status:** Brainstorm complete; adversarial review applied (v2); pending implementation plan
 **Brainstorm artifacts:** `.superpowers/brainstorm/45154-1778595783/content/` (mockups for each section)
 
 ## 1. Context
 
-The ETD editor's chrome — toolbar, side panels, properties strip, modals — has accreted across several feature additions (full-screen mode, connector routing, image import) and now feels overcrowded, generic, and stressful to work in. The primary users are Jennifer plus collaborating grad students and professors at other institutions, so the chrome should also feel professional when a collaborator opens the tool for the first time.
+The ETD editor's chrome — toolbar, side panels, properties strip, modals — has accreted across several feature additions (full-screen mode, connector routing, image import) and now feels overcrowded, generic, and stressful to work in. The primary users are Jennifer plus collaborating grad students and professors at other institutions, so the chrome should feel professional when a collaborator opens the tool for the first time.
 
 This rehaul replaces the chrome's visual language and tightens its layout. It does **not** touch the canvas, the rendered elements, or any functional behavior.
 
 ## 2. Goals
 
 - Lower the visual stress of the chrome. The interface should feel calm, organized, and unhurried.
-- Reduce toolbar density without removing any feature.
+- Reduce toolbar density without removing any feature, and without hiding workflow-critical actions.
 - Give the side panels and properties strip breathing room without changing the four-region layout.
-- Make the six modal overlays feel like one consistent family.
+- Make the modal overlays feel like one consistent family.
+- Replace inconsistent native dialogs (`alert()`, blocking modals where they don't fit) with a coherent notification + decision pattern.
 - Ship incrementally to jenkleiman.com — each PR independently shippable.
+- Meet WCAG AA for chrome text contrast.
 
 ## 3. Non-goals (sealed)
 
 These remain exactly as they are today and are off-limits to every PR in this rehaul:
 
-- **Canvas:** `#FFFFFF` background, `#E5E5E5` grid, gridSize/pan/zoom behavior.
+- **Canvas:** `#FFFFFF` background, `#E5E5E5` grid, gridSize / pan / zoom behavior.
 - **Element rendering:** contributor-colored borders (`#228B22` given, `#0000CD` student, `#CC0000` teacher, `#800080` joint, `#000000` implicit); white fills; cloud shape for implicit; dashed warrant attachments; element typography; underlined labels; embedded timestamps; embedded images.
 - **Support fills:** `#E0FFFF` (question), `#FFFACD` (other support).
-- **Functional behavior:** selection, drag, connect mode, undo/redo, save/load/export/import, auto-save, transcript parsing and linking, keyboard shortcuts.
+- **Connection rendering:** the in-canvas line styling for both finalized connections and the in-progress drag preview (Konva-rendered).
+- **Functional behavior:** selection, drag, connect mode, undo / redo, save / load / export / import, auto-save, transcript parsing and linking, keyboard shortcuts.
 - **Anything in `src/components/Canvas/**`** that renders shapes via Konva.
 - **`src/utils/colors.ts`** (the contributor + support color source of truth).
+- **The existing `StylePreview` component** at `src/components/Settings/StylePreview.tsx` — already Konva-based and faithful; the rehaul only restyles its outer wrapper.
 - **Configurable element styles** (deferred work — its own spec, `2026-04-26-configurable-element-styles-design.md`).
 
-When an element preview is shown *inside* chrome (the Settings modal's preview, palette pills, hypothetical thumbnails), the preview renders the element using the exact same rules Konva uses on the canvas. Sage Garden tokens never reach element rendering.
+When an element preview is shown *inside* chrome (the Settings modal's preview), it is rendered by the existing Konva `StylePreview`. Sage Garden tokens never reach element rendering.
 
 ## 4. Visual language — Sage Garden
 
@@ -38,24 +42,29 @@ A warm, sage-green light palette with clay accents. Replaces the current "Deep V
 
 ### 4.1 Palette tokens
 
-| Token | Hex | Use |
-|---|---|---|
-| `app-bg` | `#f4f7f1` | Outer app background, panel containers |
-| `chrome-bg` | `#f8faf4` | Toolbar, properties strip, modal body |
-| `sidebar-bg` | `#f0f4eb` | Palette, transcript panel, modal sidebars |
-| `border` | `#d6dfca` | Standard borders between chrome regions |
-| `border-strong` | `#c9d4be` | Outer frame edges, modal outlines |
-| `text` | `#2a3324` | Primary text |
-| `text-secondary` | `#4a5a3c` | Secondary text, labels |
-| `text-muted` | `#6b7a55` | Tertiary text, hints, captions |
-| `text-faint` | `#8a9778` | Uppercase group labels, empty-state hints |
-| `accent` | `#6b7c54` | Sage — primary buttons, focus rings, active states |
-| `accent-warm` | `#8a6f47` | Clay — secondary highlights only (sparing use) |
-| `hover` | `#e7ede0` | Icon button hover background |
-| `active` | `#dbe5cf` | Active toggle background |
-| `danger` | `#8a3a2a` | Destructive action text/border |
-| `danger-bg` | `#fbe6e0` | Destructive action hover background |
-| `danger-border` | `#e6c4b8` | Destructive button border |
+All text tokens below pass WCAG AA (≥4.5:1) against `chrome-bg` (`#f8faf4`) for normal text. Backgrounds and borders are decorative — no contrast minimum. Accent tokens are constrained to large-text and non-text uses (≥3:1).
+
+| Token | Hex | Contrast on `chrome-bg` | Use |
+|---|---|---|---|
+| `app-bg` | `#f4f7f1` | — | Outer app background, panel containers |
+| `chrome-bg` | `#f8faf4` | — | Toolbar, properties strip, modal body |
+| `sidebar-bg` | `#f0f4eb` | — | Palette, transcript panel, modal sidebars |
+| `border` | `#d6dfca` | — | Standard borders between chrome regions |
+| `border-strong` | `#c9d4be` | — | Outer frame edges, modal outlines |
+| `text` | `#2a3324` | 11.4:1 | Primary text |
+| `text-secondary` | `#4a5a3c` | 5.85:1 | Secondary text, labels, uppercase group labels, placeholder text |
+| `accent` | `#6b7c54` | ≥3:1 (non-text / large only) | Sage — primary buttons (used with white text), focus rings, active states. Not used as body text on chrome-bg. |
+| `accent-warm` | `#8a6f47` | ≥3:1 (non-text / large only) | Clay — secondary highlights, sparingly. Not used as body text. |
+| `hover` | `#e7ede0` | — | Icon button hover background |
+| `active` | `#dbe5cf` | — | Active toggle background |
+| `danger` | `#b23a48` | 5.6:1 | Destructive action text/border — saturated wine-red, distinguishable from sage `text` under red-green color deficiency by both hue and lightness |
+| `danger-bg` | `#fbe6e0` | — | Destructive action hover background |
+| `danger-border` | `#e6b8b8` | — | Destructive button border |
+| `focus-ring` | `#6b7c54` | — | 2px solid outline + 2px offset on every focusable chrome element |
+
+The previous draft included `text-muted` (`#6b7a55`, 3.55:1) and `text-faint` (`#8a9778`, 2.45:1). Both failed WCAG AA on `chrome-bg` and have been removed. Anywhere a "muted" or "faint" treatment is needed, use `text-secondary` instead — uppercase Label-scale typography (§4.2) already provides enough visual hierarchy without dropping contrast.
+
+**Destructive actions never rely on color alone.** Every destructive affordance combines `danger` with a lucide icon (`Trash2` for delete / clear) and an explicit text label or `aria-label` (e.g., "Delete element," "Clear diagram"). This protects users with color vision deficiency.
 
 ### 4.2 Typography
 
@@ -64,15 +73,15 @@ Single typeface: **Inter** (system fallback: `-apple-system, BlinkMacSystemFont,
 | Scale | Size | Weight | Use |
 |---|---|---|---|
 | Display | 28px | 600 | Empty-state headers, modal titles in large modals |
-| Title | 18px | 600 | Modal headers, About page section titles |
+| Title | 18px | 600 | Modal headers, About section titles |
 | Body | 14px | 400 | Default body, form inputs, button labels |
 | Small | 12px | 400 / 500 | Properties strip values, panel content |
-| Label | 11px | 500 | Uppercase group labels, `letter-spacing: 0.05–0.07em`, `text-transform: uppercase` |
+| Label | 11px | 500 | Uppercase group labels in `text-secondary`, `letter-spacing: 0.05–0.07em`, `text-transform: uppercase` |
 | Mono | 13px | 400 | Timestamps, code-like values |
 
 ### 4.3 Spacing scale
 
-Tailwind-aligned: `4 / 8 / 12 / 16 / 24 / 32 / 48`. Icon button padding: 8. Component padding: 12. Panel padding: 16. Section gap: 24. Modal body padding: 22 (between 16 and 24 for a more generous feel).
+Tailwind-aligned: `4 / 8 / 12 / 16 / 24 / 32 / 48`. Icon button padding: 8. Component padding: 12. Panel padding: 16. Section gap: 24. Modal body padding: 22.
 
 ### 4.4 Radius scale
 
@@ -90,35 +99,34 @@ Scrim color for modal overlays: `rgba(50, 65, 30, 0.32)` — sage-tinted darkeni
 
 ## 5. Toolbar
 
-A hybrid: 12 visible interactive affordances grouped into 4 clusters, plus an `Export ▾` dropdown and a `···` More overflow menu for the rest. Same icons (lucide-react) and handlers as today — only the layout and packaging change. The `100%` zoom indicator is a non-interactive display, not counted in the 12.
+A hybrid: 13 visible interactive affordances grouped into 4 clusters, plus an `Export ▾` dropdown and a `···` More overflow menu for the rest. Same icons (lucide-react) and handlers as today — only the layout and packaging change. The `100%` zoom indicator is a non-interactive display, not counted in the 13.
 
 ### 5.1 Visible affordances (left to right)
 
 | Group | Affordance | Notes |
 |---|---|---|
-| (Brand) | `ETD | <diagram name>` | Name remains an inline editable input |
+| (Brand) | `ETD \| <diagram name>` | Name remains an inline editable input |
 | History | Undo, Redo | `⌘Z`, `⇧⌘Z` |
 | File | Save, Open, Import-image, **Export ▾** | Export becomes a single dropdown button (4 variants behind it) |
-| View | Legend toggle, Transcript panel toggle | Active state uses `active` token |
+| View | Legend toggle, **Load transcript**, Transcript panel toggle | Load transcript is a session-start primary action for the research workflow and stays visible. Active state uses `active`. |
 | Zoom | Zoom out, `100%` indicator, Zoom in, Fit to window | `⌘-`, `⌘+`, `⌘0` |
 | Overflow | `···` More menu | Sage accent color |
 
-Group dividers: 1px vertical line in `border` token, 22px tall, 2–4px horizontal margin. Group labels appear on hover above the group (`text-faint`, uppercase, `letter-spacing: 0.08em`).
+Group dividers: 1px vertical line in `border` token, 22px tall, 2–4px horizontal margin. Group labels appear on hover above each group (`text-secondary`, uppercase, `letter-spacing: 0.08em`).
 
 ### 5.2 Export dropdown
 
-Opens below the Export button on click. Contains: Export as PNG, Export as SVG, Export as PDF, Export as DiagramMix (`.diagramx`). Same handlers as today. Styled as a 220px-wide popover with `shadow-md` and `border` outline.
+Opens below the Export button on click. Contains: Export as PNG, Export as SVG, Export as PDF, Export as DiagramMix (`.diagramx`). Same handlers as today. Styled as a 220px-wide popover with `shadow-md` and `border` outline. Closes on outside click, Escape, or item selection.
 
 ### 5.3 More menu
 
 Opens below the `···` button. Sections:
 
-- **Transcript:** Load transcript
 - **View:** Reset view (100%, centered)
 - **Settings:** Element styles, About & shortcuts (`?`)
 - **(separated, danger):** Clear diagram
 
-Visual treatment matches the Export dropdown. Destructive items get the danger token border and hover background.
+Four items. Closes on outside click, Escape, or item selection. Destructive items use `danger` border and `danger-bg` hover background. Keyboard navigation: arrow keys move focus, Enter activates, Esc closes.
 
 ### 5.4 Implementation hooks
 
@@ -131,141 +139,220 @@ Same four-region layout — toolbar top, palette left, canvas center, transcript
 
 ### 6.1 Palette (left, default 200px)
 
-- Sub-grouped with quiet uppercase headers: **Argument** (Data, Claim, Warrant, Backing, Qualifier, Rebuttal) and **Support** (Teacher action, Question, Other support).
+- Sub-grouped with quiet uppercase headers in `text-secondary`: **Argument** (Data, Claim, Warrant, Backing, Qualifier, Rebuttal) and **Support** (Teacher action, Question, Other support).
 - Element-type buttons are plain pills with the type label, white fill, `border` outline. **No invented type-color dots** — type buttons are unstyled labels.
 - Contributor section below the type pills, separated by a dashed `border` line. Contributor chips carry the actual contributor colors (`#228B22` green / `#0000CD` blue / `#CC0000` red / `#800080` purple / `#000000` black) as small circular dots.
 - Hover: pill background lightens to `chrome-bg`, border tightens to `border-strong`, `shadow-sm`.
 
 ### 6.2 Properties (bottom, height equal to filled-state)
 
-- Single horizontal row of field-pairs (Label / Value), each with a small uppercase label in `text-faint`.
+- Single horizontal row of field-pairs (Label / Value), each with a small uppercase Label-scale label in `text-secondary`.
 - Values are read-only chips except where editable — those become outlined inputs in `border`.
-- Duplicate / Delete buttons right-aligned. Delete uses danger styling.
-- **Empty state:** dashed-border placeholder, italic muted hint ("No element selected · click an element on the canvas to edit it"). Same height as filled state so the canvas doesn't jump.
+- Duplicate / Delete buttons right-aligned. Delete uses `danger` styling with a `Trash2` icon **and** the explicit "Delete" text label (color + icon + text — never color alone).
+- **Empty state:** dashed-border placeholder, italic hint in `text-secondary` ("No element selected · click an element on the canvas to edit it"). Same height as the filled state so the canvas doesn't jump.
 
-### 6.3 Transcript panel (right, default 280px when open, 28px closed strip)
+### 6.3 Transcript panel (right, default 280px open, 28px closed strip)
 
 - Header: "Transcript" title on the left, filename in mono on the right, separated from the body by `border`.
 - Search input always visible below the header.
 - Lines: small mono timestamp + line text. Linked-to-selected-element line uses `active` background. Hover uses `hover`.
 - Closed state: 28px vertical strip with rotated "Transcript ▸" label, `sidebar-bg`. Clickable to expand.
-- **Open-but-empty state:** centered icon + "No transcript loaded · load a .txt file to link argument elements to spoken lines" + inline "Load transcript" button.
+- **Open-but-empty state:** centered icon + "No transcript loaded · load a .txt file to link argument elements to spoken lines" + inline "Load transcript" button (mirrors the toolbar action).
+
+### 6.4 Dynamic chrome — marquee, cursors, hit-test overlays
+
+Several pieces of UI are dynamic and worth calling out so PR work doesn't accidentally restyle Konva-internal rendering:
+
+- **Marquee selection rectangle** (the rubber-band drawn while marquee-selecting): a chrome surface, not Konva. Restyle: 1px solid `accent` border + `accent` fill at 12% opacity (`rgba(107, 124, 84, 0.12)`).
+- **Connection-in-progress line** (Konva-rendered, follows the cursor while connecting): **sealed**, no change.
+- **Selection highlight on a Konva element** (rendered inside the stage when an element is selected): **sealed**, no change.
+- **Mode cursors:** crosshair while connect mode is active; grab / grabbing while panning. These are CSS `cursor` declarations on chrome wrappers, not Konva. The rehaul keeps the cursors but confirms they survive the styling sweep — no change in shape or behavior.
+- **Resize handles on canvas elements** (if present): Konva-rendered, sealed.
+
+Rule of thumb: anything drawn by Konva on the stage is sealed; anything outside the stage (CSS rectangles, HTML overlays, cursor declarations) is chrome.
 
 ## 7. Modals — shared frame
 
-A new `components/ui/Modal.tsx` component provides a shared frame for all six overlays:
+A new `components/ui/Modal.tsx` component provides a shared frame for every modal overlay:
 
-- **Header:** 16px / 22px padding, `app-bg`, `border` bottom. Title (16/600), subtitle in `text-muted`, close `×` button right-aligned with `hover` background.
+- **Header:** 16px / 22px padding, `app-bg`, `border` bottom. Title (16/600 in `text`), subtitle in `text-secondary`, close `×` button right-aligned with `hover` background.
 - **Body:** 22px padding, `chrome-bg`. May contain a left sidebar (Settings) or be a single column (About, Image Import).
-- **Footer:** 14px / 22px padding, `app-bg`, `border` top. Right-aligned buttons: primary (sage filled), secondary (white outlined), danger (clay outlined).
-- **Scrim:** `rgba(50, 65, 30, 0.32)`. Closing on scrim click is preserved from current behavior.
+- **Footer:** 14px / 22px padding, `app-bg`, `border` top. Right-aligned buttons: primary (sage filled), secondary (white outlined), danger (clay outlined with `Trash2` icon).
+- **Scrim:** `rgba(50, 65, 30, 0.32)`.
 - **Shadow:** `0 24px 60px rgba(50, 65, 30, 0.18)`.
 - **Border + radius:** 1px `border-strong`, 14px radius.
 
-Refitted in PR 4:
+### 7.1 Focus management
+
+The shared `Modal` component must implement standard modal accessibility:
+
+- **Focus trap.** When the modal opens, focus moves to the first interactive element inside (typically the primary button, or the close `×` if no primary). Tab and Shift+Tab cycle focus within the modal — focus never escapes.
+- **Return focus on close.** The element that triggered the modal regains focus when the modal closes.
+- **Escape closes.** Esc dismisses the modal as if the close `×` had been clicked, unless the modal opts out (e.g., Settings with unsaved changes confirms before close).
+- **Scrim click closes** — preserved from current behavior, with the same opt-out for unsaved changes.
+- **ARIA:** `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing at the title element.
+
+Existing modals partly implement these behaviors (Esc-to-close is wired in `App.tsx` lines 357–371). The shared `Modal` centralizes the rest so every refit gets the full treatment for free.
+
+### 7.2 Modal refits
 
 | Modal | Notes |
 |---|---|
-| Settings (Element styles) | Sidebar lists Argument / Support categories using the correct taxonomy. Main pane shows form fields and a **live preview** that renders the element using the actual Konva styling (white fill, contributor-colored border, etc.). |
-| About & shortcuts | Single column. Section headers in `text-faint` uppercase. Keyboard shortcuts use `<kbd>` styled as 2px-bottom-border chips. |
-| Image Import | Drop zone with dashed `border-strong`, sage hover. File picker preserved. Loading / error states use existing logic. |
+| Settings (Element styles) | Sidebar lists Argument / Support categories using the correct taxonomy. Main pane shows form fields. **Live preview is the existing `StylePreview` component** — already Konva-based and faithful; the rehaul only restyles its wrapper (contributor button row, frame border, label), not the preview itself. |
+| About & shortcuts | Single column. Section headers in `text-secondary` uppercase. Keyboard shortcuts use `<kbd>` styled as 2px-bottom-border chips. |
+| Image Import | Drop zone with dashed `border-strong`, sage hover. File picker preserved. Loading state preserved. Error states migrated from `alert()` to the new toast component (§9). |
 | Image Lightbox | Centered image, `shadow-lg`, scrim covers full viewport. Existing controls. |
 | Image Crop | Same frame. Crop tool styling preserved (operational, not decorative). |
-
-### 7.1 Recovery prompt — demoted to toast
-
-Today the recovery prompt is a center-screen modal that blocks the canvas. It becomes a bottom-corner toast:
-
-- 520px max width, bottom-right corner, 24px margin from edges.
-- `chrome-bg`, `border-strong` outline, 3px left border in `accent`.
-- Contents: small icon, title ("Unsaved work from your last session"), subtitle with timestamp + counts, Discard (secondary) + Restore (primary) buttons.
-- Dismissed only by clicking Discard or Restore — same decision points as the current modal, so no recovery-flow behavior changes. Toast persists across canvas interactions until the user chooses.
+| Recovery prompt | **Stays a modal** — must block the canvas because the user has not yet decided whether to restore or discard auto-saved work, and interacting with a stale or empty diagram before that decision risks confusion or data loss. Just adopts the Sage Garden frame. |
 
 ## 8. Empty states
 
 | Surface | Treatment |
 |---|---|
-| Canvas (empty diagram) | Faint centered hint inside the canvas grid: small left-arrow icon + "Drag an element from the palette to start. Or import from an image." Color `#aaa`, font-size 12. Disappears when first element is added. Rendered as an HTML overlay on top of the Konva stage — does **not** touch the Konva rendering layer. |
+| Canvas (empty diagram) | Faint centered hint inside the canvas viewport: small left-arrow icon + "Drag an element from the palette to start. Or import from an image." Color `#aaa`, font-size 12. Disappears when the first element is added. **Rendered as a sibling `<div>` to the Konva `<Stage>` inside `Canvas.tsx`, not as a child of the Stage.** The wrapper has `pointer-events: none` so it never intercepts canvas mouse / drag events. Its `z-index` sits above the canvas background but below any toolbar overlay. The Konva stage's rendering is not touched. |
 | Transcript open, none loaded | See §6.3. |
 | Properties, nothing selected | See §6.2. |
 | Palette | No empty state — always populated. |
 
-## 9. Full-screen toolbar
+## 9. Notifications + error states
 
-The existing full-screen hover toolbar (`App.tsx` lines 415–442) keeps its behavior (hover-reveal from the top, 180ms slide, F/Esc toggle) but adopts the new Sage Garden styling. Backdrop softens to `chrome-bg` with `shadow-md` instead of a heavy black drop-shadow. The entry hint pill becomes a sage toast in the bottom-right rather than the current black-pill style.
+Today the chrome uses three patterns inconsistently: `alert()` (Toolbar.tsx for export failures, "Invalid diagram file," "Failed to read transcript," etc.), modals (Recovery, Image Import error), and `confirm()` (Clear diagram, transcript-orphan check). A coherent rehaul replaces `alert()` with a shared toast component and keeps `confirm()` only where a true two-step decision is required.
 
-## 10. Implementation strategy
+### 9.1 Toast component
+
+A new `components/ui/Toast.tsx` plus a small `useToasts()` store hook:
+
+- Bottom-right corner, 24px from edges. Stacks vertically with 8px gap.
+- Per toast: 320–520px wide, `chrome-bg` background, `border-strong` outline, 3px left border in the variant color, `shadow-md`.
+- Variants: `info` (sage left border), `warning` (clay left border), `error` (`danger` left border).
+- Auto-dismiss after 5 seconds for `info` / `warning`; `error` toasts persist until manually dismissed.
+- Each toast has a close `×` button.
+- Click any non-button area of an `error` toast to copy its message to clipboard (for bug reports).
+
+### 9.2 What replaces what
+
+| Today | After |
+|---|---|
+| `alert('No elements to export')` (PNG / SVG / DiagramMix) | `info` toast: "No elements to export yet." |
+| `alert('Invalid diagram file format')` / `alert('Failed to parse diagram file')` | `error` toast: "Couldn't read that diagram file. Make sure it's a valid ETD JSON." |
+| `alert('Failed to read transcript file.')` | `error` toast: same wording. |
+| `alert('Embedded images were dropped — DiagramMix does not support inline images.')` | `warning` toast. |
+| `alert(err.message)` (image import / .drawing import failures) | `error` toast with the underlying message. |
+| `alert('Failed to load file')` / `alert('Failed to export PDF')` / `alert('Failed to export .diagramx')` | `error` toast for each. |
+| `confirm('Are you sure you want to clear the diagram?')` | **Stays a modal** — destructive, irreversible. Restyled in Sage Garden. |
+| `confirm('Loading a new transcript will orphan …')` | **Stays a modal** — same reasoning. |
+
+### 9.3 Implementation note
+
+`useToasts()` is a small Zustand store, mirroring the pattern of the existing `useLightboxStore`. A `<Toaster>` portal mounts once at the App root and reads from the store.
+
+## 10. Full-screen toolbar
+
+The existing full-screen hover toolbar (`App.tsx` lines 415–442) keeps its behavior (hover-reveal from the top, 180ms slide, F/Esc toggle) but adopts Sage Garden styling:
+
+- Wrapper background `chrome-bg`, `border-strong` bottom border, `shadow-md` (replaces the current hardcoded `rgba(0,0,0,0.15)` shadow).
+- Entry hint pill: `text` on `chrome-bg`, `border-strong` outline, `shadow-sm`, in the bottom-right — replaces the current hardcoded `rgba(0,0,0,0.75)` black pill with white text. Same 2.5s timeout and dismissal behavior.
+
+## 11. Implementation strategy
 
 Five incremental PRs, each independently shippable to jenkleiman.com. After each merge: build, copy to `~/Documents/GitHub/jenkleiman.com/public/tools/etd/`, commit and push to jenkleiman.com per the dual-repo dance in `CLAUDE.md`.
 
 ### PR 1 — Foundation: Sage Garden tokens
 
-- Rewrite `src/utils/theme.ts` to export the Sage Garden palette, type ramp, spacing, radii, shadows.
-- Grep for hardcoded Deep Void hex strings (`#050a14`, `#0a1019`, `#00f0ff`, `#141824`, etc.) and replace with token references. Most components already read from `theme.toolbar.*` / `theme.sidebar.*`.
-- **Touches:** `src/utils/theme.ts`, any component referencing Deep Void hexes directly.
-- **Off-limits:** `src/utils/colors.ts`, `src/components/Canvas/**`.
-- **Verify:** load `test_diagram.json`, confirm canvas + elements pixel-identical; chrome turns sage.
+The Deep Void → Sage Garden swap is wider than "change `theme.ts`." Several components inline hardcoded colors that survive a token swap, and a few use Tailwind color utilities. PR 1 addresses all of these so the app does not ship in a half-themed state.
+
+**Files known to need changes beyond `theme.ts`:**
+
+- `src/App.tsx`:
+  - `bg-gray-50` Tailwind class on the root `<div>` → replace with a `chrome-bg` (or `app-bg`) token style.
+  - Full-screen toolbar wrapper `boxShadow: '0 2px 12px rgba(0,0,0,0.15)'` → replace with `shadow-md`.
+  - Full-screen entry hint pill `background: 'rgba(0, 0, 0, 0.75)', color: 'white'` → replace with the sage-toned pill per §10.
+- `src/components/Toolbar/Toolbar.tsx`:
+  - `IconButton` danger hover `backgroundColor: 'rgba(239, 68, 68, 0.15)'` → `danger-bg` token.
+  - `IconButton` danger color reference `theme.colors.error` (currently `#ef4444`) → `danger` token (`#b23a48`).
+  - Any other inline color literal in this file.
+- Any component referencing `theme.colors.*` keys that are Deep-Void–specific (`error`, `success`, `accent.glow`, `highlight`, `secondary`, `void.*`): either renamed under the Sage palette or removed.
+
+**Tailwind decision.** Tailwind stays for layout primitives (`flex`, `gap-*`, `min-w-*`, `h-screen`, etc.) but Tailwind color classes (`bg-gray-*`, `text-*`, `border-gray-*`, etc.) are not used. All color comes from `theme.ts` tokens via inline style or CSS variables. PR 1 includes a sweep removing existing Tailwind color classes.
+
+**Touches:** `src/utils/theme.ts`, `src/App.tsx`, `src/components/Toolbar/Toolbar.tsx`, any other component the audit turns up.
+**Off-limits:** `src/utils/colors.ts`, `src/components/Canvas/**`.
+**Verify:** load `test_diagram.json`, confirm canvas + elements pixel-identical; chrome turns sage with no remnants of black shadow, red Tailwind, or `#ef4444`. Run an AA contrast check on the chrome (axe DevTools or equivalent) — no violations.
 
 ### PR 2 — Toolbar
 
 - Split `Toolbar.tsx` into `Toolbar` (orchestrator) + `ExportMenu.tsx` + `MoreMenu.tsx`.
-- Restructure into 4 visible groups with hover labels, Export dropdown, More menu.
-- **Touches:** `src/components/Toolbar/*`.
+- Restructure into 4 visible groups with **Load transcript visible** in the View group, plus Export dropdown and a 4-item More menu.
+- Implement keyboard navigation for the dropdowns (arrow keys, Enter, Esc, outside-click).
+- **Touches:** `src/components/Toolbar/*`, `src/App.tsx` (toolbar props).
 - **Off-limits:** Canvas/**, colors.ts.
-- **Verify:** every existing toolbar handler still wired; manual test of Save, Export-PNG, Load-transcript, Clear, etc.
+- **Verify:** every existing toolbar handler still wired; manual test of Save, Open, Import-image, each Export variant, Load transcript, Clear, Reset view, Settings, About; tab order through visible affordances is intuitive; dropdowns close on Escape and outside-click.
 
 ### PR 3 — Panels
 
 - Restyle Palette (group headers, plain pills, contributor chips with real colors).
-- Restyle Properties (single horizontal row, empty state).
+- Restyle Properties (single horizontal row, empty state, Delete-with-icon-and-text).
 - Restyle Transcript panel (header, search, line states, closed-strip vertical label, empty state).
-- **Touches:** `Palette/Palette.tsx`, `Properties/PropertiesPanel.tsx`, `TranscriptPanel/*.tsx`, layout glue in `App.tsx`.
+- Implement marquee selection styling per §6.4.
+- **Touches:** `Palette/Palette.tsx`, `Properties/PropertiesPanel.tsx`, `TranscriptPanel/*.tsx`, the marquee selection chrome (visual styling only), layout glue in `App.tsx`.
 - **Off-limits:** Canvas/**, colors.ts, element rendering.
-- **Verify:** drag-drop still works from palette; contributor selection preserved; transcript line-to-element linking unchanged.
+- **Verify:** drag-drop still works from palette; contributor selection preserved; transcript line-to-element linking unchanged; marquee selection still selects the same elements; AA contrast checks pass.
 
-### PR 4 — Modals
+### PR 4 — Modals + notifications
 
-- Extract shared `components/ui/Modal.tsx` (header / body / footer / scrim).
-- Refit Settings, About, Image Import, Image Lightbox, Image Crop.
-- Demote Recovery prompt to toast (`components/RecoveryToast.tsx`).
-- Settings preview renders an element with faithful styling (white fill, contributor border, etc.) — implemented as a small dedicated preview component that reads from `colors.ts` rather than reconstructing styling.
-- **Touches:** `+components/ui/Modal.tsx`, `Settings/*.tsx`, `Toolbar/AboutModal.tsx`, `Toolbar/ImageImportModal.tsx`, `ImageEditor/*.tsx`, `RecoveryPrompt.tsx` → `RecoveryToast.tsx`.
-- **Off-limits:** Canvas/**, colors.ts.
-- **Verify:** every modal still opens/closes; Settings edits still propagate to canvas; Image Import still uploads and parses; Recovery toast still restores correctly.
+This PR fixes the chrome's overlay system: shared frame for modals, shared toast component for notifications, and `alert()` replacement.
+
+- Extract shared `components/ui/Modal.tsx` (header / body / footer / scrim / focus trap per §7.1).
+- Build `components/ui/Toast.tsx` + `useToasts()` Zustand store + `<Toaster>` portal (§9).
+- Refit Settings, About, Image Import, Image Lightbox, Image Crop — all wrap their content in `Modal`.
+- Refit Recovery prompt with the Sage Garden modal frame (**stays a modal**; see §7.2).
+- Replace every `alert()` site per the §9.2 table.
+- Restyle the two surviving `confirm()` dialogs (Clear diagram, transcript-orphan) as Sage Garden confirmation modals using the shared `Modal` frame.
+- **Touches:** `+components/ui/Modal.tsx`, `+components/ui/Toast.tsx`, `+components/ui/Toaster.tsx`, `+store/toastStore.ts`, `Settings/*.tsx`, `Toolbar/AboutModal.tsx`, `Toolbar/ImageImportModal.tsx`, `ImageEditor/*.tsx`, `RecoveryPrompt.tsx`, anywhere `alert(` or `confirm(` is currently called.
+- **Off-limits:** Canvas/**, colors.ts, the existing `StylePreview` Konva component.
+- **Verify:** every modal opens / closes; focus traps cycle correctly; tab order inside modals is sensible; Esc closes; Settings edits propagate to canvas; Recovery still restores correctly; every former `alert()` site now shows a toast with the right variant; Clear diagram still requires explicit confirmation.
 
 ### PR 5 — Polish
 
-- Canvas empty-state HTML overlay (positioned absolutely above the Konva stage; does not touch the stage's rendering).
-- Properties + Transcript empty-state polish (final pass).
-- Full-screen toolbar Sage Garden restyle.
+- Canvas empty-state HTML overlay per §8 (sibling to Stage, `pointer-events: none`, isolated z-index).
+- Properties + Transcript empty-state final polish.
+- Full-screen toolbar Sage Garden restyle per §10.
 - Hover / focus / active / disabled state audit across all chrome.
-- **Touches:** `Canvas/Canvas.tsx` (overlay layer only — not rendered shapes), `TranscriptPanel/*`, `Properties/PropertiesPanel.tsx`, full-screen logic in `App.tsx`.
+- Cursor styles per §6.4 confirmed for each mode.
+- **Touches:** `Canvas/Canvas.tsx` (sibling DOM overlay only — not the Konva stage), `TranscriptPanel/*`, `Properties/PropertiesPanel.tsx`, full-screen logic in `App.tsx`.
 - **Off-limits:** Konva stage rendering, colors.ts.
-- **Verify:** empty-state hint disappears as soon as an element is added; full-screen entry/exit still smooth; tab focus order intact.
+- **Verify:** empty-state hint disappears as soon as an element is added; clicking on the empty canvas still works for drag-drop targeting (confirms `pointer-events: none` is correctly applied); full-screen entry / exit still smooth; tab focus order intact across the entire app.
 
-## 11. Safeguards
+## 12. Safeguards
 
-Each PR enforces three protections:
+Each PR enforces these protections:
 
-1. **Locked-file list.** PR descriptions list `src/components/Canvas/**` and `src/utils/colors.ts` as off-limits. Reviewer (Jennifer) verifies the diff doesn't touch them. PR 5 needs Canvas.tsx for the empty-state overlay — that exception is called out explicitly and the change is the addition of an HTML overlay layer outside the Konva stage.
+1. **Locked-file list.** PR descriptions list `src/components/Canvas/**` and `src/utils/colors.ts` as off-limits. Reviewer (Jennifer) verifies the diff doesn't touch them. PR 5 touches `Canvas/Canvas.tsx` to add an empty-state overlay — that exception is called out explicitly and is limited to adding a sibling `<div>` outside the Konva `<Stage>`.
 2. **Visual regression check.** Before merging each PR: load `test_diagram.json`, screenshot the canvas, diff against a pre-rehaul reference screenshot. Element rendering must be pixel-identical. Chrome difference is expected.
-3. **Token-driven boundary.** Chrome reads from `theme.ts`; element rendering reads from `colors.ts`. The two files stay disjoint — no value flows between them. The Settings preview achieves faithful element rendering by reading from `colors.ts`, not by replicating styling inside chrome code.
+3. **Token-driven boundary.** Chrome reads from `theme.ts`; element rendering reads from `colors.ts`. The two files stay disjoint — no value flows between them. The Settings preview achieves faithful element rendering by using the existing Konva `StylePreview` component.
+4. **Accessibility gate.** Each PR runs an automated AA contrast check (axe DevTools or equivalent) on the changed surfaces. PR 4 additionally verifies modal focus management with a manual keyboard-only run-through.
+5. **Behavior preservation.** Each PR's verify section enumerates the workflows that must still pass. No PR is merged until those workflows confirm.
 
-## 12. Open questions
+## 13. Open questions
 
-None at this time. All directional choices answered during brainstorm:
+None at this time. All directional choices answered during brainstorm and the Gemini adversarial review:
 
 - Aesthetic: Sage Garden (light, organic, calm).
-- Toolbar: hybrid — 12 visible + Export dropdown + More overflow.
+- Toolbar: hybrid — 13 visible (including Load transcript) + Export dropdown + 4-item More overflow.
 - Panels: keep 4-region layout, just breathe.
-- Scope: chrome only, canvas + elements sealed.
-- Intensity: considered rehaul (palette + toolbar + panels + modals + empty states + polish).
+- Scope: chrome only, canvas + elements + connection rendering sealed; HTML overlay is sibling-of-Stage with `pointer-events: none`.
+- Intensity: considered rehaul (palette + toolbar + panels + modals + notifications + empty states + polish).
+- Recovery: stays a modal.
 - Build: 5 incremental PRs.
+- Accessibility: WCAG AA contrast required for chrome text; destructive actions never color-alone.
+- Tablet / mobile: out of scope; deferred until requested.
 
-## 13. References
+## 14. References
 
-- Brainstorm mockups: `.superpowers/brainstorm/45154-1778595783/content/` (Section 1 visual language, Section 2 toolbar, Section 3 panels, Section 4 modals, Section 5 build, and the corrected-element-rendering screen).
+- Brainstorm mockups: `.superpowers/brainstorm/45154-1778595783/content/` (Section 1 visual language, Section 2 toolbar, Section 3 panels, Section 4 modals, Section 5 build, corrected-element-rendering screen).
+- Adversarial review (Gemini 2.5 Pro, 2026-05-12): conducted on the v1 draft; findings folded into v2.
 - Element rendering rules: `src/utils/colors.ts`, `docs/REQUIREMENTS.md` §2.2 and §2.3.
 - Existing theme tokens (to be replaced): `src/utils/theme.ts`.
+- Existing Settings preview (inherited unchanged): `src/components/Settings/StylePreview.tsx`.
 - Deferred work that may interact with this rehaul: `2026-04-26-configurable-element-styles-design.md`.
 - Project memories that constrain this work: `etd-design-decisions-anchor-on-annas-diagrams.md`, `etd-ui-rehaul-scope.md`, `etd-element-taxonomy.md`.
