@@ -246,8 +246,9 @@ export function ContextMenu({
         </>
       )}
 
-      {/* Convert to Support (for argument elements) */}
-      {elementType === 'argument' && onConvertToSupport && (
+      {/* Change Type (unified section for argument, support, and teacherSupport) */}
+      {(elementType === 'argument' || elementType === 'support' || elementType === 'teacherSupport') &&
+       (onConvertToArgument || onConvertToSupport) && (
         <>
           <div
             className="my-1 border-t"
@@ -256,49 +257,64 @@ export function ContextMenu({
           <div className="px-3 py-1 text-xs font-medium" style={{ color: theme.sidebar.muted }}>
             <div className="flex items-center gap-1">
               <ArrowRightLeft size={12} />
-              Convert to Support
+              Change Type
             </div>
           </div>
-          {SUPPORT_TYPES_FOR_CONVERT.map(({ type, label }) => (
-            <button
-              key={type}
-              onClick={() => {
-                onConvertToSupport(type);
-                onClose();
-              }}
-              className={`${menuItemClass} pl-6`}
-            >
-              {label}
-            </button>
-          ))}
-        </>
-      )}
-
-      {/* Convert to Argument (for support and teacherSupport elements) */}
-      {(elementType === 'support' || elementType === 'teacherSupport') && onConvertToArgument && (
-        <>
-          <div
-            className="my-1 border-t"
-            style={{ borderColor: theme.sidebar.border }}
-          />
-          <div className="px-3 py-1 text-xs font-medium" style={{ color: theme.sidebar.muted }}>
-            <div className="flex items-center gap-1">
-              <ArrowRightLeft size={12} />
-              Convert to Argument
-            </div>
-          </div>
-          {ARGUMENT_TYPES_FOR_CONVERT.map(({ type, label }) => (
-            <button
-              key={type}
-              onClick={() => {
-                onConvertToArgument(type);
-                onClose();
-              }}
-              className={`${menuItemClass} pl-6`}
-            >
-              {label}
-            </button>
-          ))}
+          {elementType === 'argument' ? (
+            <>
+              {/* Within-group: argument types */}
+              {onConvertToArgument && ARGUMENT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`arg-${type}`}
+                  onClick={() => { onConvertToArgument(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+              <div
+                className="mx-3 my-0.5 border-t opacity-50"
+                style={{ borderColor: theme.sidebar.border }}
+              />
+              {/* Cross-group: support types */}
+              {onConvertToSupport && SUPPORT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`sup-${type}`}
+                  onClick={() => { onConvertToSupport(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              {/* Within-group: support types */}
+              {onConvertToSupport && SUPPORT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`sup-${type}`}
+                  onClick={() => { onConvertToSupport(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+              <div
+                className="mx-3 my-0.5 border-t opacity-50"
+                style={{ borderColor: theme.sidebar.border }}
+              />
+              {/* Cross-group: argument types */}
+              {onConvertToArgument && ARGUMENT_TYPES_FOR_CONVERT.map(({ type, label }) => (
+                <button
+                  key={`arg-${type}`}
+                  onClick={() => { onConvertToArgument(type); onClose(); }}
+                  className={`${menuItemClass} pl-6`}
+                >
+                  {label}
+                </button>
+              ))}
+            </>
+          )}
         </>
       )}
     </div>
