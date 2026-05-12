@@ -1,5 +1,5 @@
-import { useMemo, useRef } from 'react';
-import { PanelRightClose } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { PanelRightClose, Search } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import { parseTranscript } from '../../utils/transcriptParser';
@@ -27,6 +27,19 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
     }
     return set;
   }, [elements, transcript]);
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredLines = useMemo(() => {
+    if (!transcript) return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return transcript.lines;
+    return transcript.lines.filter(
+      (line) =>
+        line.text.toLowerCase().includes(q) ||
+        (line.speaker?.toLowerCase().includes(q) ?? false),
+    );
+  }, [transcript, searchQuery]);
 
   const handleLoadClick = () => fileInputRef.current?.click();
 
@@ -160,8 +173,34 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
 
       {transcript && (
         <>
+          <div
+            className="px-3 py-2 border-b"
+            style={{ borderColor: theme.sidebar.border }}
+          >
+            <div className="relative">
+              <Search
+                size={14}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                style={{ color: theme.sidebar.muted }}
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search transcript…"
+                aria-label="Search transcript lines"
+                className="w-full pl-8 pr-2.5 py-1.5 text-sm rounded-md border transition-colors duration-150 focus:outline-none"
+                style={{
+                  backgroundColor: theme.input.bg,
+                  borderColor: theme.input.border,
+                  color: theme.input.text,
+                }}
+              />
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto">
-            {transcript.lines.map((line, idx) => (
+            {filteredLines.map((line, idx) => (
               <TranscriptPanelItem
                 key={line.index}
                 line={line}
@@ -180,6 +219,14 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
                 }
               />
             ))}
+            {filteredLines.length === 0 && searchQuery.trim() !== '' && (
+              <div
+                className="px-5 py-6 text-center text-sm italic"
+                style={{ color: theme.sidebar.textSecondary }}
+              >
+                No lines match "{searchQuery.trim()}".
+              </div>
+            )}
           </div>
         </>
       )}
