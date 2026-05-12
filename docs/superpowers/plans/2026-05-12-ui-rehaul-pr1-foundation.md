@@ -284,7 +284,7 @@ export const cssVars = {
 
 - [ ] **Step 3: Type-check**
 
-Run: `npm run typecheck`
+Run: `npx tsc --noEmit`
 Expected: passes. If any consumer references a `theme.*` key not present in the new file, fix that consumer (it should be one of the files in §"Targeted edits" — handled by later tasks).
 
 - [ ] **Step 4: Start dev server and visually confirm chrome turned sage**
@@ -384,7 +384,7 @@ Body / scrollbar / `::selection` selectors should now end up with light backgrou
 
 - [ ] **Step 4: Type-check + dev-server smoke check**
 
-Run: `npm run typecheck` (no errors).
+Run: `npx tsc --noEmit` (no errors).
 Reload the dev server tab. The body / html background should now be sage (`--app-bg`). Scrollbars should look light (browser default is fine if the file's scrollbar styling no longer makes sense).
 
 - [ ] **Step 5: Stage the two foundation files (no commit yet)**
@@ -495,7 +495,7 @@ style={{
 
 - [ ] **Step 5: Type-check + visual smoke**
 
-Run: `npm run typecheck`. Reload dev server. Open the app, enter full-screen (`F`), confirm:
+Run: `npx tsc --noEmit`. Reload dev server. Open the app, enter full-screen (`F`), confirm:
 - The page background is sage (no more grey-50).
 - The full-screen entry hint pill is now light (sage bg, dark text, subtle border), not the previous black/white pill.
 - Hovering the top of the screen reveals the toolbar correctly, with a subtle sage shadow instead of a dark black shadow.
@@ -554,7 +554,7 @@ style={{
 
 - [ ] **Step 3: Type-check + visual smoke**
 
-Run: `npm run typecheck`. Reload dev server. Hover the `Trash2` (Clear diagram) icon button in the toolbar — confirm it now shows a soft pink-clay hover (`#fbe6e0` bg + `#b23a48` icon) instead of the bright red of the Deep Void theme.
+Run: `npx tsc --noEmit`. Reload dev server. Hover the `Trash2` (Clear diagram) icon button in the toolbar — confirm it now shows a soft pink-clay hover (`#fbe6e0` bg + `#b23a48` icon) instead of the bright red of the Deep Void theme.
 
 - [ ] **Step 4: Stage**
 
@@ -629,7 +629,7 @@ style={index % 2 === 0 ? { backgroundColor: theme.sidebar.hover } : undefined}
 
 - [ ] **Step 4: Type-check + smoke**
 
-Run: `npm run typecheck`. Open the About modal from the toolbar (`Info` icon). Confirm: backdrop is sage-tinted (not pure black); alternating shortcut rows show subtle sage striping (not dark Catppuccin grey); close-button `×` hover shows a soft sage background.
+Run: `npx tsc --noEmit`. Open the About modal from the toolbar (`Info` icon). Confirm: backdrop is sage-tinted (not pure black); alternating shortcut rows show subtle sage striping (not dark Catppuccin grey); close-button `×` hover shows a soft sage background.
 
 - [ ] **Step 5: Stage**
 
@@ -773,7 +773,7 @@ Replace with:
 
 - [ ] **Step 8: Type-check + smoke**
 
-Run: `npm run typecheck`. Open the Import-image modal from the toolbar. Walk through each state (disclosure → picker → loading → error). Confirm:
+Run: `npx tsc --noEmit`. Open the Import-image modal from the toolbar. Walk through each state (disclosure → picker → loading → error). Confirm:
 - Modal frame is light sage with subtle border.
 - Buttons are dark-sage primary (`#3d4a32`) and white-with-sage-border secondary.
 - Progress bar fill is sage (`#6b7c54`).
@@ -820,7 +820,7 @@ onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
 
 - [ ] **Step 3: Type-check + smoke**
 
-Run: `npm run typecheck`. Open Settings modal (toolbar gear icon). Confirm: Save button is dark-sage with white text. Close `×` button shows a sage hover background.
+Run: `npx tsc --noEmit`. Open Settings modal (toolbar gear icon). Confirm: Save button is dark-sage with white text. Close `×` button shows a sage hover background.
 
 - [ ] **Step 4: Stage**
 
@@ -869,7 +869,7 @@ Replace with:
 
 - [ ] **Step 3: Type-check + smoke**
 
-Run: `npm run typecheck`. In Settings modal, click an Argument type (e.g. "Claim") and verify the contributor selector buttons render correctly: the active one is dark-sage with white text; the inactive ones are light with sage border. **Critical:** the Konva `<Stage>` element preview below (lines 92–140) must still render with `#0000CD` blue for the Student border, `#228B22` green for Given, etc. — that's the sealed Konva content. If those colors changed, you've touched the wrong lines.
+Run: `npx tsc --noEmit`. In Settings modal, click an Argument type (e.g. "Claim") and verify the contributor selector buttons render correctly: the active one is dark-sage with white text; the inactive ones are light with sage border. **Critical:** the Konva `<Stage>` element preview below (lines 92–140) must still render with `#0000CD` blue for the Student border, `#228B22` green for Given, etc. — that's the sealed Konva content. If those colors changed, you've touched the wrong lines.
 
 - [ ] **Step 4: Stage**
 
@@ -920,7 +920,7 @@ style={{
 
 - [ ] **Step 4: Type-check + smoke**
 
-Run: `npm run typecheck`. Open the palette sidebar, click the "Connect" button. Confirm:
+Run: `npx tsc --noEmit`. Open the palette sidebar, click the "Connect" button. Confirm:
 - Inactive state: light background, dark sage text.
 - Active state: dark sage background (`#3d4a32`), white text, soft sage shadow.
 
@@ -958,7 +958,7 @@ Replace with:
 
 - [ ] **Step 2: Type-check + smoke**
 
-Run: `npm run typecheck`. Manually trigger the recovery prompt by:
+Run: `npx tsc --noEmit`. Manually trigger the recovery prompt by:
 - In dev tools localStorage, set `etd-autosave` to a non-empty JSON object that matches the autosave schema (or simply create a diagram, refresh the page, accept any prompt that appears).
 - Confirm the scrim is sage-tinted (`rgba(50, 65, 30, 0.32)`) instead of the previous near-opaque black.
 - Confirm the modal body is still readable (it uses `theme.sidebar.bg` which now resolves to sage — the modal will already look much better).
@@ -991,7 +991,7 @@ const baseBg = altRow ? theme.sidebar.hover : theme.sidebar.surface;
 
 - [ ] **Step 2: Type-check + smoke**
 
-Run: `npm run typecheck`. Load a transcript via the toolbar. Confirm: transcript lines have a subtle alternating sage stripe instead of the previous dark-on-dark pattern.
+Run: `npx tsc --noEmit`. Load a transcript via the toolbar. Confirm: transcript lines have a subtle alternating sage stripe instead of the previous dark-on-dark pattern.
 
 - [ ] **Step 3: Stage**
 
@@ -1127,7 +1127,7 @@ onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 2
 
 - [ ] **Step 5: Type-check + smoke**
 
-Run: `npm run typecheck`. Smoke test:
+Run: `npx tsc --noEmit`. Smoke test:
 - Settings modal sidebar: tab through types, focus ring is visible (dark sage outline on light bg); hover an inactive type, see the sage hover bg.
 - SubtypeListEditor: the trash-button hover shows sage bg.
 - Image lightbox: open by clicking an element's image; close button hover still shows the white/10 highlight (dark backdrop unchanged).
@@ -1183,7 +1183,7 @@ className="tooltip-animate absolute left-1/2 -translate-x-1/2 px-2.5 py-1.5 text
 
 - [ ] **Step 2: Type-check + smoke**
 
-Run: `npm run typecheck`. Hover any toolbar button for ~500ms (delay default is 400ms). Confirm the tooltip appears with a soft sage-tinted shadow, not a heavy black drop shadow.
+Run: `npx tsc --noEmit`. Hover any toolbar button for ~500ms (delay default is 400ms). Confirm the tooltip appears with a soft sage-tinted shadow, not a heavy black drop shadow.
 
 - [ ] **Step 3: Stage**
 
@@ -1322,7 +1322,7 @@ If anything is broken, bisect by reverting individual file changes from the stag
 
 - [ ] **Step 2: Run lint + typecheck once more**
 
-Run: `npm run lint` and `npm run typecheck`. Both pass.
+Run: `npm run lint` and `npx tsc --noEmit`. Both pass.
 
 - [ ] **Step 3: Final grep verification**
 
