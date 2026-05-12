@@ -281,58 +281,54 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
           isExpanded={expandedSections.contributor}
         />
         {expandedSections.contributor && (
-          <div className="space-y-1 px-1">
-            {CONTRIBUTOR_TYPES.map(({ type, label, color }) => (
-              <label
-                key={type}
-                className="flex items-center gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-all duration-150"
-                style={{
-                  backgroundColor: selectedContributor === type ? theme.sidebar.surfaceHover : 'transparent',
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedContributor !== type) {
-                    e.currentTarget.style.backgroundColor = theme.sidebar.surface;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedContributor !== type) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }
-                }}
-              >
-                <input
-                  type="radio"
-                  name="contributor"
-                  value={type}
-                  checked={selectedContributor === type}
-                  onChange={() => setSelectedContributor(type)}
-                  className="sr-only"
-                />
-                <span
-                  className="w-5 h-5 rounded flex-shrink-0 transition-transform duration-150"
+          <div className="space-y-0.5 px-1">
+            {CONTRIBUTOR_TYPES.map(({ type, label, color }) => {
+              const isSelected = selectedContributor === type;
+              return (
+                <label
+                  key={type}
+                  className="flex items-center gap-2.5 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors duration-100"
                   style={{
-                    borderWidth: '3px',
-                    borderColor: color,
-                    borderStyle: type === 'student' ? 'dashed' : 'solid',
-                    transform: selectedContributor === type ? 'scale(1.1)' : 'scale(1)',
-                    boxShadow: selectedContributor === type ? `0 0 8px ${color}40` : 'none',
-                    // Note: CSS can't do dot-dash easily, so joint shows as solid in preview
+                    backgroundColor: isSelected ? theme.sidebar.surfaceActive : 'transparent',
                   }}
-                />
-                <span
-                  className="text-sm font-medium"
-                  style={{ color: selectedContributor === type ? theme.sidebar.text : theme.sidebar.textSecondary }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) e.currentTarget.style.backgroundColor = theme.sidebar.surfaceHover;
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
                 >
-                  {label}
-                </span>
-                {selectedContributor === type && (
-                  <span
-                    className="ml-auto w-2 h-2 rounded-full"
-                    style={{ backgroundColor: theme.sidebar.accent }}
+                  <input
+                    type="radio"
+                    name="contributor"
+                    value={type}
+                    checked={isSelected}
+                    onChange={() => setSelectedContributor(type)}
+                    className="sr-only"
                   />
-                )}
-              </label>
-            ))}
+                  <span
+                    aria-hidden="true"
+                    className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor: color,
+                      borderWidth: type === 'student' ? '1px' : '0',
+                      borderStyle: 'dashed',
+                      borderColor: color,
+                      boxShadow: isSelected ? `0 0 0 2px ${theme.sidebar.bg}, 0 0 0 3px ${color}` : 'none',
+                    }}
+                  />
+                  <span
+                    className="text-sm"
+                    style={{
+                      color: isSelected ? theme.sidebar.text : theme.sidebar.textSecondary,
+                      fontWeight: isSelected ? 500 : 400,
+                    }}
+                  >
+                    {label}
+                  </span>
+                </label>
+              );
+            })}
           </div>
         )}
       </div>
