@@ -55,6 +55,7 @@ export interface TranscriptPanelItemProps {
   line: TranscriptLine;
   transcriptId: string;
   used: boolean;
+  linkedToSelection: boolean;
   dismissed: boolean;
   altRow: boolean;
   onContributorChange: (value: ContributorType | null) => void;
@@ -66,6 +67,7 @@ export function TranscriptPanelItem({
   line,
   transcriptId,
   used,
+  linkedToSelection,
   dismissed,
   altRow,
   onContributorChange,
@@ -128,7 +130,8 @@ export function TranscriptPanelItem({
   // Alternating row backgrounds for scannability — subtle difference, not zebra-harsh.
   // Hover lifts the card to make the grab target obvious.
   const baseBg = altRow ? theme.sidebar.hover : theme.sidebar.surface;
-  const cardBg = isHovered && canDrag ? theme.sidebar.surfaceHover : baseBg;
+  const hoverBg = isHovered && canDrag ? theme.sidebar.surfaceHover : baseBg;
+  const cardBg = linkedToSelection ? theme.sidebar.surfaceActive : hoverBg;
 
   // Dropdowns: accent cyan border + input bg — readable but not drag-initiating.
   const dropdownStyle: React.CSSProperties = {
