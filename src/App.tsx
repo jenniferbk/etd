@@ -12,6 +12,7 @@ import { SAVE_SCHEMA_VERSION } from './utils/schema';
 import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
+import { ConfirmHost } from './components/ui/ConfirmHost';
 import { useToastStore } from './store/toastStore';
 import { theme } from './utils/theme';
 
@@ -525,6 +526,7 @@ function App() {
       )}
 
       <Toaster />
+      <ConfirmHost />
     </div>
   );
 }
