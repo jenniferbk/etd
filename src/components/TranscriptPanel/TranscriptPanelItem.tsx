@@ -127,7 +127,7 @@ export function TranscriptPanelItem({
 
   // Alternating row backgrounds for scannability — subtle difference, not zebra-harsh.
   // Hover lifts the card to make the grab target obvious.
-  const baseBg = altRow ? '#10141c' : theme.sidebar.surface;
+  const baseBg = altRow ? theme.sidebar.hover : theme.sidebar.surface;
   const cardBg = isHovered && canDrag ? theme.sidebar.surfaceHover : baseBg;
 
   // Dropdowns: accent cyan border + input bg — readable but not drag-initiating.
