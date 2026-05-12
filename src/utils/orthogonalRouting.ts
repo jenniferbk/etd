@@ -604,29 +604,16 @@ export function computeSharedTrunkY(
   }
 }
 
-// Return a map of connection.id → t (0..1) for entry along the target's edge.
-// N <= 2: all at 0.5 (overlap; spec choice). N >= 3: i+1 / N+1, sorted by source.center.y.
+// All convergent siblings enter the target at t=0.5 (its center). This makes
+// the final horizontal/vertical segment overlap across siblings, so the lines
+// visually merge into one before reaching the target — matching Anna's mental
+// model that multiple lines of reasoning unify on entry to a claim. The
+// shared trunk x is still computed separately by computeSharedTrunkX.
 export function computeEntryTValues(
   siblings: { conn: Connection; fromEl: DiagramElement }[],
   _target: DiagramElement,
 ): Map<string, number> {
   const out = new Map<string, number>();
-  const N = siblings.length;
-  if (N === 0) return out;
-
-  if (N <= 2) {
-    for (const s of siblings) out.set(s.conn.id, 0.5);
-    return out;
-  }
-
-  const sorted = [...siblings].sort((a, b) => {
-    const ay = a.fromEl.position.y + a.fromEl.size.height / 2;
-    const by = b.fromEl.position.y + b.fromEl.size.height / 2;
-    return ay - by;
-  });
-
-  sorted.forEach((s, i) => {
-    out.set(s.conn.id, (i + 1) / (N + 1));
-  });
+  for (const s of siblings) out.set(s.conn.id, 0.5);
   return out;
 }

@@ -189,23 +189,23 @@ describe('computeEntryTValues', () => {
     expect(map.get('2')).toBe(0.5);
   });
 
-  it('returns evenly-spread t values for N=3, ordered by source.center.y', () => {
+  it('returns t=0.5 for all connections when N=3 (entries merge into one line)', () => {
     const target = claimBox(500, 200);
-    const top    = dataBox(100, 50,  80, 60);   // center y = 80
-    const middle = dataBox(100, 200, 80, 60);   // center y = 230
-    const bottom = dataBox(100, 400, 80, 60);   // center y = 430
+    const top    = dataBox(100, 50,  80, 60);
+    const middle = dataBox(100, 200, 80, 60);
+    const bottom = dataBox(100, 400, 80, 60);
     const sibs = [
       { conn: { id:'middle', from:'m', to:'t', type:'support' as const }, fromEl: middle },
       { conn: { id:'top',    from:'a', to:'t', type:'support' as const }, fromEl: top },
       { conn: { id:'bottom', from:'b', to:'t', type:'support' as const }, fromEl: bottom },
     ];
     const map = computeEntryTValues(sibs, target);
-    expect(map.get('top')).toBeCloseTo(0.25);
-    expect(map.get('middle')).toBeCloseTo(0.5);
-    expect(map.get('bottom')).toBeCloseTo(0.75);
+    expect(map.get('top')).toBe(0.5);
+    expect(map.get('middle')).toBe(0.5);
+    expect(map.get('bottom')).toBe(0.5);
   });
 
-  it('returns evenly-spread t values for N=4', () => {
+  it('returns t=0.5 for all connections when N=4', () => {
     const target = claimBox(500, 200);
     const ss = [
       dataBox(100, 0,   80, 60),
@@ -218,15 +218,15 @@ describe('computeEntryTValues', () => {
       fromEl,
     }));
     const map = computeEntryTValues(sibs, target);
-    expect(map.get('s0')).toBeCloseTo(0.2);
-    expect(map.get('s1')).toBeCloseTo(0.4);
-    expect(map.get('s2')).toBeCloseTo(0.6);
-    expect(map.get('s3')).toBeCloseTo(0.8);
+    expect(map.get('s0')).toBe(0.5);
+    expect(map.get('s1')).toBe(0.5);
+    expect(map.get('s2')).toBe(0.5);
+    expect(map.get('s3')).toBe(0.5);
   });
 });
 
 describe('computeConnectionPath — Rule 2 integration', () => {
-  it('aligns 3 left-side convergent trunks to the same x and spreads entries', () => {
+  it('aligns 3 left-side convergent trunks to the same x and merges entries at target.center.y', () => {
     const target: DiagramElement = claimBox(1000, 500, 200, 200);  // target spans y=500..700, center y=600
     const s1 = { ...dataBox(100, 100, 80, 60), id: 's1' };   // center y = 130
     const s2 = { ...dataBox(100, 400, 80, 60), id: 's2' };   // center y = 430
@@ -253,12 +253,10 @@ describe('computeConnectionPath — Rule 2 integration', () => {
     expect(p1[2]).toBe(p2[2]);
     expect(p2[2]).toBe(p3[2]);
 
-    // Entry y values spread along target's left edge:
-    // target.top=500, height=200, N=3 → t=0.25,0.5,0.75 → y=550,600,650.
-    // Sources sorted by center y: s1 (top, 130), s2 (mid, 430), s3 (bot, 730).
-    expect(p1[p1.length - 1]).toBe(550);
+    // All three enter at target.center.y = 600 (merged entry, no spread).
+    expect(p1[p1.length - 1]).toBe(600);
     expect(p2[p2.length - 1]).toBe(600);
-    expect(p3[p3.length - 1]).toBe(650);
+    expect(p3[p3.length - 1]).toBe(600);
   });
 
   it('N=2 convergent: both enter at target.center.y (no spread)', () => {
