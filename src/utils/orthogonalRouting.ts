@@ -32,6 +32,23 @@ export function resolveAnchor(el: DiagramElement, anchor: EdgeAnchor): Position 
   }
 }
 
+// Offset a point along the line from `from` towards `towards` by `distance` px.
+// Clamps the offset to 40% of the segment length so the dot can't cross the midpoint.
+// Returns `from` unchanged when the segment has zero length.
+export function offsetAlongLine(
+  from: { x: number; y: number },
+  towards: { x: number; y: number },
+  distance: number,
+): { x: number; y: number } {
+  const dx = towards.x - from.x;
+  const dy = towards.y - from.y;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  if (len === 0) return from;
+  // Clamp to 40% of segment length so the dot can't cross the midpoint.
+  const offset = Math.min(distance, len * 0.4);
+  return { x: from.x + (offset / len) * dx, y: from.y + (offset / len) * dy };
+}
+
 export function determineFacingEdge(self: DiagramElement, other: DiagramElement): BoxEdge {
   const sCx = self.position.x + self.size.width / 2;
   const sCy = self.position.y + self.size.height / 2;

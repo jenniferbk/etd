@@ -14,6 +14,7 @@ import {
   computeConnectionPath,
   determineFacingEdge,
   pointerToAnchorT,
+  offsetAlongLine,
 } from '../../../utils/orthogonalRouting';
 
 const MIN_SEGMENT_PX = 4;
@@ -200,8 +201,10 @@ export function ConnectionArrow({
   const upDispatcher = useRef(() => handlerRefs.current.up?.()).current;
   const blurDispatcher = useRef(() => handlerRefs.current.blur?.()).current;
 
-  // Refresh closure-captured handlers every render so they see the latest
+  // Effect A: refresh handler closures every render so they see the latest
   // dragOverride at mouseup. Stable dispatchers (above) read through these refs.
+  // No cleanup — leaving listeners attached across renders is correct (the
+  // dispatcher refs read .current and pick up the latest handler).
   useEffect(() => {
     handlerRefs.current.move = (e: MouseEvent | TouchEvent) => {
       const drag = dragRef.current;
@@ -307,11 +310,15 @@ export function ConnectionArrow({
       window.removeEventListener('touchend', upDispatcher);
       window.removeEventListener('blur', blurDispatcher);
     };
+  });
 
-    // Cleanup on unmount: if a drag is in progress, remove the window listeners
-    // that handleSegmentDragStart attached so they don't fire after unmount and
-    // call setState on a dead component or mutate a deleted connection.
-    // Don't call setDragOverride(null) here — the component is unmounting.
+  // Effect B: unmount-only cleanup. If a drag is in flight when the connection
+  // is removed from the tree, tear down the window listeners so they don't fire
+  // against a dead component.
+  // Don't call setDragOverride(null) here — the component is unmounting.
+  // moveDispatcher/upDispatcher/blurDispatcher are stable (useRef.current) — safe to omit.
+  /* eslint-disable react-hooks/exhaustive-deps */
+  useEffect(() => {
     return () => {
       if (dragRef.current) {
         window.removeEventListener('mousemove', moveDispatcher);
@@ -322,7 +329,8 @@ export function ConnectionArrow({
         dragRef.current = null;
       }
     };
-  });
+  }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   let pathResult = getConnectionPathPoints(connection, elements, connections);
   if (pathResult && !isAttachment && (dragOverride || anchorDragOverride)) {
@@ -638,74 +646,89 @@ export function ConnectionArrow({
           }
 
           {/* Edge-anchor handles (Task 16) + hover-× reset badge (Task 18) */}
-          {!isAttachment && (isHovered || isSelected) && !connectModeActive && (
-            <>
-              {/* Source-side anchor handle */}
-              <Circle
-                x={pathPoints[0]}
-                y={pathPoints[1]}
-                radius={5}
-                fill="#3B82F6"
-                stroke="#FFFFFF"
-                strokeWidth={1.5}
-                onMouseDown={(e) => handleAnchorDragStart('from', e)}
-                onTouchStart={(e) => handleAnchorDragStart('from', e)}
-                onMouseEnter={() => setHoveredAnchor('from')}
-                onMouseLeave={() => setHoveredAnchor(null)}
-              />
-              {hoveredAnchor === 'from' && connection.fromAnchor && (
-                <Text
-                  x={pathPoints[0] + 8}
-                  y={pathPoints[1] - 14}
-                  text="×"
-                  fontSize={14}
-                  fill="#666666"
-                  onClick={(e) => {
-                    e.cancelBubble = true;
-                    updateConnectionAnchor(connection.id, 'from', undefined);
-                    setHoveredAnchor(null);
-                  }}
-                  onTap={(e) => {
-                    e.cancelBubble = true;
-                    updateConnectionAnchor(connection.id, 'from', undefined);
-                    setHoveredAnchor(null);
-                  }}
+          {!isAttachment && (isHovered || isSelected) && !connectModeActive && (() => {
+            // Offset anchor dots 12px inward along the line so they're visible
+            // above the element boxes (which render on top of connectors).
+            const ANCHOR_HANDLE_OFFSET = 12;
+            const fromAnchorPos = offsetAlongLine(
+              { x: pathPoints[0], y: pathPoints[1] },
+              { x: pathPoints[2], y: pathPoints[3] },
+              ANCHOR_HANDLE_OFFSET,
+            );
+            const toAnchorPos = offsetAlongLine(
+              { x: pathPoints[pathPoints.length - 2], y: pathPoints[pathPoints.length - 1] },
+              { x: pathPoints[pathPoints.length - 4], y: pathPoints[pathPoints.length - 3] },
+              ANCHOR_HANDLE_OFFSET,
+            );
+            return (
+              <>
+                {/* Source-side anchor handle */}
+                <Circle
+                  x={fromAnchorPos.x}
+                  y={fromAnchorPos.y}
+                  radius={5}
+                  fill="#3B82F6"
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5}
+                  onMouseDown={(e) => handleAnchorDragStart('from', e)}
+                  onTouchStart={(e) => handleAnchorDragStart('from', e)}
+                  onMouseEnter={() => setHoveredAnchor('from')}
+                  onMouseLeave={() => setHoveredAnchor(null)}
                 />
-              )}
-              {/* Target-side anchor handle */}
-              <Circle
-                x={pathPoints[pathPoints.length - 2]}
-                y={pathPoints[pathPoints.length - 1]}
-                radius={5}
-                fill="#3B82F6"
-                stroke="#FFFFFF"
-                strokeWidth={1.5}
-                onMouseDown={(e) => handleAnchorDragStart('to', e)}
-                onTouchStart={(e) => handleAnchorDragStart('to', e)}
-                onMouseEnter={() => setHoveredAnchor('to')}
-                onMouseLeave={() => setHoveredAnchor(null)}
-              />
-              {hoveredAnchor === 'to' && connection.toAnchor && (
-                <Text
-                  x={pathPoints[pathPoints.length - 2] + 8}
-                  y={pathPoints[pathPoints.length - 1] - 14}
-                  text="×"
-                  fontSize={14}
-                  fill="#666666"
-                  onClick={(e) => {
-                    e.cancelBubble = true;
-                    updateConnectionAnchor(connection.id, 'to', undefined);
-                    setHoveredAnchor(null);
-                  }}
-                  onTap={(e) => {
-                    e.cancelBubble = true;
-                    updateConnectionAnchor(connection.id, 'to', undefined);
-                    setHoveredAnchor(null);
-                  }}
+                {hoveredAnchor === 'from' && connection.fromAnchor && (
+                  <Text
+                    x={fromAnchorPos.x + 8}
+                    y={fromAnchorPos.y - 14}
+                    text="×"
+                    fontSize={14}
+                    fill="#666666"
+                    onClick={(e) => {
+                      e.cancelBubble = true;
+                      updateConnectionAnchor(connection.id, 'from', undefined);
+                      setHoveredAnchor(null);
+                    }}
+                    onTap={(e) => {
+                      e.cancelBubble = true;
+                      updateConnectionAnchor(connection.id, 'from', undefined);
+                      setHoveredAnchor(null);
+                    }}
+                  />
+                )}
+                {/* Target-side anchor handle */}
+                <Circle
+                  x={toAnchorPos.x}
+                  y={toAnchorPos.y}
+                  radius={5}
+                  fill="#3B82F6"
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5}
+                  onMouseDown={(e) => handleAnchorDragStart('to', e)}
+                  onTouchStart={(e) => handleAnchorDragStart('to', e)}
+                  onMouseEnter={() => setHoveredAnchor('to')}
+                  onMouseLeave={() => setHoveredAnchor(null)}
                 />
-              )}
-            </>
-          )}
+                {hoveredAnchor === 'to' && connection.toAnchor && (
+                  <Text
+                    x={toAnchorPos.x + 8}
+                    y={toAnchorPos.y - 14}
+                    text="×"
+                    fontSize={14}
+                    fill="#666666"
+                    onClick={(e) => {
+                      e.cancelBubble = true;
+                      updateConnectionAnchor(connection.id, 'to', undefined);
+                      setHoveredAnchor(null);
+                    }}
+                    onTap={(e) => {
+                      e.cancelBubble = true;
+                      updateConnectionAnchor(connection.id, 'to', undefined);
+                      setHoveredAnchor(null);
+                    }}
+                  />
+                )}
+              </>
+            );
+          })()}
         </>
       )}
 

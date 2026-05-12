@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT, offsetAlongLine } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -338,5 +338,30 @@ describe('pointerToAnchorT', () => {
     const el = dataBox(0, 0, 100, 100);
     expect(pointerToAnchorT({ x: 0, y: -500 }, el, 'left')).toBe(0);
     expect(pointerToAnchorT({ x: 0, y: 5000 }, el, 'left')).toBe(1);
+  });
+});
+
+describe('offsetAlongLine', () => {
+  it('offsets along the line by the given distance', () => {
+    const result = offsetAlongLine({ x: 0, y: 0 }, { x: 100, y: 0 }, 12);
+    expect(result).toEqual({ x: 12, y: 0 });
+  });
+
+  it('clamps offset to 40% of segment length', () => {
+    const result = offsetAlongLine({ x: 0, y: 0 }, { x: 10, y: 0 }, 12);
+    // segment length 10; max offset = 4.
+    expect(result).toEqual({ x: 4, y: 0 });
+  });
+
+  it('returns from-point unchanged when from == towards (zero-length segment)', () => {
+    const result = offsetAlongLine({ x: 5, y: 5 }, { x: 5, y: 5 }, 12);
+    expect(result).toEqual({ x: 5, y: 5 });
+  });
+
+  it('handles diagonal segments correctly (unit-direction scaling)', () => {
+    // segment from (0,0) to (3,4), length 5; offset 1 → (0.6, 0.8)
+    const result = offsetAlongLine({ x: 0, y: 0 }, { x: 3, y: 4 }, 1);
+    expect(result.x).toBeCloseTo(0.6);
+    expect(result.y).toBeCloseTo(0.8);
   });
 });
