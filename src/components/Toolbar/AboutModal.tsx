@@ -1,4 +1,4 @@
-import { X, Keyboard } from 'lucide-react';
+import { X, Keyboard, Sparkles } from 'lucide-react';
 import { theme } from '../../utils/theme';
 
 interface AboutModalProps {
@@ -6,6 +6,17 @@ interface AboutModalProps {
 }
 
 export function AboutModal({ onClose }: AboutModalProps) {
+  const features: string[] = [
+    'Build Extended Toulmin diagrams by dragging from the palette to the canvas.',
+    'Six argument types (claim, data, warrant, backing, qualifier, rebuttal), three support types (action, question, other), and an info box for episode metadata.',
+    'Argument contributors: Given, Teacher, Student, Joint, Implicit. Support contributors: Teacher, Student. Border colors and styles reflect the contributor.',
+    'Orthogonal connectors auto-route in Manhattan paths. Drag segment midpoints to reshape; drag edge anchors to slide endpoints along a box. Hover an anchor to reset.',
+    'Warrants and rebuttals attach perpendicularly to the data→claim arrow they qualify.',
+    'Save / load JSON, import DiagramMix .drawing files, or import from a photo of a hand-drawn diagram (sent to Google Gemini for extraction — see the Import image dialog for details).',
+    'Export to PDF, PNG, SVG, or .diagramx — output covers the full diagram, not just what’s visible on screen.',
+    'Full-screen mode (press F) hides the chrome for distraction-free review.',
+  ];
+
   const shortcuts = [
     { keys: 'Ctrl/Cmd + Z', action: 'Undo' },
     { keys: 'Ctrl/Cmd + Shift + Z', action: 'Redo' },
@@ -16,9 +27,10 @@ export function AboutModal({ onClose }: AboutModalProps) {
     { keys: 'Ctrl/Cmd + +', action: 'Zoom in' },
     { keys: 'Ctrl/Cmd + -', action: 'Zoom out' },
     { keys: 'Ctrl/Cmd + 0', action: 'Fit to view' },
+    { keys: 'F', action: 'Toggle full-screen' },
     { keys: 'C', action: 'Toggle connect mode' },
     { keys: 'Delete / Backspace', action: 'Delete selected' },
-    { keys: 'Escape', action: 'Cancel / Deselect' },
+    { keys: 'Escape', action: 'Cancel / Deselect / Exit full-screen' },
   ];
 
   return (
@@ -31,7 +43,7 @@ export function AboutModal({ onClose }: AboutModalProps) {
 
       {/* Modal */}
       <div
-        className="relative w-full max-w-lg mx-4 rounded-xl shadow-2xl overflow-hidden"
+        className="relative w-full max-w-2xl mx-4 rounded-xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
         style={{ backgroundColor: theme.sidebar.bg }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -55,13 +67,13 @@ export function AboutModal({ onClose }: AboutModalProps) {
           </button>
         </div>
 
-        {/* Content */}
-        <div className="px-6 py-4 space-y-6">
+        {/* Content (scrollable) */}
+        <div className="px-6 py-4 space-y-6 overflow-y-auto">
           {/* Version Info */}
           <div>
             <p style={{ color: theme.sidebar.text }}>
               <span className="font-medium">Version:</span>{' '}
-              <span style={{ color: theme.sidebar.muted }}>1.0.0</span>
+              <span style={{ color: theme.sidebar.muted }}>1.4 (May 2026)</span>
             </p>
           </div>
 
@@ -77,17 +89,35 @@ export function AboutModal({ onClose }: AboutModalProps) {
               className="text-sm leading-relaxed"
               style={{ color: theme.sidebar.muted }}
             >
-              App coding and design by{' '}
+              App design and coding by{' '}
               <span style={{ color: theme.sidebar.accent }}>
                 Jennifer Kleiman
-              </span>{' '}
-              <br />
+              </span>.<br />
               Based on the Extended Toulmin Framework developed by{' '}
               <span style={{ color: theme.sidebar.accent }}>
                 AnnaMarie Conner
               </span>{' '}
               for analyzing mathematical argumentation in classroom discourse.
             </p>
+          </div>
+
+          {/* Features */}
+          <div>
+            <h3
+              className="text-sm font-medium mb-3 flex items-center gap-2"
+              style={{ color: theme.sidebar.text }}
+            >
+              <Sparkles size={16} />
+              Features
+            </h3>
+            <ul
+              className="text-sm leading-relaxed space-y-1.5 list-disc pl-5"
+              style={{ color: theme.sidebar.muted }}
+            >
+              {features.map((feature, i) => (
+                <li key={i}>{feature}</li>
+              ))}
+            </ul>
           </div>
 
           {/* Keyboard Shortcuts */}
