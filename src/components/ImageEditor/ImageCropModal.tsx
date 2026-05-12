@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, RotateCcw, Check, Lock, Unlock } from 'lucide-react';
+import { RotateCcw, Check, Lock, Unlock } from 'lucide-react';
 import { theme } from '../../utils/theme';
+import { Modal } from '../ui/Modal';
 import type { CropArea } from '../../types';
 
 interface ImageCropModalProps {
@@ -274,115 +275,85 @@ export function ImageCropModal({
     onSave(crop);
   }, [crop, onSave]);
 
-  // Close on escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-      if (e.key === 'Enter') handleSave();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onCancel, handleSave]);
-
   return (
-    <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ backgroundColor: theme.scrim, zIndex: theme.z.modal }}
-      onClick={(e) => e.target === e.currentTarget && onCancel()}
-    >
-      <div
-        className="rounded-xl shadow-2xl max-w-[90vw] max-h-[90vh] overflow-hidden"
-        style={{ backgroundColor: theme.sidebar.bg }}
-      >
-        {/* Header */}
-        <div
-          className="flex items-center justify-between px-5 py-4 border-b"
-          style={{ borderColor: theme.sidebar.border }}
-        >
-          <h2 className="text-lg font-semibold" style={{ color: theme.sidebar.text }}>
-            Crop Image
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setLockAspectRatio(!lockAspectRatio)}
-              className="p-2 rounded-lg transition-colors"
-              style={{
-                backgroundColor: lockAspectRatio ? theme.button.primary.bg : theme.sidebar.surface,
-                color: lockAspectRatio ? theme.button.primary.text : theme.sidebar.text,
-              }}
-              title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
-            >
-              {lockAspectRatio ? <Lock size={18} /> : <Unlock size={18} />}
-            </button>
-            <button
-              onClick={handleReset}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: theme.sidebar.text }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              title="Reset crop"
-            >
-              <RotateCcw size={18} />
-            </button>
-            <button
-              onClick={onCancel}
-              className="p-2 rounded-lg transition-colors"
-              style={{ color: theme.sidebar.text }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-
-        {/* Canvas */}
-        <div ref={containerRef} className="p-6">
-          <canvas
-            ref={canvasRef}
-            width={canvasSize.width}
-            height={canvasSize.height}
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            className="rounded-lg shadow-lg"
-            style={{ display: 'block' }}
-          />
-        </div>
-
-        {/* Footer */}
-        <div
-          className="flex items-center justify-between px-5 py-4 border-t"
-          style={{ borderColor: theme.sidebar.border }}
-        >
-          <p className="text-sm" style={{ color: theme.sidebar.muted }}>
+    <Modal
+      open
+      onClose={onCancel}
+      title="Crop Image"
+      size="xl"
+      initialFocus="primary"
+      headerExtras={
+        <>
+          <button
+            onClick={() => setLockAspectRatio(!lockAspectRatio)}
+            className="p-2 rounded transition-colors"
+            style={{
+              backgroundColor: lockAspectRatio ? theme.button.primary.bg : 'transparent',
+              color: lockAspectRatio ? theme.button.primary.text : theme.sidebar.textSecondary,
+            }}
+            onMouseEnter={(e) => {
+              if (!lockAspectRatio) e.currentTarget.style.backgroundColor = theme.sidebar.hover;
+            }}
+            onMouseLeave={(e) => {
+              if (!lockAspectRatio) e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+            title={lockAspectRatio ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
+          >
+            {lockAspectRatio ? <Lock size={18} /> : <Unlock size={18} />}
+          </button>
+          <button
+            onClick={handleReset}
+            className="p-2 rounded transition-colors"
+            style={{ color: theme.sidebar.textSecondary }}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            title="Reset crop"
+          >
+            <RotateCcw size={18} />
+          </button>
+        </>
+      }
+      footer={
+        <>
+          <p className="text-xs mr-auto" style={{ color: theme.sidebar.textSecondary }}>
             Drag corners to resize, drag inside to move
           </p>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 rounded-lg font-medium transition-colors"
-              style={{ color: theme.sidebar.text }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
-              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-              style={{
-                backgroundColor: theme.button.primary.bg,
-                color: theme.button.primary.text,
-              }}
-            >
-              <Check size={18} />
-              Apply Crop
-            </button>
-          </div>
-        </div>
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            style={{
+              backgroundColor: theme.button.secondary.bg,
+              color: theme.button.secondary.text,
+              border: `1px solid ${theme.button.secondary.border}`,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            data-modal-focus="primary"
+            className="px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors"
+            style={{ backgroundColor: theme.button.primary.bg, color: theme.button.primary.text }}
+          >
+            <Check size={18} />
+            Apply Crop
+          </button>
+        </>
+      }
+    >
+      <div ref={containerRef} className="p-6">
+        <canvas
+          ref={canvasRef}
+          width={canvasSize.width}
+          height={canvasSize.height}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          className="rounded-lg"
+          style={{ display: 'block', boxShadow: theme.shadow.md }}
+        />
       </div>
-    </div>
+    </Modal>
   );
 }
