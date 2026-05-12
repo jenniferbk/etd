@@ -1,7 +1,7 @@
 # UI rehaul — design
 
 **Date:** 2026-05-12
-**Status:** Brainstorm complete; two adversarial review passes applied (v3); pending implementation plan
+**Status:** Brainstorm complete; three adversarial review passes applied (v4); pending implementation plan
 **Brainstorm artifacts:** `.superpowers/brainstorm/45154-1778595783/content/` (mockups for each section)
 
 ## 1. Context
@@ -63,7 +63,8 @@ All text tokens below pass WCAG AA (≥4.5:1) against `chrome-bg` (`#f8faf4`) fo
 | `danger` | `#b23a48` | 5.6:1 | Destructive action text/border — saturated wine-red, distinguishable from sage `text` under red-green color deficiency by both hue and lightness |
 | `danger-bg` | `#fbe6e0` | — | Destructive action hover background |
 | `danger-border` | `#e6b8b8` | — | Destructive button border |
-| `focus-ring` | `#2a3324` | 11.4:1 on chrome / ≥4.5:1 on hover & active | 2px solid outline + 2px offset on every focusable chrome element. Uses `text` value so the ring is visible against every chrome background, including `hover` (`#e7ede0`) and `active` (`#dbe5cf`). |
+| `focus-ring` | `#2a3324` | 11.4:1 on chrome / ≥4.5:1 on hover & active | 2px solid `outline` + **2px `outline-offset`** on every focusable chrome element. The offset places the ring outside the focused element, so the ring's contrast is measured against the element's **parent background**, not the element itself. This is mandatory — implementations must use `outline-offset: 2px` (or larger) so the ring lands on chrome-bg / app-bg, not on the element. |
+| `focus-ring-on-dark` | `#FFFFFF` | 16:1 on `accent-strong` | Fallback for the rare case where the parent background is dark (`accent-strong` or darker). Used when a focused element sits flush against a dark surface and offset cannot place the ring on a light parent. Implemented via `outline-color: white` for that specific element. |
 
 **Text on hover and active backgrounds:** the `hover` and `active` background tokens are too light for `text-secondary` (`#4a5a3c`) to pass AA. When chrome elements (icon buttons, dropdown items, palette pills) display text on a `hover` or `active` background, the text uses the `text` token (`#2a3324`), which passes AA against both backgrounds.
 
@@ -213,7 +214,10 @@ The shared `Modal` component must implement standard modal accessibility:
 
 - **Focus trap.** When the modal opens, focus moves to the first interactive element inside (typically the primary button, or the close `×` if no primary). Tab and Shift+Tab cycle focus within the modal — focus never escapes.
 - **Initial focus for destructive confirmations.** Confirmation modals where one path is destructive (Clear diagram, transcript-orphan) initially focus the **non-destructive** option (Cancel) so a stray Enter cannot trigger destruction.
-- **Return focus on close.** The element that triggered the modal regains focus when the modal closes. **Fallback:** if the triggering element no longer exists or is no longer focusable (e.g., it was inside a now-closed More menu), focus returns to the originating toolbar group's first focusable button. If that is also unavailable, focus moves to `document.body` and the modal manager records a console warning in development builds.
+- **Return focus on close.** The element that triggered the modal regains focus when the modal closes. **Fallback chain (each step falls through if the prior is unavailable):**
+  1. The triggering element, if it still exists in the DOM and is focusable.
+  2. The originating toolbar group's first focusable button (when the trigger was inside a now-closed dropdown / More menu).
+  3. `document.body` — used for **modals opened programmatically without a user action**, such as the Recovery prompt that opens on app load. The modal manager records a console warning in development builds noting which step of the chain was used, so unintended fallbacks are visible.
 - **Escape closes.** Esc dismisses the modal as if the close `×` had been clicked. For confirmation modals with a destructive action, Esc behaves as Cancel (never confirms). Modals with unsaved changes (Settings) prompt before close.
 - **Scrim click closes** — preserved from current behavior, with the same opt-out for unsaved changes.
 - **ARIA:** `role="dialog"`, `aria-modal="true"`, `aria-labelledby` pointing at the title element.
@@ -241,7 +245,7 @@ Single-button "OK"-style dismissals are reserved for informational modals (none 
 | Image Import | Drop zone with dashed `border-strong`, sage hover. File picker preserved. Loading state preserved. Error states migrated from `alert()` to the new toast component (§9). |
 | Image Lightbox | Centered image, `shadow-lg`, scrim covers full viewport. Existing controls. |
 | Image Crop | Same frame. Crop tool styling preserved (operational, not decorative). |
-| Recovery prompt | **Stays a modal** — must block the canvas because the user has not yet decided whether to restore or discard auto-saved work, and interacting with a stale or empty diagram before that decision risks confusion or data loss. Just adopts the Sage Garden frame. |
+| Recovery prompt | **Stays a modal** — must block the canvas because the user has not yet decided whether to restore or discard auto-saved work, and interacting with a stale or empty diagram before that decision risks confusion or data loss. Adopts the Sage Garden frame. **Initial focus on Restore** (the more likely intended action and the safer accidental-Enter outcome — Restore preserves work and can be reversed by saving over; Discard permanently destroys auto-saved state). Note: the Recovery prompt is not a destructive-confirm in the §7.1.1 sense — Discard is the destructive action and it is the secondary button. Focus follows the §7.1 chain on close, falling through to `document.body` since the prompt opens without a triggering element. |
 
 ## 8. Empty states
 
@@ -264,12 +268,13 @@ A new `components/ui/Toast.tsx` plus a small `useToasts()` store hook:
 - Per toast: 320–520px wide, `chrome-bg` background, `border-strong` outline, 3px left border in the variant color, `shadow-md`.
 - Variants: `info` (sage left border), `warning` (clay left border), `error` (`danger` left border).
 - **Dismiss policy:** `info` toasts auto-dismiss after 5 seconds. `warning` and `error` toasts persist until manually dismissed — warnings often contain actionable information (e.g., "Embedded images were dropped from the DiagramMix export") that a user may need to read after the moment.
+- **Stacking limit:** maximum **4 persistent toasts** visible at once (warning + error combined). If a 5th persistent toast would appear, the oldest existing persistent toast is auto-dismissed (FIFO) to make room. `info` toasts don't count toward the limit since they auto-dismiss quickly. In development builds, the eviction logs a console warning so the team notices noisy error paths.
 - Each toast has a close `×` button (top-right inside the toast frame).
 - **Copy:** `error` toasts have a small "Copy" button next to the close `×`. Click copies the error text to the clipboard for bug reports. No click-anywhere-to-copy behavior — that conflicts with selection and accidental clicks.
 
 ### 9.2 What replaces what
 
-PR 4 must **replace every call to `alert()` in the codebase** with a toast of the appropriate variant. The table below is illustrative, not exhaustive — verification is `grep -rn "alert(" src/` returning zero results after PR 4.
+PR 4 must **replace every call to `alert()` in the codebase** with a toast of the appropriate variant. The table below is illustrative, not exhaustive — verification is `grep -rEn '\balert\(' src/` returning zero results after PR 4. The same grep is added as a pre-commit hook so new `alert()` calls can't slip in via future commits.
 
 **Known sites (16, verified 2026-05-12):**
 
@@ -302,7 +307,27 @@ PR 4 must **replace every call to `alert()` in the codebase** with a toast of th
 
 ### 9.3 Implementation note
 
-`useToasts()` is a small Zustand store, mirroring the pattern of the existing `useLightboxStore`. A `<Toaster>` portal mounts once at the App root and reads from the store.
+`useToasts()` is a new Zustand store at `src/store/toastStore.ts`. It follows the project's Zustand conventions (see `useLightboxStore` for the file-layout pattern), but its **state shape is a list, not a singleton** — the lightbox store handles a single image at a time, whereas the toast store manages a queue of zero-to-many concurrent toasts.
+
+Expected shape:
+
+```ts
+type ToastVariant = 'info' | 'warning' | 'error';
+interface Toast {
+  id: string;          // nanoid or crypto.randomUUID()
+  variant: ToastVariant;
+  message: string;
+  createdAt: number;   // for FIFO eviction at the 4-persistent cap
+}
+interface ToastState {
+  toasts: Toast[];
+  addToast: (variant: ToastVariant, message: string) => string; // returns id
+  dismissToast: (id: string) => void;
+  clearAll: () => void;
+}
+```
+
+A `<Toaster>` portal mounts once at the App root, subscribes to `toasts`, and renders each toast positioned per §9.1. `addToast` enforces the 4-persistent cap by evicting the oldest persistent toast (FIFO) when a 5th would exceed it.
 
 ## 10. Full-screen toolbar
 
@@ -325,7 +350,13 @@ The Deep Void → Sage Garden swap is wider than "change `theme.ts`." Several co
 2. Audit every component for hardcoded hex literals, `rgba()` values, Tailwind color utilities, and references to removed `theme.colors.*` keys.
 3. Migrate every find to the new tokens.
 
-Verification command after the audit: `grep -rn "#[0-9a-fA-F]\{3,8\}\|rgba(\|theme\.colors\.\(void\|error\|success\|accent\.glow\|highlight\|secondary\)\|bg-gray\|text-gray\|border-gray\|bg-blue\|text-blue\|bg-red\|text-red\|bg-zinc\|text-zinc\|bg-\[#\|text-\[#\|hover:bg-\[" src/` should return only canvas/element-rendering hits (which are sealed) — every chrome match must be migrated.
+Verification command after the audit (uses `grep -E` for portable POSIX-extended regex):
+
+```bash
+grep -rEn '#[0-9a-fA-F]{3,8}|rgba\(|theme\.colors\.(void|error|success|accent\.glow|highlight|secondary)|bg-(gray|blue|red|zinc|slate)|text-(gray|blue|red|zinc|slate)|border-gray|bg-\[#|text-\[#|hover:bg-\[|ring-|divide-|\bz-[0-9]+\b' src/
+```
+
+The grep must return only canvas / element-rendering hits — every other match is a chrome site that needs migration. Hits inside the sealed paths (`src/components/Canvas/**`, `src/utils/colors.ts`, and the Konva-rendered portions of `StylePreview.tsx`) are expected and don't block the PR. Optional hardening: add the same grep as a pre-commit hook with the sealed paths excluded, so future commits can't reintroduce forbidden patterns to chrome.
 
 **Known sites to migrate (verified by code-read 2026-05-12, not exhaustive):**
 
@@ -339,11 +370,17 @@ Verification command after the audit: `grep -rn "#[0-9a-fA-F]\{3,8\}\|rgba(\|the
 | `src/components/Settings/SettingsModal.tsx:144` | `theme.colors.void[950]` → token. |
 | `src/components/Settings/StylePreview.tsx` | `theme.colors.void[950]` (line 84); `theme.sidebar.muted` / `surface` / `text` / `border` / `accent` (lines 73, 82–83, 93, 142–144). Migrate wrapper styling; the Konva-rendered preview content stays unchanged. |
 | `src/components/Palette/Palette.tsx` | `theme.colors.void[950]` (lines 202, 225); `theme.colors.accent.glow` (line 203). Migrate. |
+| `src/components/RecoveryPrompt.tsx` | Uses `theme.sidebar.*` extensively for the (currently dark) modal styling. Even though PR 4 wraps this in the shared Modal frame, PR 1 must migrate the inline styles so the prompt doesn't look broken between PR 1 and PR 4 ships. |
+| `src/components/ui/Tooltip.tsx` | Inferred from Toolbar's use of `<Tooltip>`. Audit and migrate any color references. |
+| `src/App.tsx` (closed transcript strip) | Uses `theme.sidebar.bgGradient`, `theme.sidebar.border`, `theme.sidebar.textSecondary` for the closed-state strip rendering (lines ~470–480). Migrate to chrome tokens. |
 
 **Tailwind rule (concrete).** The following Tailwind classes are **forbidden** anywhere in the codebase after PR 1:
 
 - Any class setting `color`, `background-color`, `border-color`, `ring-color`, `outline-color`, `fill`, `stroke`, or `accent-color`. This includes named-color utilities (`bg-blue-600`, `text-gray-700`, `border-red-500`, etc.), arbitrary-value color utilities (`bg-[#45475a]`, `text-[#313244]`), and color-from-variable utilities.
 - Opacity modifiers on color utilities (`bg-opacity-*`, `text-opacity-*`, `/50`, `/75`, etc.) — color and opacity together come from `rgba()` values or pre-computed tokens.
+- **The entire `ring-*` utility family** (`ring`, `ring-2`, `ring-offset-*`, etc.). These set a ring with a default color via CSS variables — banned to prevent invisible color leakage. Use the `focus-ring` token implemented via plain CSS `outline` + `outline-offset` instead.
+- **The entire `divide-*` utility family** (`divide-y`, `divide-x`, `divide-gray-200`, etc.). Same reason — implicit color via variables. Use explicit borders from the `border` token.
+- **The entire `z-*` utility family** (`z-0`, `z-10`, `z-20`, `z-30`, `z-50`, etc.). The z-index ladder in §4.6 is the single source of truth — all layering uses named tokens, never Tailwind utilities. App.tsx currently uses `z-20`, `z-30`, `z-40`; PR 1 migrates these to `z-hover-zone`, `z-fs-toolbar`, `z-fs-hint`.
 - `dark:*` variants of any of the above (the app does not implement a dark mode).
 
 The following Tailwind utilities are **permitted**:
@@ -436,7 +473,7 @@ None at this time. All directional choices answered during brainstorm and two Ge
 ## 14. References
 
 - Brainstorm mockups: `.superpowers/brainstorm/45154-1778595783/content/` (Section 1 visual language, Section 2 toolbar, Section 3 panels, Section 4 modals, Section 5 build, corrected-element-rendering screen).
-- Adversarial reviews (Gemini 2.5 Pro, 2026-05-12): v1 draft reviewed → v2; v2 reviewed → v3. Both rounds folded in.
+- Adversarial reviews (Gemini 2.5 Pro, 2026-05-12): v1 reviewed → v2; v2 reviewed → v3; v3 reviewed → v4. All three rounds folded in.
 - Element rendering rules: `src/utils/colors.ts`, `docs/REQUIREMENTS.md` §2.2 and §2.3.
 - Existing theme tokens (to be replaced): `src/utils/theme.ts`, `src/index.css` (`:root` CSS custom properties).
 - Existing Settings preview (Konva content unchanged; wrapper migrates): `src/components/Settings/StylePreview.tsx`.
