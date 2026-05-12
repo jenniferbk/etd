@@ -1,68 +1,73 @@
 /**
- * Deep Void Theme
- * Matching jenkleiman.com aesthetic - deep dark with cyan accents
+ * Sage Garden Theme
+ * Light, warm, calm. Replaces the previous Deep Void dark theme.
+ * Canvas + element rendering are intentionally not part of this theme — they
+ * live in src/utils/colors.ts and stay sealed.
  */
 
 export const theme = {
-  // Core palette - matching jenkleiman.com
+  // Core palette — Sage Garden tokens
   colors: {
-    // Deep void tones
+    // Compatibility shim: void.* mapped to sage values so any stray caller
+    // doesn't crash. Call sites that referenced void.* are migrated to
+    // theme.colors.text.primary by the targeted-edit tasks; this object will
+    // be deleted in a future cleanup.
     void: {
-      950: '#030509',    // Deepest
-      900: '#050a14',    // Primary background (dark-bg)
-      850: '#0a1019',    // Slightly elevated
-      800: '#141824',    // Surface (dark-surface)
-      700: '#1a2030',    // Hover states
-      600: '#1f2937',    // Borders (dark-border)
-      500: '#2a3548',    // Elevated borders
-      400: '#374151',    // Subtle elements
+      950: '#2a3324', // was deepest black, now darkest sage = primary text
+      900: '#2a3324',
+      850: '#4a5a3c',
+      800: '#4a5a3c',
+      700: '#6b7c54',
+      600: '#d6dfca',
+      500: '#c9d4be',
+      400: '#c9d4be',
     },
-    // Text hierarchy
+    // Text hierarchy — all pass WCAG AA on chrome-bg #f8faf4
     text: {
-      primary: '#f3f4f6',    // Primary text (gray-100)
-      secondary: '#d1d5db',  // Secondary (gray-300)
-      tertiary: '#9ca3af',   // Tertiary (gray-400)
-      muted: '#6b7280',      // Muted (gray-500)
+      primary: '#2a3324',    // 11.4:1
+      secondary: '#4a5a3c',  // 5.85:1
+      tertiary: '#4a5a3c',   // collapsed to secondary (old tertiary failed AA)
+      muted: '#4a5a3c',      // collapsed to secondary (old muted failed AA)
     },
-    // Cyan accent - bioluminescent blue
+    // Accent — sage with strong variant for buttons (white text on accentStrong = 9.8:1)
     accent: {
-      50: '#ecfeff',
-      100: '#cffafe',
-      200: '#a5f3fc',
-      300: '#67e8f9',
-      400: '#22d3ee',
-      500: '#00f0ff',   // Primary accent
-      600: '#00c0cc',   // Hover
-      700: '#0891b2',
-      glow: 'rgba(0, 240, 255, 0.15)',
-      glowStrong: 'rgba(0, 240, 255, 0.25)',
+      50: '#f0f4eb',
+      100: '#e7ede0',
+      200: '#dbe5cf',
+      300: '#c4d4a8',
+      400: '#8a9778',
+      500: '#6b7c54',   // primary accent (for non-text decorative use)
+      600: '#5a6b46',   // hover
+      700: '#3d4a32',   // accent-strong — primary button background
+      glow: 'rgba(107, 124, 84, 0.15)',       // compatibility shim
+      glowStrong: 'rgba(107, 124, 84, 0.25)', // compatibility shim
     },
-    // Secondary colors
-    secondary: '#0aff60',   // Fern green
-    highlight: '#ffd700',   // Sunlight gold
+    // Warm clay secondary
+    secondary: '#8a6f47',
+    highlight: '#b8862b',
     // Semantic colors
-    success: '#0aff60',
-    warning: '#ffd700',
-    error: '#ef4444',
-    info: '#00f0ff',
+    success: '#5a8a3a',
+    warning: '#8a6f47',
+    error: '#b23a48',     // = danger; the old `error` callsite gets migrated
+    info: '#6b7c54',
   },
 
   sidebar: {
-    bg: '#050a14',
-    bgGradient: 'linear-gradient(180deg, #0a1019 0%, #050a14 100%)',
-    surface: '#141824',
-    surfaceHover: '#1a2030',
-    surfaceActive: '#1f2937',
-    text: '#f3f4f6',
-    textSecondary: '#d1d5db',
-    muted: '#9ca3af',
-    accent: '#00f0ff',
-    accentHover: '#00c0cc',
-    accentText: '#ecfeff',
-    border: '#1f2937',
-    borderSubtle: '#141824',
-    hover: '#1a2030',
-    shadow: '0 1px 3px rgba(0, 0, 0, 0.5)',
+    bg: '#f0f4eb',
+    bgGradient: 'linear-gradient(180deg, #f0f4eb 0%, #f4f7f1 100%)',
+    surface: '#ffffff',
+    surfaceHover: '#fafcf6',
+    surfaceActive: '#e7ede0',
+    text: '#2a3324',
+    textSecondary: '#4a5a3c',
+    muted: '#4a5a3c',
+    accent: '#6b7c54',
+    accentHover: '#5a6b46',
+    accentText: '#ffffff',
+    border: '#d6dfca',
+    borderSubtle: '#eaeee2',
+    hover: '#e7ede0',
+    shadow: '0 1px 3px rgba(50, 65, 30, 0.08)',
   },
 
   canvas: {
@@ -73,82 +78,82 @@ export const theme = {
   },
 
   toolbar: {
-    bg: '#050a14',
-    bgGradient: 'linear-gradient(180deg, #0a1019 0%, #050a14 100%)',
-    border: '#1f2937',
-    shadow: '0 2px 16px rgba(0, 0, 0, 0.4)',
+    bg: '#f8faf4',
+    bgGradient: 'linear-gradient(180deg, #f8faf4 0%, #f4f7f1 100%)',
+    border: '#d6dfca',
+    shadow: '0 1px 3px rgba(50, 65, 30, 0.06)',
   },
 
   properties: {
-    bg: '#050a14',
-    bgGradient: 'linear-gradient(0deg, #030509 0%, #0a1019 100%)',
-    border: '#1f2937',
-    shadow: '0 -4px 20px rgba(0, 0, 0, 0.3)',
+    bg: '#f8faf4',
+    bgGradient: 'linear-gradient(0deg, #f4f7f1 0%, #f8faf4 100%)',
+    border: '#d6dfca',
+    shadow: '0 -1px 3px rgba(50, 65, 30, 0.06)',
   },
 
-  // Form controls - cyan focus states
+  // Form controls — sage focus states
   input: {
-    bg: '#141824',
-    bgHover: '#1a2030',
-    bgFocus: '#1a2030',
-    border: '#1f2937',
-    borderHover: '#2a3548',
-    borderFocus: '#00f0ff',
-    text: '#f3f4f6',
-    placeholder: '#6b7280',
-    ring: 'rgba(0, 240, 255, 0.3)',
+    bg: '#ffffff',
+    bgHover: '#fafcf6',
+    bgFocus: '#ffffff',
+    border: '#d6dfca',
+    borderHover: '#c9d4be',
+    borderFocus: '#6b7c54',
+    text: '#2a3324',
+    placeholder: '#4a5a3c',
+    ring: 'rgba(107, 124, 84, 0.3)',
   },
 
-  // Button variants
+  // Button variants — primary uses accentStrong for AA contrast
   button: {
     primary: {
-      bg: '#00f0ff',
-      bgHover: '#00c0cc',
-      text: '#050a14',
+      bg: '#3d4a32',   // accent-strong
+      bgHover: '#2f3a26',
+      text: '#ffffff',
     },
     secondary: {
-      bg: '#141824',
-      bgHover: '#1a2030',
-      text: '#f3f4f6',
-      border: '#1f2937',
+      bg: '#ffffff',
+      bgHover: '#fafcf6',
+      text: '#4a5a3c',
+      border: '#d6dfca',
     },
     ghost: {
       bg: 'transparent',
-      bgHover: '#1a2030',
-      text: '#d1d5db',
+      bgHover: '#e7ede0',
+      text: '#4a5a3c',
     },
     danger: {
-      bg: '#ef4444',
-      bgHover: '#dc2626',
+      bg: '#b23a48',
+      bgHover: '#9a2f3c',
       text: '#ffffff',
     },
   },
 
-  // Selection and focus
+  // Selection + focus
   selection: {
-    bg: 'rgba(0, 240, 255, 0.2)',
-    border: '#00f0ff',
-    ring: '0 0 0 2px rgba(0, 240, 255, 0.3)',
+    bg: 'rgba(107, 124, 84, 0.15)',
+    border: '#6b7c54',
+    ring: '0 0 0 2px rgba(107, 124, 84, 0.3)',
   },
 
-  // Spacing scale (in pixels)
-  spacing: {
-    xs: 4,
-    sm: 8,
-    md: 12,
-    lg: 16,
-    xl: 24,
-    '2xl': 32,
+  // New in PR 1: focus-ring tokens
+  focus: {
+    ring: '#2a3324',           // outline on chrome backgrounds; 2px outline + 2px outline-offset mandatory
+    ringOnDark: '#ffffff',     // fallback for elements flush against dark bg (e.g., focused primary button)
   },
+
+  // New in PR 1: explicit danger surface tokens
+  danger: {
+    fg: '#b23a48',
+    bg: '#fbe6e0',
+    border: '#e6b8b8',
+  },
+
+  // Spacing scale (pixels)
+  spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, '2xl': 32, '3xl': 48 },
 
   // Border radius
-  radius: {
-    sm: 4,
-    md: 6,
-    lg: 10,
-    xl: 14,
-    full: 9999,
-  },
+  radius: { sm: 4, md: 6, lg: 8, xl: 12, full: 9999 },
 
   // Transitions
   transition: {
@@ -157,24 +162,43 @@ export const theme = {
     slow: '250ms ease-out',
   },
 
-  // Shadows
+  // Shadows — sage-tinted instead of pure black
   shadow: {
-    sm: '0 1px 2px rgba(0, 0, 0, 0.4)',
-    md: '0 2px 8px rgba(0, 0, 0, 0.35)',
-    lg: '0 4px 16px rgba(0, 0, 0, 0.4)',
-    xl: '0 8px 32px rgba(0, 0, 0, 0.5)',
-    glow: '0 0 20px rgba(0, 240, 255, 0.2)',
+    sm: '0 1px 3px rgba(50, 65, 30, 0.08)',
+    md: '0 4px 12px rgba(50, 65, 30, 0.10)',
+    lg: '0 12px 32px rgba(50, 65, 30, 0.15)',
+    xl: '0 24px 60px rgba(50, 65, 30, 0.18)',
+    glow: '0 0 12px rgba(107, 124, 84, 0.12)',
   },
 
-  // Glassmorphism
+  // Modal scrim
+  scrim: 'rgba(50, 65, 30, 0.32)',
+
+  // Compatibility shim — old `glass` keys mapped to sage values
   glass: {
-    bg: 'rgba(20, 24, 36, 0.7)',
-    border: 'rgba(31, 41, 55, 0.5)',
+    bg: 'rgba(244, 247, 241, 0.85)',
+    border: 'rgba(214, 223, 202, 0.7)',
     blur: 'blur(12px)',
+  },
+
+  // New in PR 1: explicit z-index ladder. All layering reads from these tokens.
+  z: {
+    canvasBg: 0,
+    canvasOverlay: 1,
+    panel: 'auto' as const,
+    toolbar: 10,
+    hoverZone: 20,
+    fsToolbar: 30,
+    dropdown: 40,
+    fsHint: 50,
+    modalScrim: 1000,
+    modal: 1001,
+    lightbox: 1100,
+    toast: 2000,
   },
 };
 
-// CSS custom properties
+// CSS custom properties — kept for consumers that read CSS variables.
 export const cssVars = {
   '--color-bg': theme.sidebar.bg,
   '--color-surface': theme.sidebar.surface,
