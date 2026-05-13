@@ -21,12 +21,12 @@ export function SettingsSidebar({ config, selection, onSelect }: SettingsSidebar
   };
 
   const rowClass = (active: boolean) =>
-    `w-full text-left px-3 py-2 text-sm rounded ${active ? '' : 'sidebar-row-hover'}`;
+    `w-full text-left px-3 py-2 text-sm rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${active ? '' : 'sidebar-row-hover'}`;
 
   const rowStyle = (active: boolean) => ({
     backgroundColor: active ? theme.sidebar.surfaceHover : 'transparent',
     color: active ? theme.sidebar.text : theme.sidebar.textSecondary,
-    outline: 'none' as const,
+    outlineColor: theme.focus.ring,
   });
 
   return (

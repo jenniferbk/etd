@@ -62,6 +62,7 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
     backgroundColor: theme.sidebar.surface,
     color: theme.sidebar.text,
     border: `1px solid ${theme.sidebar.border}`,
+    outlineColor: theme.focus.ring,
   };
 
   return (
@@ -86,7 +87,7 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
           value={labelDraft}
           onChange={(e) => setLabelDraft(e.target.value)}
           onBlur={() => updateField({ label: labelDraft })}
-          className="mt-1 w-full px-3 py-2 text-sm rounded"
+          className="mt-1 w-full px-3 py-2 text-sm rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={fieldStyle}
         />
       </label>
@@ -96,7 +97,7 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
         <select
           value={current.borderStyle}
           onChange={(e) => updateField({ borderStyle: e.target.value as BorderStyle })}
-          className="mt-1 w-full px-3 py-2 text-sm rounded"
+          className="mt-1 w-full px-3 py-2 text-sm rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={fieldStyle}
         >
           {BORDER_STYLES.map((s) => (
@@ -110,7 +111,7 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
         <select
           value={current.borderShape}
           onChange={(e) => updateField({ borderShape: e.target.value as BorderShape })}
-          className="mt-1 w-full px-3 py-2 text-sm rounded"
+          className="mt-1 w-full px-3 py-2 text-sm rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
           style={fieldStyle}
         >
           {BORDER_SHAPES.map((s) => (
@@ -135,7 +136,7 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
             type="text"
             value={current.backgroundColor}
             onChange={(e) => updateField({ backgroundColor: e.target.value })}
-            className="px-3 py-2 text-sm rounded font-mono"
+            className="px-3 py-2 text-sm rounded font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
             style={{ ...fieldStyle, width: '100px' }}
           />
         </div>

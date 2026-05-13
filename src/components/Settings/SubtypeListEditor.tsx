@@ -146,11 +146,12 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
         onBlur={() => {
           if (labelDraft !== subtype.label) onRename(subtype.id, labelDraft);
         }}
-        className="flex-1 px-2 py-1 text-sm rounded"
+        className="flex-1 px-2 py-1 text-sm rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         style={{
           backgroundColor: theme.sidebar.bg,
           color: theme.sidebar.text,
           border: `1px solid ${theme.sidebar.border}`,
+          outlineColor: theme.focus.ring,
         }}
       />
       {useCount > 0 && (
