@@ -238,8 +238,8 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
             type="text"
             value={diagramName}
             onChange={(e) => setDiagramName(e.target.value)}
-            className="text-base font-semibold tracking-tight bg-transparent border-none outline-none min-w-[200px]"
-            style={{ color: theme.sidebar.text }}
+            className="text-base font-semibold tracking-tight bg-transparent border-none min-w-[200px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
+            style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
             placeholder="Untitled Diagram"
           />
         </div>

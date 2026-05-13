@@ -222,11 +222,12 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search transcript…"
                 aria-label="Search transcript lines"
-                className="w-full pl-8 pr-2.5 py-1.5 text-sm rounded-md border transition-colors duration-150 focus:outline-none"
+                className="w-full pl-8 pr-2.5 py-1.5 text-sm rounded-md border transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                 style={{
                   backgroundColor: theme.input.bg,
                   borderColor: theme.input.border,
                   color: theme.input.text,
+                  outlineColor: theme.focus.ring,
                 }}
               />
             </div>
