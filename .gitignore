@@ -24,3 +24,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Image-import test artifacts (local-only photos of hand-drawn ETDs)
+IMG_*.HEIC
+IMG_*.heic
+IMG_*.jpg
+IMG_*.jpeg
+IMG_*.png
+IMG_*.json
