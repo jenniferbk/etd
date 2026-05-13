@@ -1,7 +1,9 @@
 import { useRef, useCallback, useEffect, useState } from 'react';
 import { Stage, Layer, Transformer } from 'react-konva';
 import type Konva from 'konva';
+import { ArrowLeft } from 'lucide-react';
 import { useDiagramStore } from '../../store';
+import { theme } from '../../utils/theme';
 import { ArgumentShape } from './shapes/ArgumentShape';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { SupportShape } from './shapes/SupportShape';
@@ -850,6 +852,24 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         <div className="absolute top-16 left-64 z-10 bg-gray-700 text-white px-3 py-1 rounded-b text-sm flex items-center gap-2">
           <span>Pan Mode</span>
           <span className="text-gray-400 text-xs">Release Space to exit</span>
+        </div>
+      )}
+
+      {/* Empty-state hint — sibling of <Stage>, NEVER a child.
+          pointer-events:none so canvas drag/drop is unaffected. */}
+      {elements.length === 0 && (
+        <div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none select-none"
+          style={{ zIndex: theme.z.canvasOverlay }}
+          aria-hidden="true"
+        >
+          <div
+            className="flex items-center gap-2 text-xs"
+            style={{ color: '#aaa' }}
+          >
+            <ArrowLeft size={14} aria-hidden="true" />
+            <span>Drag an element from the palette to start. Or import from an image.</span>
+          </div>
         </div>
       )}
 
