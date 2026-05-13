@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { Copy, Trash2 } from 'lucide-react';
+import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
@@ -177,7 +177,7 @@ export function PropertiesPanel() {
         }}
       >
         <div
-          className="m-4 rounded-md flex items-center justify-center text-sm italic h-[calc(100%-2rem)] min-h-20"
+          className="m-4 rounded-md flex flex-col items-center justify-center gap-2 text-sm italic h-[calc(100%-2rem)] min-h-20"
           style={{
             color: theme.sidebar.textSecondary,
             borderWidth: '1px',
@@ -185,7 +185,12 @@ export function PropertiesPanel() {
             borderColor: theme.sidebar.border,
           }}
         >
-          No element selected · click an element on the canvas to edit it
+          <MousePointer2
+            size={24}
+            aria-hidden="true"
+            style={{ color: theme.sidebar.muted }}
+          />
+          <span>No element selected · click an element on the canvas to edit it</span>
         </div>
       </div>
     );
