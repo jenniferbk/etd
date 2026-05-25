@@ -430,6 +430,15 @@ export function hasEmbeddedImages(elements: DiagramElement[]): boolean {
   return elements.some((el) => isArgumentElement(el) && !!el.image);
 }
 
+export function hasAttachedQualifiers(elements: DiagramElement[]): boolean {
+  return elements.some(
+    (el) =>
+      isArgumentElement(el) &&
+      el.argumentType === 'qualifier' &&
+      el.attachedTo !== undefined,
+  );
+}
+
 // ETD generates element/connection IDs like `"elem-1776639276555-a8r76gsgj"` which
 // are not RFC 4122 UUIDs. DiagramMix decodes `id.uuid` into Swift's `UUID` type and
 // rejects anything that isn't in 8-4-4-4-12 hex format. So we mint a proper UUID

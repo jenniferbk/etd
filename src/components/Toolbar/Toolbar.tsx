@@ -26,6 +26,7 @@ import {
   downloadDiagramx,
   exportToDiagramx,
   hasEmbeddedImages,
+  hasAttachedQualifiers,
 } from '../../utils/diagramxExport';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { IconButton } from './IconButton';
@@ -180,6 +181,9 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
       downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
       if (hasEmbeddedImages(elements)) {
         addToast('warning', 'Embedded images were dropped — DiagramMix does not support inline images.');
+      }
+      if (hasAttachedQualifiers(elements)) {
+        addToast('warning', 'Qualifier-on-connection positions were dropped — DiagramMix does not support inline qualifiers.');
       }
     } catch (err) {
       console.error('.diagramx export failed:', err);
