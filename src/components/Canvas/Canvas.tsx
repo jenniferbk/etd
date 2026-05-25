@@ -412,6 +412,35 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
   const handleArgumentDragMove = useCallback(
     (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
+      // Attached qualifier: slide along the parent polyline; if cursor leaves
+      // the 40px band, snap back to the polyline so the element stays on the
+      // line during drag.
+      const el = elements.find((x) => x.id === id);
+      if (
+        el && isArgumentElement(el) &&
+        el.argumentType === 'qualifier' &&
+        el.attachedTo
+      ) {
+        const parentConn = connections.find((c) => c.id === el.attachedTo!.connectionId);
+        const polyline = parentConn ? computePolylineFor(parentConn, elements, connections) : null;
+        if (!polyline) return;
+        const node = e.target;
+        // node.x/y is the top-left of the Group (size 60x24 for default attached qualifier).
+        const cursor = { x: node.x() + el.size.width / 2, y: node.y() + el.size.height / 2 };
+        if (!hitTestPolyline(cursor, polyline, 40)) {
+          // Snap back to current attachedTo position.
+          const snapCenter = getPointOnPolyline(polyline, el.attachedTo.position);
+          node.position({ x: snapCenter.x - el.size.width / 2, y: snapCenter.y - el.size.height / 2 });
+          e.target.getLayer()?.batchDraw();
+          return;
+        }
+        const newT = tForPointOnPolyline(cursor, polyline);
+        const newCenter = getPointOnPolyline(polyline, newT);
+        node.position({ x: newCenter.x - el.size.width / 2, y: newCenter.y - el.size.height / 2 });
+        e.target.getLayer()?.batchDraw();
+        return;
+      }
+
       const cache = stickyDragRef.current;
       if (!cache) return;
       const argStart = cache.startPositions.get(id);
@@ -424,13 +453,67 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       }
       e.target.getLayer()?.batchDraw();
     },
-    []
+    [elements, connections]
   );
 
   const handleArgumentDragEnd = useCallback(
     (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
-      const cache = stickyDragRef.current;
+      const el = elements.find((x) => x.id === id);
       const finalArg = { x: e.target.x(), y: e.target.y() };
+
+      // Attached qualifier: commit new attachedTo.position based on final cursor.
+      if (
+        el && isArgumentElement(el) &&
+        el.argumentType === 'qualifier' &&
+        el.attachedTo
+      ) {
+        const parentConn = connections.find((c) => c.id === el.attachedTo!.connectionId);
+        const polyline = parentConn ? computePolylineFor(parentConn, elements, connections) : null;
+        if (!polyline) {
+          stickyDragRef.current = null;
+          return;
+        }
+        const cursor = { x: finalArg.x + el.size.width / 2, y: finalArg.y + el.size.height / 2 };
+        const newT = hitTestPolyline(cursor, polyline, 40)
+          ? tForPointOnPolyline(cursor, polyline)
+          : el.attachedTo.position;
+        const newCenter = getPointOnPolyline(polyline, newT);
+        updateElement(id, {
+          attachedTo: { connectionId: el.attachedTo.connectionId, position: newT },
+          position: { x: newCenter.x - el.size.width / 2, y: newCenter.y - el.size.height / 2 },
+        } as Partial<DiagramElement>);
+        stickyDragRef.current = null;
+        return;
+      }
+
+      // Orphan qualifier: try to attach by hit-testing against all connections.
+      if (
+        el && isArgumentElement(el) &&
+        el.argumentType === 'qualifier' &&
+        !el.attachedTo
+      ) {
+        const cursor = { x: finalArg.x + el.size.width / 2, y: finalArg.y + el.size.height / 2 };
+        for (const conn of connections) {
+          const polyline = computePolylineFor(conn, elements, connections);
+          if (!polyline) continue;
+          if (hitTestPolyline(cursor, polyline, 12)) {
+            const t = tForPointOnPolyline(cursor, polyline);
+            const center = getPointOnPolyline(polyline, t);
+            updateElement(id, {
+              attachedTo: { connectionId: conn.id, position: t },
+              position: { x: center.x - el.size.width / 2, y: center.y - el.size.height / 2 },
+            } as Partial<DiagramElement>);
+            stickyDragRef.current = null;
+            return;
+          }
+        }
+        // No hit — free reposition (existing orphan behavior).
+        moveElement(id, finalArg);
+        stickyDragRef.current = null;
+        return;
+      }
+
+      const cache = stickyDragRef.current;
       if (!cache) {
         // Fallback to single-element move (multi-select case or no cluster).
         moveElement(id, finalArg);
@@ -441,7 +524,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       moveCluster(cache.startPositions, delta);
       stickyDragRef.current = null;
     },
-    [moveElement, moveCluster]
+    [elements, connections, moveElement, moveCluster, updateElement]
   );
 
   const handleSupportDragStart = useCallback((id: string) => {
