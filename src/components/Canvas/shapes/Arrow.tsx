@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Circle, Line, Text } from 'react-konva';
 import type Konva from 'konva';
-import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor } from '../../../types';
-import { isArrowAttachment } from '../../../types';
+import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor, ArgumentElement } from '../../../types';
+import { isArrowAttachment, isArgumentElement } from '../../../types';
+import { computePolylineFor } from '../../../utils/connectionPath';
 import { useDiagramStore } from '../../../store';
 import {
   getEffectiveWaypoints,
@@ -286,6 +287,78 @@ export function ConnectionArrow({
     };
   }, []);
   /* eslint-enable react-hooks/exhaustive-deps */
+
+  // Rebuttal-to-qualifier special case: when this connection targets an
+  // element whose argumentType is 'qualifier' AND that qualifier has
+  // attachedTo set, render a vertical line from the source down through the
+  // qualifier to the parent connection's polyline at the qualifier's x.
+  // No arrowhead. Per Anna's vertical-only rule, the source's center.x must
+  // match the qualifier's center.x; otherwise render a faint dashed gray
+  // "reposition me" hint instead.
+  const targetElForQualifierCheck =
+    typeof connection.to === 'string'
+      ? elements.find((el) => el.id === connection.to)
+      : null;
+  const isTargetAttachedQualifier =
+    targetElForQualifierCheck &&
+    isArgumentElement(targetElForQualifierCheck) &&
+    targetElForQualifierCheck.argumentType === 'qualifier' &&
+    targetElForQualifierCheck.attachedTo !== undefined;
+
+  if (isTargetAttachedQualifier && targetElForQualifierCheck) {
+    const qual = targetElForQualifierCheck as ArgumentElement;
+    const parentConn = connections.find((c) => c.id === qual.attachedTo!.connectionId);
+    const parentPolyline = parentConn ? computePolylineFor(parentConn, elements, connections) : null;
+    const sourceEl = elements.find((el) => el.id === connection.from);
+    if (!parentPolyline || !sourceEl) return null;
+
+    const qualCenter = {
+      x: qual.position.x + qual.size.width / 2,
+      y: qual.position.y + qual.size.height / 2,
+    };
+    const sourceCenter = {
+      x: sourceEl.position.x + sourceEl.size.width / 2,
+      y: sourceEl.position.y + sourceEl.size.height / 2,
+    };
+
+    const X_TOLERANCE = 4;
+    const aligned = Math.abs(sourceCenter.x - qualCenter.x) <= X_TOLERANCE;
+
+    if (!aligned) {
+      // Faint dashed gray "reposition me" hint — diagonal between source center
+      // and qualifier center, no arrowhead, dashed.
+      return (
+        <Line
+          points={[sourceCenter.x, sourceCenter.y, qualCenter.x, qualCenter.y]}
+          stroke="#999"
+          strokeWidth={1}
+          dash={[4, 4]}
+          listening={true}
+          onClick={onSelect}
+          onTap={onSelect}
+        />
+      );
+    }
+
+    // Aligned: vertical line from source's bottom edge straight down to the
+    // parent connection's y at qual.center.x. The qualifier box renders on top
+    // of this line (separate Konva node), so it visually occludes the middle.
+    return (
+      <Line
+        points={[
+          qualCenter.x,
+          sourceEl.position.y + sourceEl.size.height,
+          qualCenter.x,
+          qualCenter.y,
+        ]}
+        stroke={isSelected ? '#4A90D9' : '#000000'}
+        strokeWidth={isSelected ? 2 : 1.5}
+        listening={true}
+        onClick={onSelect}
+        onTap={onSelect}
+      />
+    );
+  }
 
   let pathResult = getConnectionPathPoints(connection, elements, connections);
   if (pathResult && !isAttachment && (dragOverride || anchorDragOverride)) {
