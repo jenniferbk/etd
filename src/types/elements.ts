@@ -82,6 +82,11 @@ export interface ArgumentElement extends BaseElement {
   argumentType: ArgumentType;
   contributor: ContributorType;
   label: string; // e.g., "Claim 1", "Warrant/Data 2"
+  // Only meaningful when argumentType === 'qualifier'. Pins the qualifier to
+  // a parent connection at a fractional position along its polyline (0..1,
+  // same convention as ConnectionTarget.position). Undefined → orphan/legacy
+  // qualifier (renders with dashed red + ⚠).
+  attachedTo?: { connectionId: string; position: number };
 }
 
 export interface SupportElement extends BaseElement {
