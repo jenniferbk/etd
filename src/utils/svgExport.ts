@@ -7,9 +7,11 @@ import {
   getEffectiveWaypoints,
   getOrthogonalPath,
   getVerticalAttachmentPath,
+  getPointOnPolyline,
 } from './orthogonalRouting';
 import { computeExportBounds } from './exportBounds';
 import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
+import { computePolylineFor } from './connectionPath';
 
 interface SvgExportOptions {
   padding?: number;
@@ -47,7 +49,7 @@ export function exportToSvg(
 
   // Add elements
   elements.forEach((el) => {
-    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig, connections, elementsById);
+    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig, connections, elementsById, elements);
     if (svg) svgContent.push(svg);
   });
 
@@ -75,13 +77,14 @@ function renderElementSvg(
   styleConfig: StyleConfig,
   connections: readonly Connection[],
   elementsById: ReadonlyMap<string, DiagramElement>,
+  elements: DiagramElement[],
 ): string {
   const x = element.position.x + offsetX;
   const y = element.position.y + offsetY;
   const { width, height } = element.size;
 
   if (element.type === 'argument') {
-    return renderArgumentSvg(element as ArgumentElement, x, y, width, height, styleConfig, connections, elementsById);
+    return renderArgumentSvg(element as ArgumentElement, x, y, width, height, styleConfig, connections, elementsById, elements, offsetX, offsetY);
   } else if (element.type === 'support') {
     return renderSupportSvg(element as SupportElement, x, y, width, height, styleConfig);
   } else if (element.type === 'teacherSupport') {
@@ -101,7 +104,35 @@ function renderArgumentSvg(
   styleConfig: StyleConfig,
   connections: readonly Connection[],
   elementsById: ReadonlyMap<string, DiagramElement>,
+  elements: DiagramElement[],
+  offsetX: number,
+  offsetY: number,
 ): string {
+  // Attached qualifier: render as small auto-sized box centered on the parent
+  // polyline at attachedTo.position. Mirrors the canvas-side ArgumentShape
+  // rendering for the same case.
+  if (el.argumentType === 'qualifier' && el.attachedTo) {
+    const parentConn = connections.find((c) => c.id === el.attachedTo!.connectionId);
+    const parentPolyline = parentConn ? computePolylineFor(parentConn, elements, [...connections]) : null;
+    if (parentPolyline) {
+      const center = getPointOnPolyline(parentPolyline, el.attachedTo.position);
+      const text = el.content || el.label || 'qualifier';
+      const w = Math.max(40, text.length * 7 + 16);
+      const h = 24;
+      const cx = center.x + offsetX;
+      const cy = center.y + offsetY;
+      const style = resolveArgumentStyle(el, styleConfig);
+      const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
+      const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
+      return `<g>
+    <rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="2" ${dashAttr}/>
+    <text x="${cx}" y="${cy + 4}" text-anchor="middle" font-size="11" font-style="italic" fill="#000000">${escapeXml(text)}</text>
+  </g>`;
+    }
+    // Parent polyline missing → fall through to standard render so the
+    // element still appears somewhere.
+  }
+
   const style = resolveArgumentStyle(el, styleConfig);
   // Live-derived label: same rule as ArgumentShape (see claimRoleDerivation.ts).
   const displayLabel = el.argumentType === 'claim'
@@ -336,6 +367,42 @@ function renderConnectionSvg(
   offsetX: number,
   offsetY: number
 ): string {
+  // Rebuttal-to-qualifier special case (mirrors Arrow.tsx ConnectionArrow):
+  // when the target is an attached qualifier, render a vertical line from the
+  // source down through the qualifier to the parent connection's y at the
+  // qualifier's x. No arrowhead. Misaligned x → faint dashed gray hint.
+  if (typeof conn.to === 'string') {
+    const targetEl = elements.find((e) => e.id === conn.to);
+    const sourceEl = elements.find((e) => e.id === conn.from);
+    if (
+      targetEl && sourceEl &&
+      targetEl.type === 'argument' &&
+      (targetEl as ArgumentElement).argumentType === 'qualifier' &&
+      (targetEl as ArgumentElement).attachedTo !== undefined
+    ) {
+      const qual = targetEl as ArgumentElement;
+      const parentConn = connections.find((c) => c.id === qual.attachedTo!.connectionId);
+      const parentPolyline = parentConn ? computePolylineFor(parentConn, elements, connections) : null;
+      if (!parentPolyline) return '';
+
+      const qualCenter = {
+        x: qual.position.x + qual.size.width / 2,
+        y: qual.position.y + qual.size.height / 2,
+      };
+      const sourceCenter = {
+        x: sourceEl.position.x + sourceEl.size.width / 2,
+        y: sourceEl.position.y + sourceEl.size.height / 2,
+      };
+      const X_TOLERANCE = 4;
+      const aligned = Math.abs(sourceCenter.x - qualCenter.x) <= X_TOLERANCE;
+      if (!aligned) {
+        return `<line x1="${sourceCenter.x + offsetX}" y1="${sourceCenter.y + offsetY}" x2="${qualCenter.x + offsetX}" y2="${qualCenter.y + offsetY}" stroke="#999" stroke-width="1" stroke-dasharray="4,4"/>`;
+      }
+      const sourceBottom = sourceEl.position.y + sourceEl.size.height;
+      return `<line x1="${qualCenter.x + offsetX}" y1="${sourceBottom + offsetY}" x2="${qualCenter.x + offsetX}" y2="${qualCenter.y + offsetY}" stroke="#000000" stroke-width="1.5"/>`;
+    }
+  }
+
   const result = resolveConnectionPoints(conn, elements, connections);
   if (!result || result.points.length < 4) return '';
   const { points, attachmentStyle } = result;
