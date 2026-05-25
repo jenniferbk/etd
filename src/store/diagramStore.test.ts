@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useDiagramStore } from './diagramStore';
-import type { ArgumentElement, SupportElement } from '../types';
+import { useDiagramStore, sweepOrphanedQualifiers } from './diagramStore';
+import type { ArgumentElement, SupportElement, DiagramElement, Connection } from '../types';
 
 function arg(id: string, x = 0, y = 0): ArgumentElement {
   return {
@@ -124,6 +124,61 @@ describe('removeConnection cascade', () => {
     });
     useDiagramStore.getState().removeConnection('conn-1');
     expect(useDiagramStore.getState().elements.find(e => e.id === 'orphan')).toBeDefined();
+  });
+});
+
+describe('sweepOrphanedQualifiers (pure helper used by loadDiagram)', () => {
+  it('clears attachedTo when its connectionId does not resolve', () => {
+    const q = qualifier('q1', 'ghost-conn', 0.5);
+    const swept = sweepOrphanedQualifiers([q] as DiagramElement[], [] as Connection[]);
+    expect((swept[0] as ArgumentElement).attachedTo).toBeUndefined();
+  });
+
+  it('preserves attachedTo when its connectionId resolves', () => {
+    const q = qualifier('q1', 'real-conn', 0.5);
+    const conns: Connection[] = [{ id: 'real-conn', from: 'a', to: 'b', type: 'support' }];
+    const swept = sweepOrphanedQualifiers([q] as DiagramElement[], conns);
+    expect((swept[0] as ArgumentElement).attachedTo).toEqual({ connectionId: 'real-conn', position: 0.5 });
+  });
+
+  it('leaves non-qualifier elements untouched even if they have attachedTo', () => {
+    const stray = { ...arg('x'), attachedTo: { connectionId: 'ghost', position: 0.5 } } as ArgumentElement;
+    const swept = sweepOrphanedQualifiers([stray] as DiagramElement[], [] as Connection[]);
+    expect((swept[0] as ArgumentElement).attachedTo).toEqual({ connectionId: 'ghost', position: 0.5 });
+  });
+});
+
+describe('updateElement attachedTo clearing on argumentType change', () => {
+  it('clears attachedTo when argumentType is changed away from qualifier', () => {
+    useDiagramStore.setState({
+      elements: [qualifier('q', 'c1', 0.5)],
+      connections: [{ id: 'c1', from: 'a', to: 'b', type: 'support' }],
+    });
+    useDiagramStore.getState().updateElement('q', { argumentType: 'claim' } as Partial<ArgumentElement>);
+    const after = useDiagramStore.getState().elements[0] as ArgumentElement;
+    expect(after.argumentType).toBe('claim');
+    expect(after.attachedTo).toBeUndefined();
+  });
+
+  it('clears attachedTo when argumentType is set TO qualifier (drag-onto-line sets it later)', () => {
+    useDiagramStore.setState({
+      elements: [{ ...arg('x'), attachedTo: { connectionId: 'c1', position: 0.5 } } as ArgumentElement],
+    });
+    useDiagramStore.getState().updateElement('x', { argumentType: 'qualifier' } as Partial<ArgumentElement>);
+    const after = useDiagramStore.getState().elements[0] as ArgumentElement;
+    expect(after.argumentType).toBe('qualifier');
+    expect(after.attachedTo).toBeUndefined();
+  });
+
+  it('leaves attachedTo alone for non-argumentType updates', () => {
+    useDiagramStore.setState({
+      elements: [qualifier('q', 'c1', 0.5)],
+      connections: [{ id: 'c1', from: 'a', to: 'b', type: 'support' }],
+    });
+    // Use a non-content field (position) so the auto-size step (which needs DOM) is skipped.
+    useDiagramStore.getState().updateElement('q', { position: { x: 99, y: 99 } });
+    const after = useDiagramStore.getState().elements[0] as ArgumentElement;
+    expect(after.attachedTo).toEqual({ connectionId: 'c1', position: 0.5 });
   });
 });
 

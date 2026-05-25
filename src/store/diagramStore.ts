@@ -17,6 +17,32 @@ interface LegendConfig {
 }
 
 // Helper to calculate auto-size for an element
+/**
+ * Clear attachedTo on qualifier elements whose connectionId doesn't resolve
+ * to an existing connection. Pure function — no DOM dependency. Exported so
+ * tests can exercise the sweep without invoking loadDiagram's auto-size step
+ * (which requires document.createElement('canvas')).
+ */
+export function sweepOrphanedQualifiers(
+  elements: DiagramElement[],
+  connections: Connection[],
+): DiagramElement[] {
+  const connectionIds = new Set(connections.map((c) => c.id));
+  return elements.map((el) => {
+    if (
+      isArgumentElement(el) &&
+      el.argumentType === 'qualifier' &&
+      el.attachedTo &&
+      !connectionIds.has(el.attachedTo.connectionId)
+    ) {
+      const { attachedTo: _drop, ...rest } = el;
+      void _drop;
+      return rest as ArgumentElement;
+    }
+    return el;
+  });
+}
+
 function getAutoSize(element: DiagramElement): Size {
   const label = isArgumentElement(element) || isInfoBoxElement(element)
     ? element.label
@@ -162,7 +188,21 @@ export const useDiagramStore = create<DiagramState>()(
             if (el.id !== id) return el;
 
             // Apply updates first
-            const updated = { ...el, ...updates } as DiagramElement;
+            let updated = { ...el, ...updates } as DiagramElement;
+
+            // Clear attachedTo when argumentType changes — subtype ids don't
+            // transfer across argument types, and the drag-onto-line gesture
+            // is the only legitimate way to set attachedTo on a qualifier.
+            if (
+              'argumentType' in updates &&
+              isArgumentElement(updated) &&
+              isArgumentElement(el) &&
+              updates.argumentType !== el.argumentType
+            ) {
+              const { attachedTo: _drop, ...rest } = updated;
+              void _drop;
+              updated = rest as DiagramElement;
+            }
 
             // Check if content-affecting fields changed
             const contentChanged = 'content' in updates ||
@@ -556,8 +596,12 @@ export const useDiagramStore = create<DiagramState>()(
       setDiagramName: (name) => set({ diagramName: name }),
 
       loadDiagram: (elements, connections, name, transcript, styleConfig) => {
+        // Orphan sweep: clear attachedTo on qualifiers whose connectionId is
+        // no longer valid. Pure helper so it's testable without DOM.
+        const sweptElements = sweepOrphanedQualifiers(elements, connections);
+
         // Auto-size all elements on load to ensure content fits
-        const sizedElements = elements.map((el) => {
+        const sizedElements = sweptElements.map((el) => {
           const autoSize = getAutoSize(el);
           return { ...el, size: autoSize };
         });
