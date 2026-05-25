@@ -80,6 +80,53 @@ describe('moveAndLink', () => {
   });
 });
 
+function qualifier(id: string, attachedConnectionId?: string, position = 0.5): ArgumentElement {
+  return {
+    id, type: 'argument', argumentType: 'qualifier', contributor: 'student',
+    label: `Qualifier ${id}`, content: '',
+    position: { x: 0, y: 0 }, size: { width: 60, height: 24 },
+    ...(attachedConnectionId ? { attachedTo: { connectionId: attachedConnectionId, position } } : {}),
+  };
+}
+
+describe('removeConnection cascade', () => {
+  it('removes attached qualifier elements when their parent connection is removed', () => {
+    useDiagramStore.setState({
+      elements: [arg('a'), arg('b'), qualifier('q1', 'conn-1', 0.5)],
+      connections: [{ id: 'conn-1', from: 'a', to: 'b', type: 'support' }],
+    });
+    useDiagramStore.getState().removeConnection('conn-1');
+    const state = useDiagramStore.getState();
+    expect(state.connections.find(c => c.id === 'conn-1')).toBeUndefined();
+    expect(state.elements.find(e => e.id === 'q1')).toBeUndefined();
+    expect(state.elements.find(e => e.id === 'a')).toBeDefined();
+    expect(state.elements.find(e => e.id === 'b')).toBeDefined();
+  });
+
+  it('leaves qualifiers attached to other connections untouched', () => {
+    useDiagramStore.setState({
+      elements: [arg('a'), arg('b'), qualifier('q1', 'conn-1'), qualifier('q2', 'conn-2')],
+      connections: [
+        { id: 'conn-1', from: 'a', to: 'b', type: 'support' },
+        { id: 'conn-2', from: 'a', to: 'b', type: 'support' },
+      ],
+    });
+    useDiagramStore.getState().removeConnection('conn-1');
+    const state = useDiagramStore.getState();
+    expect(state.elements.find(e => e.id === 'q1')).toBeUndefined();
+    expect(state.elements.find(e => e.id === 'q2')).toBeDefined();
+  });
+
+  it('does not remove orphan qualifiers (no attachedTo) on connection removal', () => {
+    useDiagramStore.setState({
+      elements: [arg('a'), arg('b'), qualifier('orphan')], // no attachedTo
+      connections: [{ id: 'conn-1', from: 'a', to: 'b', type: 'support' }],
+    });
+    useDiagramStore.getState().removeConnection('conn-1');
+    expect(useDiagramStore.getState().elements.find(e => e.id === 'orphan')).toBeDefined();
+  });
+});
+
 describe('removeElement scrub', () => {
   it('clears associatedWith on supports linked to a removed argument', () => {
     useDiagramStore.setState({

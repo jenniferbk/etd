@@ -414,6 +414,15 @@ export const useDiagramStore = create<DiagramState>()(
       removeConnection: (id) =>
         set((state) => ({
           connections: state.connections.filter((conn) => conn.id !== id),
+          // Cascade-delete qualifier elements attached to this connection.
+          // Orphan qualifiers (attachedTo === undefined) are untouched.
+          elements: state.elements.filter(
+            (el) => !(
+              isArgumentElement(el) &&
+              el.argumentType === 'qualifier' &&
+              el.attachedTo?.connectionId === id
+            ),
+          ),
         })),
 
       updateConnectionWaypoints: (id, waypoints) =>
