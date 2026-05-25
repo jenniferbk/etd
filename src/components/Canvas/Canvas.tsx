@@ -340,21 +340,34 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [connectMode, connectingFrom, selectedIds, setSelectedIds, addConnection, onConnectionStart]
   );
 
-  // Handle arrow click - for attaching warrants to arrows
+  // Handle arrow click - for attaching warrants/backings/implicit/rebuttals
+  // to arrows. When a qualifier sits on the clicked connection near the click
+  // point (within 20px on its center.x), retarget to the qualifier instead —
+  // Anna's framework treats the qualifier as the structural attachment when
+  // one's present.
   const handleArrowClick = useCallback(
-    (connectionId: string, position: number, _point: { x: number; y: number }) => {
+    (connectionId: string, position: number, point: { x: number; y: number }) => {
       if (connectMode && connectingFrom) {
-        // Create a connection that attaches to this arrow
+        const NEAR_QUALIFIER_PX = 20;
+        const nearbyQualifier = elements.find((el) => {
+          if (!isArgumentElement(el)) return false;
+          if (el.argumentType !== 'qualifier') return false;
+          if (!el.attachedTo || el.attachedTo.connectionId !== connectionId) return false;
+          // The qualifier's stored top-left + width/2 is its center.x.
+          const qCenterX = el.position.x + el.size.width / 2;
+          return Math.abs(qCenterX - point.x) <= NEAR_QUALIFIER_PX;
+        });
+
         addConnection({
           id: `conn-${Date.now()}`,
           from: connectingFrom,
-          to: { connectionId, position },
+          to: nearbyQualifier ? nearbyQualifier.id : { connectionId, position },
           type: 'support',
         });
         onConnectionStart(''); // Clear connecting state
       }
     },
-    [connectMode, connectingFrom, addConnection, onConnectionStart]
+    [connectMode, connectingFrom, addConnection, onConnectionStart, elements]
   );
 
   // Handle arrow hover
