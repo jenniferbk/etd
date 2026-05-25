@@ -7,6 +7,8 @@ import { EmbeddedImage } from './EmbeddedImage';
 import { useDiagramStore } from '../../../store';
 import { resolveArgumentStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
 import { getClaimRole, deriveClaimLabel } from '../../../utils/claimRoleDerivation';
+import { computePolylineFor } from '../../../utils/connectionPath';
+import { getPointOnPolyline } from '../../../utils/orthogonalRouting';
 
 interface ArgumentShapeProps {
   element: ArgumentElement;
@@ -50,6 +52,22 @@ export function ArgumentShape({
     return deriveClaimLabel(label, role);
   }, [element, label, connections, elements]);
 
+  // Qualifier-on-connection: when attachedTo is set, snap the rendered position
+  // to the parent connection's polyline at attachedTo.position.
+  const isAttachedQualifier =
+    element.argumentType === 'qualifier' && element.attachedTo !== undefined;
+  const isOrphanQualifier =
+    element.argumentType === 'qualifier' && element.attachedTo === undefined;
+
+  const attachedCenter = useMemo(() => {
+    if (!isAttachedQualifier || !element.attachedTo) return null;
+    const parentConn = connections.find((c) => c.id === element.attachedTo!.connectionId);
+    if (!parentConn) return null;
+    const polyline = computePolylineFor(parentConn, elements, connections);
+    if (!polyline) return null;
+    return getPointOnPolyline(polyline, element.attachedTo.position);
+  }, [isAttachedQualifier, element.attachedTo, connections, elements]);
+
   if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
     console.log('[etd-style] ArgumentShape', {
       id: element.id, argumentType: element.argumentType, contributor: element.contributor,
@@ -74,6 +92,63 @@ export function ArgumentShape({
   // to keep text off the bumps.
   const padding = isCloud ? 12 : 10;
   const labelHeight = 20;
+
+  // Attached qualifier: small auto-sized box centered on the parent polyline.
+  // Display text is content (the actual qualifier text like "probably") falling
+  // back to label, falling back to "qualifier".
+  if (isAttachedQualifier && attachedCenter) {
+    const text = content || label || 'qualifier';
+    // Rough auto-size width: 7px per char + 16px padding, min 40px.
+    const qWidth = Math.max(40, text.length * 7 + 16);
+    const qHeight = 24;
+    return (
+      <Group
+        ref={shapeRef}
+        x={attachedCenter.x - qWidth / 2}
+        y={attachedCenter.y - qHeight / 2}
+        draggable
+        onClick={onSelect}
+        onTap={onSelect}
+        onDblClick={onDoubleClick}
+        onDblTap={onDoubleClick}
+        onDragStart={onDragStart}
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+        onContextMenu={onContextMenu}
+      >
+        <Rect
+          width={qWidth}
+          height={qHeight}
+          fill={style.backgroundColor}
+          stroke={borderColor}
+          strokeWidth={2}
+          dash={dashArray}
+        />
+        <Text
+          x={8}
+          y={6}
+          width={qWidth - 16}
+          text={text}
+          fontSize={11}
+          fontStyle="italic"
+          fill="#000000"
+          align="center"
+        />
+        {isSelected && (
+          <Rect
+            width={qWidth + 6}
+            height={qHeight + 6}
+            x={-3}
+            y={-3}
+            stroke="#4A90D9"
+            strokeWidth={2}
+            fill="transparent"
+            dash={[5, 3]}
+          />
+        )}
+      </Group>
+    );
+  }
 
   if (isCloud) {
     // Render cloud shape for implicit elements
