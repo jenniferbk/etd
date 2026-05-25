@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Group, Rect, Ellipse, Text, Path } from 'react-konva';
 import { generateCloudPath } from '../../../utils/cloudPath';
 import type Konva from 'konva';
@@ -5,6 +6,7 @@ import type { ArgumentElement } from '../../../types';
 import { EmbeddedImage } from './EmbeddedImage';
 import { useDiagramStore } from '../../../store';
 import { resolveArgumentStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
+import { getClaimRole, deriveClaimLabel } from '../../../utils/claimRoleDerivation';
 
 interface ArgumentShapeProps {
   element: ArgumentElement;
@@ -33,7 +35,20 @@ export function ArgumentShape({
 }: ArgumentShapeProps) {
   const { position, size, label, content, attribution, image, imageSettings } = element;
   const styleConfig = useDiagramStore((s) => s.styleConfig);
+  const connections = useDiagramStore((s) => s.connections);
+  const elements = useDiagramStore((s) => s.elements);
   const style = resolveArgumentStyle(element, styleConfig);
+
+  // Live-derived label: a claim wired as data for another claim (or attached
+  // as a warrant on another connection) displays "Dataclaim"/"Warrantclaim"
+  // instead of "Claim". User-renamed labels are preserved — see
+  // deriveClaimLabel for the pattern. Recomputes when connections change.
+  const displayLabel = useMemo(() => {
+    if (element.argumentType !== 'claim') return label;
+    const elementsById = new Map(elements.map((el) => [el.id, el]));
+    const role = getClaimRole(element, connections, elementsById);
+    return deriveClaimLabel(label, role);
+  }, [element, label, connections, elements]);
 
   if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
     console.log('[etd-style] ArgumentShape', {
@@ -92,7 +107,7 @@ export function ArgumentShape({
           x={padding}
           y={padding}
           width={size.width - padding * 2}
-          text={label}
+          text={displayLabel}
           fontSize={14}
           fontStyle="bold"
           textDecoration="underline"
@@ -121,7 +136,7 @@ export function ArgumentShape({
             offsetX={imageSettings?.offsetX ?? 0}
             offsetY={imageSettings?.offsetY ?? 0}
             cropArea={imageSettings?.cropArea}
-            elementLabel={label}
+            elementLabel={displayLabel}
             elementId={element.id}
             isSelected={isSelected}
           />
@@ -215,7 +230,7 @@ export function ArgumentShape({
         x={padding}
         y={padding}
         width={size.width - padding * 2}
-        text={label}
+        text={displayLabel}
         fontSize={14}
         fontStyle="bold"
         textDecoration="underline"
@@ -244,7 +259,7 @@ export function ArgumentShape({
           offsetX={imageSettings?.offsetX ?? 0}
           offsetY={imageSettings?.offsetY ?? 0}
           cropArea={imageSettings?.cropArea}
-          elementLabel={label}
+          elementLabel={displayLabel}
           elementId={element.id}
           isSelected={isSelected}
         />

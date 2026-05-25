@@ -9,6 +9,7 @@ import {
   getVerticalAttachmentPath,
 } from './orthogonalRouting';
 import { computeExportBounds } from './exportBounds';
+import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
 
 interface SvgExportOptions {
   padding?: number;
@@ -41,9 +42,12 @@ export function exportToSvg(
     if (svg) svgContent.push(svg);
   });
 
+  // Pre-build the elements-by-id map once for claim-role derivation.
+  const elementsById = new Map(elements.map((el) => [el.id, el]));
+
   // Add elements
   elements.forEach((el) => {
-    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig);
+    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig, connections, elementsById);
     if (svg) svgContent.push(svg);
   });
 
@@ -64,13 +68,20 @@ export function exportToSvg(
 </svg>`;
 }
 
-function renderElementSvg(element: DiagramElement, offsetX: number, offsetY: number, styleConfig: StyleConfig): string {
+function renderElementSvg(
+  element: DiagramElement,
+  offsetX: number,
+  offsetY: number,
+  styleConfig: StyleConfig,
+  connections: readonly Connection[],
+  elementsById: ReadonlyMap<string, DiagramElement>,
+): string {
   const x = element.position.x + offsetX;
   const y = element.position.y + offsetY;
   const { width, height } = element.size;
 
   if (element.type === 'argument') {
-    return renderArgumentSvg(element as ArgumentElement, x, y, width, height, styleConfig);
+    return renderArgumentSvg(element as ArgumentElement, x, y, width, height, styleConfig, connections, elementsById);
   } else if (element.type === 'support') {
     return renderSupportSvg(element as SupportElement, x, y, width, height, styleConfig);
   } else if (element.type === 'teacherSupport') {
@@ -81,8 +92,21 @@ function renderElementSvg(element: DiagramElement, offsetX: number, offsetY: num
   return '';
 }
 
-function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: number, height: number, styleConfig: StyleConfig): string {
+function renderArgumentSvg(
+  el: ArgumentElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  styleConfig: StyleConfig,
+  connections: readonly Connection[],
+  elementsById: ReadonlyMap<string, DiagramElement>,
+): string {
   const style = resolveArgumentStyle(el, styleConfig);
+  // Live-derived label: same rule as ArgumentShape (see claimRoleDerivation.ts).
+  const displayLabel = el.argumentType === 'claim'
+    ? deriveClaimLabel(el.label, getClaimRole(el, connections, elementsById))
+    : el.label;
   const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
   const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
 
@@ -153,7 +177,7 @@ function renderArgumentSvg(el: ArgumentElement, x: number, y: number, width: num
 
   return `<g>
     ${shapeElement}
-    <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="${style.borderColor}">${escapeXml(el.label)}</text>
+    <text x="${x + padding}" y="${labelY}" class="label" font-size="14" fill="${style.borderColor}">${escapeXml(displayLabel)}</text>
     <text x="${x + padding}" y="${contentY}" class="content" font-size="12" fill="#000000">${escapeXml(el.content)}</text>
     ${imageElement}
     ${attributionElement}
