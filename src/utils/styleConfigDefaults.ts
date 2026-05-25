@@ -1,7 +1,36 @@
-import type { StyleConfig } from '../types/styleConfig';
+import type { StyleConfig, Subtype } from '../types/styleConfig';
 
-// FROZEN — never modify. Used only for v1.2 → v1.3 load migration.
+// Normalize a loaded styleConfig into the current in-memory shape.
+//
+// v1.3/v1.4 wire format had `otherSubtypes: Subtype[]` at the top level.
+// v1.5+ wire format has `subtypes: Record<SupportType, Subtype[]>` instead.
+// When loading older files we move `otherSubtypes` under `subtypes.other`
+// and initialize the action/question buckets to empty.
+//
+// Returns the input unchanged when it's already in the new shape, so this is
+// a safe no-op for v1.5+ files. Accepts `unknown` because save files come
+// from JSON.parse — caller should not have to pre-shape them.
+export function normalizeStyleConfig(loaded: unknown): StyleConfig {
+  const obj = loaded as Partial<StyleConfig> & { otherSubtypes?: Subtype[] };
+  if (obj.subtypes) {
+    return obj as StyleConfig;
+  }
+  return {
+    argumentTypes: obj.argumentTypes!,
+    supportTypes:  obj.supportTypes!,
+    subtypes: {
+      action:   [],
+      question: [],
+      other:    obj.otherSubtypes ?? [],
+    },
+  };
+}
+
+// FROZEN — never modify default VALUES. Used only for v1.2 → v1.3 load migration.
 // If defaults change in the future, change createCurrentDefaults instead.
+// (The shape — subtypes: Record<SupportType, Subtype[]> — was introduced in v1.5
+// and is the in-memory shape this factory returns even though it represents
+// v1.2-era defaults. The six 'other' subtype VALUES are the frozen contract.)
 export function createV1_2_MigrationDefaults(): StyleConfig {
   return {
     argumentTypes: {
@@ -17,14 +46,18 @@ export function createV1_2_MigrationDefaults(): StyleConfig {
       question: { label: 'Question', borderStyle: 'solid', borderShape: 'rounded', backgroundColor: '#E0FFFF' },
       other:    { label: 'Other',    borderStyle: 'solid', borderShape: 'rounded', backgroundColor: '#FFFACD' },
     },
-    otherSubtypes: [
-      { id: 'displays',   label: 'Displays' },
-      { id: 'suggests',   label: 'Suggests' },
-      { id: 'summarizes', label: 'Summarizes' },
-      { id: 'restates',   label: 'Restates' },
-      { id: 'highlights', label: 'Highlights' },
-      { id: 'validates',  label: 'Validates' },
-    ],
+    subtypes: {
+      action:   [],
+      question: [],
+      other: [
+        { id: 'displays',   label: 'Displays' },
+        { id: 'suggests',   label: 'Suggests' },
+        { id: 'summarizes', label: 'Summarizes' },
+        { id: 'restates',   label: 'Restates' },
+        { id: 'highlights', label: 'Highlights' },
+        { id: 'validates',  label: 'Validates' },
+      ],
+    },
   };
 }
 
@@ -49,13 +82,17 @@ export function createCurrentDefaults(): StyleConfig {
       question: { label: 'Question', borderStyle: 'solid', borderShape: 'rounded', backgroundColor: '#E0FFFF' },
       other:    { label: 'Other',    borderStyle: 'solid', borderShape: 'rounded', backgroundColor: '#FFFACD' },
     },
-    otherSubtypes: [
-      { id: 'displays',   label: 'Displays' },
-      { id: 'suggests',   label: 'Suggests' },
-      { id: 'summarizes', label: 'Summarizes' },
-      { id: 'restates',   label: 'Restates' },
-      { id: 'highlights', label: 'Highlights' },
-      { id: 'validates',  label: 'Validates' },
-    ],
+    subtypes: {
+      action:   [],
+      question: [],
+      other: [
+        { id: 'displays',   label: 'Displays' },
+        { id: 'suggests',   label: 'Suggests' },
+        { id: 'summarizes', label: 'Summarizes' },
+        { id: 'restates',   label: 'Restates' },
+        { id: 'highlights', label: 'Highlights' },
+        { id: 'validates',  label: 'Validates' },
+      ],
+    },
   };
 }

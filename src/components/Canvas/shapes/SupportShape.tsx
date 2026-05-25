@@ -35,6 +35,14 @@ export function SupportShape({
   const style = resolveSupportStyle(element, styleConfig);
   const dashArray = dashArrayForBorderStyle(style.borderStyle);
 
+  if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
+    console.log('[etd-style] SupportShape', {
+      id: element.id, supportType, contributor,
+      typeStyle: styleConfig.supportTypes[supportType],
+      resolved: { borderShape: style.borderShape, backgroundColor: style.backgroundColor },
+    });
+  }
+
   const padding = 8;
 
   // Format attribution text
@@ -45,16 +53,18 @@ export function SupportShape({
   // Contributor label
   const contributorLabel = contributor === 'teacher' ? 'T' : 'S';
 
-  // Build header label (action has no header)
+  // Build header label (action has no header). Subtypes are now per-supportType:
+  // styleConfig.subtypes[supportType]. Both 'question' and 'other' may have subtypes;
+  // a question element with no subtype falls back to the type label ("Question").
   const supportTypeLabel = styleConfig.supportTypes[supportType].label;
-  const isOrphan = supportType === 'other' && subtype !== undefined &&
-    !styleConfig.otherSubtypes.some((s) => s.id === subtype);
-  const subtypeLabel = supportType === 'other' && subtype
-    ? (styleConfig.otherSubtypes.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
+  const subtypeList = styleConfig.subtypes[supportType];
+  const isOrphan = supportType !== 'action' && subtype !== undefined &&
+    !subtypeList.some((s) => s.id === subtype);
+  const subtypeLabel = supportType !== 'action' && subtype
+    ? (subtypeList.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
     : null;
   const headerLabel =
     supportType === 'action' ? '' :
-    supportType === 'question' ? `[${contributorLabel}] ${supportTypeLabel}` :
     `[${contributorLabel}] ${subtypeLabel ?? supportTypeLabel}`;
 
   // Shape node: ellipse for action, rounded/plain rect otherwise

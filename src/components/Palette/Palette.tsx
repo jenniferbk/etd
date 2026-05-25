@@ -47,12 +47,16 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     { type: 'rebuttal',  label: styleConfig.argumentTypes.rebuttal.label },
   ];
 
-  const SUPPORT_SUBTYPES = styleConfig.otherSubtypes;
+  const OTHER_SUBTYPES = styleConfig.subtypes.other;
+  const QUESTION_SUBTYPES = styleConfig.subtypes.question;
 
   const [selectedContributor, setSelectedContributor] = useState<ContributorType>('student');
   const [selectedSupportContributor, setSelectedSupportContributor] = useState<SupportContributor>('teacher');
-  const [selectedSubtype, setSelectedSubtype] = useState<string>(
-    styleConfig.otherSubtypes[0]?.id ?? 'displays'
+  const [selectedOtherSubtype, setSelectedOtherSubtype] = useState<string>(
+    styleConfig.subtypes.other[0]?.id ?? ''
+  );
+  const [selectedQuestionSubtype, setSelectedQuestionSubtype] = useState<string>(
+    styleConfig.subtypes.question[0]?.id ?? ''
   );
   const [expandedSections, setExpandedSections] = useState({
     arguments: true,
@@ -61,12 +65,17 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     annotations: true,
   });
 
+  // Keep the selected subtype ids valid as the user adds/removes subtypes in Settings.
+  // Empty string means "no subtype chosen" — valid when the list is empty.
   useEffect(() => {
-    const exists = styleConfig.otherSubtypes.some((s) => s.id === selectedSubtype);
-    if (!exists && styleConfig.otherSubtypes[0]) {
-      setSelectedSubtype(styleConfig.otherSubtypes[0].id);
-    }
-  }, [styleConfig.otherSubtypes, selectedSubtype]);
+    const exists = OTHER_SUBTYPES.some((s) => s.id === selectedOtherSubtype);
+    if (!exists) setSelectedOtherSubtype(OTHER_SUBTYPES[0]?.id ?? '');
+  }, [OTHER_SUBTYPES, selectedOtherSubtype]);
+
+  useEffect(() => {
+    const exists = QUESTION_SUBTYPES.some((s) => s.id === selectedQuestionSubtype);
+    if (!exists) setSelectedQuestionSubtype(QUESTION_SUBTYPES[0]?.id ?? '');
+  }, [QUESTION_SUBTYPES, selectedQuestionSubtype]);
 
   const generateId = () => `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -101,12 +110,16 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
   };
 
   const handleAddSupport = (supportType: SupportType) => {
+    const subtype =
+      supportType === 'other'    ? (selectedOtherSubtype    || undefined) :
+      supportType === 'question' ? (selectedQuestionSubtype || undefined) :
+      undefined;
     const newElement: SupportElement = {
       id: generateId(),
       type: 'support',
       contributor: selectedSupportContributor,
       supportType,
-      subtype: supportType === 'other' ? selectedSubtype : undefined,
+      subtype,
       content: '',
       position: { x: 150 + Math.random() * 200, y: 150 + Math.random() * 200 },
       size: supportType === 'action'
@@ -388,13 +401,34 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
             >
               {styleConfig.supportTypes.action.label}
             </button>
-            <button
-              onClick={() => handleAddSupport('question')}
-              className="w-full px-4 py-2 text-left text-sm border rounded-lg transition-colors duration-150 font-medium"
-              style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill, color: '#0d7377' }}
-            >
-              {styleConfig.supportTypes.question.label}
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleAddSupport('question')}
+                className="w-full px-4 py-2 text-left text-sm border rounded-lg transition-colors duration-150 font-medium"
+                style={{ borderColor: COLORS.question, backgroundColor: COLORS.questionFill, color: '#0d7377' }}
+              >
+                {styleConfig.supportTypes.question.label}
+              </button>
+              {QUESTION_SUBTYPES.length > 0 && (
+                <select
+                  value={selectedQuestionSubtype}
+                  onChange={(e) => setSelectedQuestionSubtype(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border transition-colors duration-150"
+                  style={{
+                    backgroundColor: theme.sidebar.surface,
+                    borderColor: theme.sidebar.border,
+                    color: theme.sidebar.text,
+                  }}
+                >
+                  <option value="">(no subtype)</option>
+                  {QUESTION_SUBTYPES.map((subtype) => (
+                    <option key={subtype.id} value={subtype.id}>
+                      {subtype.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
             <div className="space-y-2">
               <button
                 onClick={() => handleAddSupport('other')}
@@ -403,22 +437,25 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
               >
                 {styleConfig.supportTypes.other.label}
               </button>
-              <select
-                value={selectedSubtype}
-                onChange={(e) => setSelectedSubtype(e.target.value)}
-                className="w-full px-3 py-2 text-sm rounded-lg border transition-colors duration-150"
-                style={{
-                  backgroundColor: theme.sidebar.surface,
-                  borderColor: theme.sidebar.border,
-                  color: theme.sidebar.text,
-                }}
-              >
-                {SUPPORT_SUBTYPES.map((subtype) => (
-                  <option key={subtype.id} value={subtype.id}>
-                    {subtype.label}
-                  </option>
-                ))}
-              </select>
+              {OTHER_SUBTYPES.length > 0 && (
+                <select
+                  value={selectedOtherSubtype}
+                  onChange={(e) => setSelectedOtherSubtype(e.target.value)}
+                  className="w-full px-3 py-2 text-sm rounded-lg border transition-colors duration-150"
+                  style={{
+                    backgroundColor: theme.sidebar.surface,
+                    borderColor: theme.sidebar.border,
+                    color: theme.sidebar.text,
+                  }}
+                >
+                  <option value="">(no subtype)</option>
+                  {OTHER_SUBTYPES.map((subtype) => (
+                    <option key={subtype.id} value={subtype.id}>
+                      {subtype.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
         )}

@@ -11,7 +11,7 @@ import { Modal } from '../ui/Modal';
 export type SettingsSelection =
   | { kind: 'argument'; type: 'data' | 'claim' | 'warrant' | 'backing' | 'qualifier' | 'rebuttal' }
   | { kind: 'support';  type: 'action' | 'question' | 'other' }
-  | { kind: 'subtypes' };
+  | { kind: 'subtypes'; supportType: 'action' | 'question' | 'other' };
 
 interface SettingsModalProps {
   open: boolean;
@@ -115,7 +115,12 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
             />
           )}
           {selection.kind === 'subtypes' && (
-            <SubtypeListEditor config={workingConfig} onChange={setWorkingConfig} />
+            <SubtypeListEditor
+              key={selection.supportType}
+              supportType={selection.supportType}
+              config={workingConfig}
+              onChange={setWorkingConfig}
+            />
           )}
         </div>
       </div>

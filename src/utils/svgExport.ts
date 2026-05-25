@@ -165,17 +165,17 @@ function renderSupportSvg(el: SupportElement, x: number, y: number, width: numbe
   const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
   const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
 
-  // Orphan detection: 'other' supportType with a subtype that no longer exists in config
-  const isOrphan = el.supportType === 'other' && el.subtype !== undefined &&
-    !styleConfig.otherSubtypes.some((s) => s.id === el.subtype);
-  const subtypeLabel = el.supportType === 'other' && el.subtype
-    ? (styleConfig.otherSubtypes.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
+  // Orphan detection: any non-'action' supportType with a subtype that no longer exists.
+  const subtypeList = styleConfig.subtypes[el.supportType];
+  const isOrphan = el.supportType !== 'action' && el.subtype !== undefined &&
+    !subtypeList.some((s) => s.id === el.subtype);
+  const subtypeLabel = el.supportType !== 'action' && el.subtype
+    ? (subtypeList.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
     : null;
   const supportTypeLabel = styleConfig.supportTypes[el.supportType].label;
   const contributorLabel = el.contributor === 'teacher' ? 'T' : 'S';
   const headerText =
     el.supportType === 'action' ? '' :
-    el.supportType === 'question' ? `[${contributorLabel}] ${supportTypeLabel}` :
     `[${contributorLabel}] ${subtypeLabel ?? supportTypeLabel}`;
 
   let shapeElement: string;
@@ -227,17 +227,17 @@ function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number
     </g>`;
   }
 
-  // Orphan detection: 'other' supportType with a subtype that no longer exists in config
-  const isOrphan = el.supportType === 'other' && el.subtype !== undefined &&
-    !styleConfig.otherSubtypes.some((s) => s.id === el.subtype);
-  const subtypeLabel = el.supportType === 'other' && el.subtype
-    ? (styleConfig.otherSubtypes.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
+  // Orphan detection: any non-'action' supportType with a subtype that no longer exists.
+  const subtypeList = styleConfig.subtypes[el.supportType];
+  const isOrphan = el.supportType !== 'action' && el.subtype !== undefined &&
+    !subtypeList.some((s) => s.id === el.subtype);
+  const subtypeLabel = el.supportType !== 'action' && el.subtype
+    ? (subtypeList.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
     : null;
 
-  // Rounded rectangle — header is type label only (no contributor prefix for teacherSupport)
-  const label = el.supportType === 'question'
-    ? styleConfig.supportTypes['question'].label
-    : `${styleConfig.supportTypes['other'].label}: ${subtypeLabel ?? ''}`;
+  // Rounded rectangle — header is type label, with subtype suffix when one is set.
+  const baseLabel = styleConfig.supportTypes[el.supportType].label;
+  const label = subtypeLabel ? `${baseLabel}: ${subtypeLabel}` : baseLabel;
 
   let shapeElement: string;
   if (style.borderShape === 'ellipse') {

@@ -33,7 +33,11 @@ export function PropertiesPanel() {
     ['action', 'question', 'other'] as const
   ).map((value) => ({ value, label: styleConfig.supportTypes[value].label }));
 
-  const SUPPORT_SUBTYPES = styleConfig.otherSubtypes.map((s) => ({
+  const OTHER_SUBTYPES = styleConfig.subtypes.other.map((s) => ({
+    value: s.id,
+    label: s.label,
+  }));
+  const QUESTION_SUBTYPES = styleConfig.subtypes.question.map((s) => ({
     value: s.id,
     label: s.label,
   }));
@@ -50,12 +54,13 @@ export function PropertiesPanel() {
     ? connections.find((c) => c.id === selectedIds[0])
     : null;
 
-  const isOrphanedSubtype =
+  const isOrphanedSubtype = !!(
     selectedElement &&
     isSupportElement(selectedElement) &&
-    selectedElement.supportType === 'other' &&
+    selectedElement.supportType !== 'action' &&
     selectedElement.subtype !== undefined &&
-    !styleConfig.otherSubtypes.some((s) => s.id === selectedElement.subtype);
+    !styleConfig.subtypes[selectedElement.supportType].some((s) => s.id === selectedElement.subtype)
+  );
 
   // Handle image changes - must be before early return for hooks rules
   const handleImageChange = useCallback(
@@ -292,8 +297,17 @@ export function PropertiesPanel() {
                   <option value="">To Support...</option>
                   <option value="action">Action</option>
                   <option value="question">Question</option>
+                  {QUESTION_SUBTYPES.length > 0 && (
+                    <optgroup label="Question subtypes">
+                      {QUESTION_SUBTYPES.map((subtype) => (
+                        <option key={subtype.value} value={`question:${subtype.value}`}>
+                          {subtype.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                   <optgroup label="Other Support">
-                    {SUPPORT_SUBTYPES.map((subtype) => (
+                    {OTHER_SUBTYPES.map((subtype) => (
                       <option key={subtype.value} value={`other:${subtype.value}`}>
                         {subtype.label}
                       </option>
@@ -341,28 +355,43 @@ export function PropertiesPanel() {
                   </select>
                 </div>
               )}
-              {selectedElement.supportType === 'other' && (
-                <div className="flex flex-col gap-1.5">
-                  <label style={labelStyle}>Subtype</label>
-                  <select
-                    value={isOrphanedSubtype ? '__orphan__' : (selectedElement.subtype ?? '')}
-                    onChange={(e) => changeSupportType(selectedElement.id, 'other', e.target.value as SupportSubtype)}
-                    className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
-                    style={{ ...selectStyle, color: isOrphanedSubtype ? theme.danger.fg : selectStyle.color }}
-                  >
-                    {isOrphanedSubtype && (
-                      <option value="__orphan__" disabled>
-                        [Deleted Subtype — pick a new one]
-                      </option>
-                    )}
-                    {SUPPORT_SUBTYPES.map((subtype) => (
-                      <option key={subtype.value} value={subtype.value}>
-                        {subtype.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {selectedElement.supportType !== 'action' && (() => {
+                const subtypeOptions =
+                  selectedElement.supportType === 'question' ? QUESTION_SUBTYPES : OTHER_SUBTYPES;
+                // Hide the dropdown entirely when there are no subtypes defined for this
+                // supportType and the element has no orphan to display — nothing for the
+                // user to pick from. They can add subtypes in Settings.
+                if (subtypeOptions.length === 0 && !isOrphanedSubtype) return null;
+                return (
+                  <div className="flex flex-col gap-1.5">
+                    <label style={labelStyle}>Subtype</label>
+                    <select
+                      value={isOrphanedSubtype ? '__orphan__' : (selectedElement.subtype ?? '')}
+                      onChange={(e) =>
+                        changeSupportType(
+                          selectedElement.id,
+                          selectedElement.supportType,
+                          e.target.value as SupportSubtype,
+                        )
+                      }
+                      className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 capitalize cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                      style={{ ...selectStyle, color: isOrphanedSubtype ? theme.danger.fg : selectStyle.color }}
+                    >
+                      {isOrphanedSubtype && (
+                        <option value="__orphan__" disabled>
+                          [Deleted Subtype — pick a new one]
+                        </option>
+                      )}
+                      <option value="">(none)</option>
+                      {subtypeOptions.map((subtype) => (
+                        <option key={subtype.value} value={subtype.value}>
+                          {subtype.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })()}
               {isSupportElement(selectedElement) && (
                 <div className="flex flex-col gap-1.5">
                   <label style={labelStyle}>Associated with</label>

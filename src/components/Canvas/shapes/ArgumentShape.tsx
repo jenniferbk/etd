@@ -35,6 +35,14 @@ export function ArgumentShape({
   const styleConfig = useDiagramStore((s) => s.styleConfig);
   const style = resolveArgumentStyle(element, styleConfig);
 
+  if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
+    console.log('[etd-style] ArgumentShape', {
+      id: element.id, argumentType: element.argumentType, contributor: element.contributor,
+      typeStyle: styleConfig.argumentTypes[element.argumentType],
+      resolved: { borderShape: style.borderShape, backgroundColor: style.backgroundColor },
+    });
+  }
+
   // Format attribution text
   const attributionText = attribution?.speaker || attribution?.timestamp
     ? `${attribution.speaker || ''}${attribution.speaker && attribution.timestamp ? ' @ ' : ''}${attribution.timestamp || ''}`

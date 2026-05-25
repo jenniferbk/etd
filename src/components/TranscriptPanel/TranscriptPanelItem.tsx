@@ -86,7 +86,13 @@ export function TranscriptPanelItem({
     { value: 'rebuttal',  label: styleConfig.argumentTypes.rebuttal.label,  objectType: 'rebuttal' },
     { value: 'action',    label: styleConfig.supportTypes.action.label,     objectType: 'action' },
     { value: 'question',  label: styleConfig.supportTypes.question.label,   objectType: 'question' },
-    ...styleConfig.otherSubtypes.map((s) => ({
+    ...styleConfig.subtypes.question.map((s) => ({
+      value: `question:${s.id}`,
+      label: `${styleConfig.supportTypes.question.label}: ${s.label}`,
+      objectType: 'question' as const,
+      subtype: s.id,
+    })),
+    ...styleConfig.subtypes.other.map((s) => ({
       value: `other:${s.id}`,
       label: `${styleConfig.supportTypes.other.label}: ${s.label}`,
       objectType: 'other' as const,
@@ -226,7 +232,7 @@ export function TranscriptPanelItem({
           value={encodeObjectTypeValue(
             line.objectType,
             line.subtype,
-            styleConfig.otherSubtypes[0]?.id ?? '',
+            styleConfig.subtypes.other[0]?.id ?? '',
           )}
           onChange={(e) => {
             const { objectType, subtype } = decodeObjectTypeValue(e.target.value, OBJECT_TYPE_OPTIONS);

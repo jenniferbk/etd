@@ -1,4 +1,4 @@
-import type { StyleConfig } from '../../types';
+import type { StyleConfig, SupportType } from '../../types';
 import type { SettingsSelection } from './SettingsModal';
 import { theme } from '../../utils/theme';
 
@@ -9,14 +9,15 @@ interface SettingsSidebarProps {
 }
 
 const ARGUMENT_TYPES = ['data', 'claim', 'warrant', 'backing', 'qualifier', 'rebuttal'] as const;
-const SUPPORT_TYPES = ['action', 'question', 'other'] as const;
+const SUPPORT_TYPES: readonly SupportType[] = ['action', 'question', 'other'] as const;
+const SUBTYPE_TYPES: readonly SupportType[] = ['question', 'other', 'action'] as const;
 
 export function SettingsSidebar({ config, selection, onSelect }: SettingsSidebarProps) {
   const isSelected = (sel: SettingsSelection): boolean => {
     if (sel.kind !== selection.kind) return false;
-    if (sel.kind === 'subtypes') return true;
     if (sel.kind === 'argument' && selection.kind === 'argument') return sel.type === selection.type;
     if (sel.kind === 'support'  && selection.kind === 'support')  return sel.type === selection.type;
+    if (sel.kind === 'subtypes' && selection.kind === 'subtypes') return sel.supportType === selection.supportType;
     return false;
   };
 
@@ -76,18 +77,23 @@ export function SettingsSidebar({ config, selection, onSelect }: SettingsSidebar
 
       <div className="px-3 mt-4 mb-2">
         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.sidebar.muted }}>
-          Other
+          Subtypes
         </span>
       </div>
-      {(() => {
-        const sel: SettingsSelection = { kind: 'subtypes' };
+      {SUBTYPE_TYPES.map((supportType) => {
+        const sel: SettingsSelection = { kind: 'subtypes', supportType };
         const active = isSelected(sel);
         return (
-          <button onClick={() => onSelect(sel)} className={rowClass(active)} style={rowStyle(active)}>
-            Other-Support Subtypes
+          <button
+            key={supportType}
+            onClick={() => onSelect(sel)}
+            className={rowClass(active)}
+            style={rowStyle(active)}
+          >
+            {config.supportTypes[supportType].label} subtypes
           </button>
         );
-      })()}
+      })}
     </div>
   );
 }

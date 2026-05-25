@@ -1,21 +1,29 @@
 import { useState } from 'react';
 import { GripVertical, Trash2, Plus } from 'lucide-react';
-import type { StyleConfig, OtherSubtype } from '../../types';
+import type { StyleConfig, Subtype, SupportType } from '../../types';
 import { useDiagramStore } from '../../store';
 import { isSupportElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { createCurrentDefaults } from '../../utils/styleConfigDefaults';
 
 interface SubtypeListEditorProps {
+  supportType: SupportType;
   config: StyleConfig;
   onChange: (next: StyleConfig) => void;
 }
 
-export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) {
+export function SubtypeListEditor({ supportType, config, onChange }: SubtypeListEditorProps) {
   const elements = useDiagramStore((s) => s.elements);
 
-  const updateSubtypes = (next: OtherSubtype[]) => {
-    onChange({ ...config, otherSubtypes: next });
+  const list = config.subtypes[supportType];
+  const typeLabel = config.supportTypes[supportType].label;
+  const defaults = createCurrentDefaults().subtypes[supportType];
+
+  const updateSubtypes = (next: Subtype[]) => {
+    onChange({
+      ...config,
+      subtypes: { ...config.subtypes, [supportType]: next },
+    });
   };
 
   const handleAdd = () => {
@@ -23,26 +31,31 @@ export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) 
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `subtype-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    updateSubtypes([...config.otherSubtypes, { id, label: 'New subtype' }]);
+    updateSubtypes([...list, { id, label: 'New subtype' }]);
   };
 
   const handleRename = (id: string, label: string) => {
-    updateSubtypes(config.otherSubtypes.map((s) => (s.id === id ? { ...s, label } : s)));
+    updateSubtypes(list.map((s) => (s.id === id ? { ...s, label } : s)));
   };
 
+  const countUsesForId = (id: string) =>
+    elements.filter(
+      (el) => isSupportElement(el) && el.supportType === supportType && el.subtype === id,
+    ).length;
+
   const handleRemove = (id: string) => {
-    const useCount = elements.filter((el) => isSupportElement(el) && el.subtype === id).length;
+    const useCount = countUsesForId(id);
     if (useCount > 0) {
       const ok = window.confirm(
         `This subtype is used by ${useCount} element${useCount === 1 ? '' : 's'}. Deleting it will leave them with no assigned subtype. Continue?`
       );
       if (!ok) return;
     }
-    updateSubtypes(config.otherSubtypes.filter((s) => s.id !== id));
+    updateSubtypes(list.filter((s) => s.id !== id));
   };
 
   const handleReorder = (fromIndex: number, toIndex: number) => {
-    const next = [...config.otherSubtypes];
+    const next = [...list];
     const [moved] = next.splice(fromIndex, 1);
     next.splice(toIndex, 0, moved);
     updateSubtypes(next);
@@ -50,10 +63,10 @@ export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) 
 
   const handleResetSubtypes = () => {
     const ok = window.confirm(
-      'Replace your custom subtypes with the six defaults? Elements using removed subtypes will be orphaned.'
+      `Replace your custom ${typeLabel.toLowerCase()} subtypes with the defaults? Elements using removed subtypes will be orphaned.`
     );
     if (!ok) return;
-    updateSubtypes(createCurrentDefaults().otherSubtypes);
+    updateSubtypes(defaults);
   };
 
   return (
@@ -63,7 +76,7 @@ export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) 
           className="text-sm font-semibold uppercase tracking-wider"
           style={{ color: theme.sidebar.text }}
         >
-          Other-Support Subtypes
+          {typeLabel} Subtypes
         </h3>
         <button
           onClick={handleResetSubtypes}
@@ -80,12 +93,12 @@ export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) 
       </div>
 
       <div className="space-y-1">
-        {config.otherSubtypes.map((s, idx) => (
+        {list.map((s, idx) => (
           <SubtypeRow
             key={`${s.id}:${s.label}`}
             subtype={s}
             index={idx}
-            useCount={elements.filter((el) => isSupportElement(el) && el.subtype === s.id).length}
+            useCount={countUsesForId(s.id)}
             onRename={handleRename}
             onRemove={handleRemove}
             onReorder={handleReorder}
@@ -105,7 +118,7 @@ export function SubtypeListEditor({ config, onChange }: SubtypeListEditorProps) 
 }
 
 interface SubtypeRowProps {
-  subtype: OtherSubtype;
+  subtype: Subtype;
   index: number;
   useCount: number;
   onRename: (id: string, label: string) => void;

@@ -7,7 +7,7 @@ import type {
   Transcript, TranscriptLine, EdgeAnchor,
 } from '../types';
 import type { StyleConfig } from '../types/styleConfig';
-import { createCurrentDefaults, createV1_2_MigrationDefaults } from '../utils/styleConfigDefaults';
+import { createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
 
@@ -333,8 +333,11 @@ export const useDiagramStore = create<DiagramState>()(
             if (el.id !== id) return el;
             if (!isSupportElement(el) && !isTeacherSupportElement(el)) return el;
 
-            // Clear subtype if not 'other', otherwise use provided subtype
-            const newSubtype = supportType === 'other' ? (subtype || 'displays') : undefined;
+            // 'action' never has a subtype. 'question' and 'other' may have one;
+            // pass it through if provided. Caller is responsible for clearing or
+            // re-picking when changing supportType (subtype ids aren't shared across
+            // supportTypes).
+            const newSubtype = supportType === 'action' ? undefined : subtype;
 
             return {
               ...el,
@@ -556,8 +559,10 @@ export const useDiagramStore = create<DiagramState>()(
           diagramName: name || 'Untitled Diagram',
           transcript: transcript ?? null,
           // v1.2 files have no styleConfig — apply the FROZEN migration defaults.
-          // v1.3+ files pass their saved config through.
-          styleConfig: styleConfig ?? createV1_2_MigrationDefaults(),
+          // v1.3/v1.4 files have the old `otherSubtypes` shape; normalize moves it
+          // into `subtypes.other` and seeds empty action/question buckets.
+          // v1.5+ files pass through unchanged.
+          styleConfig: styleConfig ? normalizeStyleConfig(styleConfig) : createV1_2_MigrationDefaults(),
         });
       },
 

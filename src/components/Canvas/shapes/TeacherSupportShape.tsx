@@ -39,6 +39,14 @@ export function TeacherSupportShape({
   const style = resolveSupportStyle(synthesized, styleConfig);
   const dashArray = dashArrayForBorderStyle(style.borderStyle);
 
+  if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
+    console.log('[etd-style] TeacherSupportShape', {
+      id: element.id, supportType, contributor: 'teacher (legacy)',
+      typeStyle: styleConfig.supportTypes[supportType],
+      resolved: { borderShape: style.borderShape, backgroundColor: style.backgroundColor },
+    });
+  }
+
   const padding = 8;
 
   // Format attribution text
@@ -46,16 +54,17 @@ export function TeacherSupportShape({
     ? `${attribution.speaker || ''}${attribution.speaker && attribution.timestamp ? ' @ ' : ''}${attribution.timestamp || ''}`
     : '';
 
-  // Build header label (action has no header; no contributor badge for legacy teacher elements)
+  // Build header label (action has no header; no contributor badge for legacy teacher elements).
+  // Subtypes are now per-supportType: styleConfig.subtypes[supportType].
   const supportTypeLabel = styleConfig.supportTypes[supportType].label;
-  const isOrphan = supportType === 'other' && subtype !== undefined &&
-    !styleConfig.otherSubtypes.some((s) => s.id === subtype);
-  const subtypeLabel = supportType === 'other' && subtype
-    ? (styleConfig.otherSubtypes.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
+  const subtypeList = styleConfig.subtypes[supportType];
+  const isOrphan = supportType !== 'action' && subtype !== undefined &&
+    !subtypeList.some((s) => s.id === subtype);
+  const subtypeLabel = supportType !== 'action' && subtype
+    ? (subtypeList.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
     : null;
   const headerLabel =
     supportType === 'action' ? '' :
-    supportType === 'question' ? supportTypeLabel :
     subtypeLabel ?? supportTypeLabel;
 
   // Shape node: ellipse for action, rounded/plain rect otherwise
