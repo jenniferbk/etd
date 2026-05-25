@@ -634,3 +634,77 @@ export function computeEntryTValues(
   for (const s of siblings) out.set(s.conn.id, 0.5);
   return out;
 }
+
+/**
+ * For a given point P and a polyline, find the parameter t in [0,1] of the
+ * point on the polyline closest to P. Used by qualifier drop/drag to compute
+ * "where along this line does the qualifier sit".
+ */
+export function tForPointOnPolyline(
+  p: { x: number; y: number },
+  points: number[],
+): number {
+  if (points.length < 4) return 0;
+
+  let totalLength = 0;
+  const segments: { ax: number; ay: number; bx: number; by: number; length: number }[] = [];
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const ax = points[i], ay = points[i + 1];
+    const bx = points[i + 2], by = points[i + 3];
+    const length = Math.sqrt((bx - ax) ** 2 + (by - ay) ** 2);
+    segments.push({ ax, ay, bx, by, length });
+    totalLength += length;
+  }
+  if (totalLength === 0) return 0;
+
+  let bestT = 0;
+  let bestDistSq = Infinity;
+  let accLength = 0;
+  for (const s of segments) {
+    if (s.length === 0) {
+      accLength += s.length;
+      continue;
+    }
+    const dx = s.bx - s.ax;
+    const dy = s.by - s.ay;
+    let segT = ((p.x - s.ax) * dx + (p.y - s.ay) * dy) / (s.length * s.length);
+    segT = Math.max(0, Math.min(1, segT));
+    const projX = s.ax + dx * segT;
+    const projY = s.ay + dy * segT;
+    const distSq = (projX - p.x) ** 2 + (projY - p.y) ** 2;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestT = (accLength + segT * s.length) / totalLength;
+    }
+    accLength += s.length;
+  }
+  return Math.max(0, Math.min(1, bestT));
+}
+
+/**
+ * Is point P within `tolerance` pixels of any segment of the polyline?
+ * Used by drop hit-test (12px) and rebuttal-target qualifier proximity (20px).
+ */
+export function hitTestPolyline(
+  p: { x: number; y: number },
+  points: number[],
+  tolerance: number,
+): boolean {
+  if (points.length < 4) return false;
+  const tolSq = tolerance * tolerance;
+  for (let i = 0; i < points.length - 2; i += 2) {
+    const ax = points[i], ay = points[i + 1];
+    const bx = points[i + 2], by = points[i + 3];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) continue;
+    let t = ((p.x - ax) * dx + (p.y - ay) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const projX = ax + dx * t;
+    const projY = ay + dy * t;
+    const distSq = (projX - p.x) ** 2 + (projY - p.y) ** 2;
+    if (distSq <= tolSq) return true;
+  }
+  return false;
+}

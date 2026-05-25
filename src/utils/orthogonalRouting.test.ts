@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT, offsetAlongLine } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT, offsetAlongLine, tForPointOnPolyline, hitTestPolyline } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -363,5 +363,58 @@ describe('offsetAlongLine', () => {
     const result = offsetAlongLine({ x: 0, y: 0 }, { x: 3, y: 4 }, 1);
     expect(result.x).toBeCloseTo(0.6);
     expect(result.y).toBeCloseTo(0.8);
+  });
+});
+
+describe('tForPointOnPolyline', () => {
+  it('returns 0 for a point at the polyline start', () => {
+    expect(tForPointOnPolyline({ x: 0, y: 0 }, [0, 0, 100, 0])).toBeCloseTo(0, 5);
+  });
+
+  it('returns 1 for a point at the polyline end', () => {
+    expect(tForPointOnPolyline({ x: 100, y: 0 }, [0, 0, 100, 0])).toBeCloseTo(1, 5);
+  });
+
+  it('returns 0.5 for the midpoint of a single segment', () => {
+    expect(tForPointOnPolyline({ x: 50, y: 0 }, [0, 0, 100, 0])).toBeCloseTo(0.5, 5);
+  });
+
+  it('handles a two-segment L-shape: midpoint of total length', () => {
+    // 0,0 → 100,0 → 100,100. Total length 200. t=0.5 is at (100,0).
+    const points = [0, 0, 100, 0, 100, 100];
+    expect(tForPointOnPolyline({ x: 100, y: 0 }, points)).toBeCloseTo(0.5, 5);
+  });
+
+  it('projects an off-line point to the nearest polyline point', () => {
+    // (50, 20) projects to (50, 0), t=0.5 on the horizontal segment.
+    expect(tForPointOnPolyline({ x: 50, y: 20 }, [0, 0, 100, 0])).toBeCloseTo(0.5, 5);
+  });
+
+  it('clamps t to [0,1]', () => {
+    expect(tForPointOnPolyline({ x: -50, y: 0 }, [0, 0, 100, 0])).toBe(0);
+    expect(tForPointOnPolyline({ x: 200, y: 0 }, [0, 0, 100, 0])).toBe(1);
+  });
+});
+
+describe('hitTestPolyline', () => {
+  it('returns true for a point ON the line', () => {
+    expect(hitTestPolyline({ x: 50, y: 0 }, [0, 0, 100, 0], 12)).toBe(true);
+  });
+
+  it('returns true for a point within tolerance perpendicular to the line', () => {
+    expect(hitTestPolyline({ x: 50, y: 10 }, [0, 0, 100, 0], 12)).toBe(true);
+  });
+
+  it('returns false for a point outside tolerance', () => {
+    expect(hitTestPolyline({ x: 50, y: 20 }, [0, 0, 100, 0], 12)).toBe(false);
+  });
+
+  it('returns false for a point past the endpoints (beyond segment range)', () => {
+    expect(hitTestPolyline({ x: 200, y: 0 }, [0, 0, 100, 0], 12)).toBe(false);
+  });
+
+  it('hits the second segment of an L-shape', () => {
+    const points = [0, 0, 100, 0, 100, 100];
+    expect(hitTestPolyline({ x: 100, y: 50 }, points, 12)).toBe(true);
   });
 });
