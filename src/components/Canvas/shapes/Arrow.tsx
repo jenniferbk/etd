@@ -10,7 +10,6 @@ import {
   getOrthogonalPath,
   getPointOnPolyline,
   getSegments,
-  getVerticalAttachmentPath,
   type SegmentOrientation,
   computeConnectionPath,
   determineFacingEdge,
