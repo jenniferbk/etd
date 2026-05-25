@@ -233,6 +233,13 @@ export function ArgumentShape({
     );
   }
 
+  // Orphan qualifier override: render in the standard rect path but with a
+  // dashed red 2px border + ⚠ marker so the user knows the element needs to
+  // be attached to a connection.
+  const effectiveBorderColor = isOrphanQualifier ? '#CC0000' : borderColor;
+  const effectiveStrokeWidth = isOrphanQualifier ? 2 : strokeWidth;
+  const effectiveDashArray = isOrphanQualifier ? [6, 4] : dashArray;
+
   // Standard rectangle shape
   return (
     <Group
@@ -258,19 +265,29 @@ export function ArgumentShape({
           radiusX={size.width / 2}
           radiusY={size.height / 2}
           fill={style.backgroundColor}
-          stroke={borderColor}
-          strokeWidth={strokeWidth}
-          dash={dashArray}
+          stroke={effectiveBorderColor}
+          strokeWidth={effectiveStrokeWidth}
+          dash={effectiveDashArray}
         />
       ) : (
         <Rect
           width={size.width}
           height={size.height}
           fill={style.backgroundColor}
-          stroke={borderColor}
-          strokeWidth={strokeWidth}
-          dash={dashArray}
+          stroke={effectiveBorderColor}
+          strokeWidth={effectiveStrokeWidth}
+          dash={effectiveDashArray}
           cornerRadius={style.borderShape === 'rounded' ? 8 : 0}
+        />
+      )}
+      {/* Orphan qualifier ⚠ marker */}
+      {isOrphanQualifier && (
+        <Text
+          x={size.width - 16}
+          y={4}
+          text="⚠"
+          fontSize={14}
+          fill="#CC0000"
         />
       )}
       {/* Selection indicator */}

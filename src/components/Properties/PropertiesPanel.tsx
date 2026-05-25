@@ -223,6 +223,11 @@ export function PropertiesPanel() {
     });
   };
 
+  const isUnattachedQualifier =
+    isArgumentElement(selectedElement) &&
+    selectedElement.argumentType === 'qualifier' &&
+    selectedElement.attachedTo === undefined;
+
   return (
     <div
       className={`${panelHeight} border-t px-5 py-4 panel-transition`}
@@ -232,6 +237,18 @@ export function PropertiesPanel() {
         boxShadow: theme.properties.shadow,
       }}
     >
+      {isUnattachedQualifier && (
+        <div
+          className="mb-3 px-3 py-2 rounded text-xs"
+          style={{
+            backgroundColor: '#FFEBEB',
+            border: '1px solid #CC0000',
+            color: '#9B0000',
+          }}
+        >
+          ⚠ Unattached qualifier — drag onto a connection line to attach.
+        </div>
+      )}
       <div className="flex gap-6 items-start h-full">
         {/* Label and Type */}
         <div className="flex gap-4 flex-shrink-0">
