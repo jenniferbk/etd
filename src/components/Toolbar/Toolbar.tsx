@@ -7,7 +7,6 @@ import {
   Redo2,
   LayoutGrid,
   FileInput,
-  PanelRight,
   ZoomIn,
   ZoomOut,
   Crosshair,
@@ -47,12 +46,10 @@ function toFilename(name: string): string {
 
 interface ToolbarProps {
   onLoadTranscript: () => void;
-  transcriptPanelOpen: boolean;
-  onToggleTranscriptPanel: () => void;
   onOpenSettings: () => void;
 }
 
-export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscriptPanel, onOpenSettings }: ToolbarProps) {
+export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
   const {
     zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
@@ -305,7 +302,9 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
 
           <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* View — Legend / Load transcript / Transcript panel */}
+          {/* View — Legend / Load transcript. Transcript panel toggle is
+              fully covered by the right-edge open strip + the panel header's
+              close icon. */}
           <ToolbarGroup label="View">
             <IconButton
               onClick={toggleLegend}
@@ -317,12 +316,6 @@ export function Toolbar({ onLoadTranscript, transcriptPanelOpen, onToggleTranscr
               onClick={onLoadTranscript}
               icon={FileInput}
               tooltip="Load transcript"
-            />
-            <IconButton
-              onClick={onToggleTranscriptPanel}
-              icon={PanelRight}
-              tooltip="Toggle transcript panel"
-              isActive={transcriptPanelOpen}
             />
           </ToolbarGroup>
 

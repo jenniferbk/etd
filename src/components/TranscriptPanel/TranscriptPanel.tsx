@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { PanelRightClose, Search, FileText, Upload } from 'lucide-react';
+import { useMemo, useRef, useState, useEffect } from 'react';
+import { PanelRightClose, Search, FileText, Upload, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { confirmAsync } from '../../store/confirmStore';
@@ -104,6 +104,47 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
     onClose();
   };
 
+  // Clear transcript: confirms, then sets transcript to null. Elements with
+  // sourceTranscript pointing at this transcript keep that field — it just
+  // becomes a dangling reference. (This mirrors how the dismissed-flag fix
+  // chose to preserve flag-state across panel hide/show; future analysis can
+  // still see the original line numbers even after the transcript is gone.)
+  const handleClear = async () => {
+    if (!transcript) return;
+    const referencedCount = elements.filter(
+      (el) => el.sourceTranscript?.transcriptId === transcript.id,
+    ).length;
+    const message = referencedCount > 0
+      ? `${referencedCount} element reference(s) will be left as dangling pointers (their stored lineIndex is preserved, but the transcript text won't be visible). Clear anyway?`
+      : 'The transcript will be removed from this diagram. No element references are linked to it.';
+    const ok = await confirmAsync({
+      title: 'Clear transcript?',
+      message,
+      confirmLabel: 'Clear transcript',
+      cancelLabel: 'Cancel',
+    });
+    if (ok) setTranscript(null);
+  };
+
+  // Right-click context menu state. A single-item menu (Clear transcript) that
+  // appears at the cursor position when the user right-clicks the panel header.
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    window.addEventListener('click', dismiss);
+    window.addEventListener('scroll', dismiss, true);
+    return () => {
+      window.removeEventListener('click', dismiss);
+      window.removeEventListener('scroll', dismiss, true);
+    };
+  }, [contextMenu]);
+  const handleHeaderContextMenu = (e: React.MouseEvent) => {
+    if (!transcript) return;
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
   return (
     <div
       className="w-72 border-l flex flex-col"
@@ -123,6 +164,7 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
       <div
         className="px-5 py-3 border-b"
         style={{ borderColor: theme.sidebar.border }}
+        onContextMenu={handleHeaderContextMenu}
       >
         <div className="flex items-center justify-between gap-2 mb-1">
           <h2
@@ -132,21 +174,38 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
             Transcript
           </h2>
           {transcript && (
-            <button
-              onClick={handleClose}
-              className="p-1 rounded transition-colors duration-150"
-              title="Hide panel"
-              aria-label="Hide transcript panel"
-              style={{ color: theme.sidebar.textSecondary }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = theme.sidebar.hover;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-              }}
-            >
-              <PanelRightClose size={16} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleClear}
+                className="p-1 rounded transition-colors duration-150"
+                title="Clear transcript"
+                aria-label="Clear transcript"
+                style={{ color: theme.sidebar.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = theme.sidebar.hover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <Trash2 size={16} />
+              </button>
+              <button
+                onClick={handleClose}
+                className="p-1 rounded transition-colors duration-150"
+                title="Hide panel"
+                aria-label="Hide transcript panel"
+                style={{ color: theme.sidebar.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = theme.sidebar.hover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <PanelRightClose size={16} />
+              </button>
+            </div>
           )}
         </div>
         {transcript && (
@@ -263,6 +322,38 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
             )}
           </div>
         </>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed z-50 rounded shadow-lg text-sm py-1"
+          style={{
+            top: contextMenu.y,
+            left: contextMenu.x,
+            backgroundColor: theme.sidebar.surface,
+            border: `1px solid ${theme.sidebar.border}`,
+            color: theme.sidebar.text,
+            minWidth: 160,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              setContextMenu(null);
+              void handleClear();
+            }}
+            className="w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors duration-100"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = theme.sidebar.hover;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <Trash2 size={14} />
+            Clear transcript
+          </button>
+        </div>
       )}
     </div>
   );

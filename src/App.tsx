@@ -227,10 +227,6 @@ function App() {
     [setTranscript],
   );
 
-  const toggleTranscriptPanel = useCallback(() => {
-    setTranscriptPanelOpen((v) => !v);
-  }, []);
-
   const handleFileLoad = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -442,8 +438,6 @@ function App() {
       >
         <Toolbar
           onLoadTranscript={handleLoadTranscriptClick}
-          transcriptPanelOpen={transcriptPanelOpen}
-          onToggleTranscriptPanel={toggleTranscriptPanel}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       </div>
