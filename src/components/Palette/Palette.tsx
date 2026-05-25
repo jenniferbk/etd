@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, Link2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
+import { useToastStore } from '../../store/toastStore';
 import type {
   ArgumentType,
   ContributorType,
@@ -37,6 +38,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
   const addElement = useDiagramStore((state) => state.addElement);
   const elements = useDiagramStore((state) => state.elements);
   const styleConfig = useDiagramStore((s) => s.styleConfig);
+  const addToast = useToastStore((s) => s.addToast);
 
   const ARGUMENT_TYPES: { type: ArgumentType; label: string }[] = [
     { type: 'data',      label: styleConfig.argumentTypes.data.label },
@@ -259,10 +261,31 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
             {ARGUMENT_TYPES.map(({ type, label }) => {
               // Implicit contributor can only create warrants.
               const isDisabled = selectedContributor === 'implicit' && type !== 'warrant';
+              // Qualifier is special: must attach to a connection line. Click does
+              // nothing useful (an orphan is the failure state); drag is the only
+              // create path. We make the button draggable with a qualifier payload
+              // and intercept clicks with a hint toast.
+              const isQualifier = type === 'qualifier';
               return (
                 <button
                   key={type}
-                  onClick={() => !isDisabled && handleAddArgument(type)}
+                  draggable={isQualifier && !isDisabled}
+                  onDragStart={
+                    isQualifier && !isDisabled
+                      ? (e) => {
+                          e.dataTransfer.setData('application/x-etd-qualifier', '1');
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (isDisabled) return;
+                    if (isQualifier) {
+                      addToast('info', 'Drag onto a connection line to place a qualifier.');
+                      return;
+                    }
+                    handleAddArgument(type);
+                  }}
                   disabled={isDisabled}
                   className="px-3 py-2 text-left text-sm rounded-md transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
@@ -271,6 +294,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
                     borderWidth: '1px',
                     borderColor: theme.sidebar.border,
                     borderStyle: 'solid',
+                    cursor: isQualifier && !isDisabled ? 'grab' : undefined,
                   }}
                   onMouseEnter={(e) => {
                     if (isDisabled) return;
