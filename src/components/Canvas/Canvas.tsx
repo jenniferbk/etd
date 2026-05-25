@@ -8,6 +8,13 @@ import { ArgumentShape } from './shapes/ArgumentShape';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
+import { computePolylineFor } from '../../utils/connectionPath';
+import {
+  hitTestPolyline,
+  tForPointOnPolyline,
+  getPointOnPolyline,
+} from '../../utils/orthogonalRouting';
+import { useToastStore } from '../../store/toastStore';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement, type ContributorType, type DiagramElement } from '../../types';
 import type {
   ArgumentType, SupportType, SupportSubtype, SupportContributor,
@@ -645,14 +652,67 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    if (e.dataTransfer.types.includes('application/x-etd-transcript-line')) {
+    if (
+      e.dataTransfer.types.includes('application/x-etd-transcript-line') ||
+      e.dataTransfer.types.includes('application/x-etd-qualifier')
+    ) {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
     }
   }, []);
 
+  const addToast = useToastStore((s) => s.addToast);
+
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>) => {
+      // Qualifier-on-connection drop. Must land on a connection line; off-line
+      // drops are rejected with a toast (no orphan creation via this path).
+      const qualifierFlag = e.dataTransfer.getData('application/x-etd-qualifier');
+      if (qualifierFlag === '1') {
+        e.preventDefault();
+        const pos = clientPointToCanvas(e.clientX, e.clientY);
+
+        let hit: { connectionId: string; t: number; polyline: number[] } | null = null;
+        for (const conn of connections) {
+          const polyline = computePolylineFor(conn, elements, connections);
+          if (!polyline) continue;
+          if (hitTestPolyline(pos, polyline, 12)) {
+            hit = {
+              connectionId: conn.id,
+              t: tForPointOnPolyline(pos, polyline),
+              polyline,
+            };
+            break;
+          }
+        }
+
+        if (!hit) {
+          addToast('warning', 'Qualifiers must be dropped onto a connection line.');
+          return;
+        }
+
+        const center = getPointOnPolyline(hit.polyline, hit.t);
+        const existingCount = elements.filter(
+          (el) =>
+            el.type === 'argument' &&
+            (el as ArgumentElement).argumentType === 'qualifier',
+        ).length;
+
+        const newQualifier: ArgumentElement = {
+          id: generateId(),
+          type: 'argument',
+          argumentType: 'qualifier',
+          contributor: 'student',
+          label: `Qualifier ${existingCount + 1}`,
+          content: '',
+          position: { x: center.x - 30, y: center.y - 12 },
+          size: { width: 60, height: 24 },
+          attachedTo: { connectionId: hit.connectionId, position: hit.t },
+        };
+        addElement(newQualifier);
+        return;
+      }
+
       const raw = e.dataTransfer.getData('application/x-etd-transcript-line');
       if (!raw) return;
       e.preventDefault();
@@ -736,7 +796,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       };
       addElement(newElement);
     },
-    [clientPointToCanvas, addElement, elements],
+    [clientPointToCanvas, addElement, elements, connections, addToast],
   );
 
   // Cluster halos. Map keyed by argument id so each argument's halo renders at

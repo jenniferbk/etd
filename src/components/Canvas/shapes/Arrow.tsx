@@ -16,6 +16,7 @@ import {
   pointerToAnchorT,
   offsetAlongLine,
 } from '../../../utils/orthogonalRouting';
+import { getConnectionPathPoints } from '../../../utils/connectionPath';
 
 const MIN_SEGMENT_PX = 4;
 const SNAP_THRESHOLD_PX = 6;
@@ -100,52 +101,6 @@ interface ArrowProps {
 // Warrant-attachment connections: vertical 2-point line at warrant.center.x to
 // the closest horizontal parent segment, or a 'warning' fallback line when no
 // horizontal segment of the parent intersects warrant.center.x.
-function getConnectionPathPoints(
-  connection: Connection,
-  elements: DiagramElement[],
-  connections: Connection[],
-): { points: number[]; attachmentStyle?: 'normal' | 'warning' } | null {
-  const fromEl = elements.find((el) => el.id === connection.from);
-  if (!fromEl) return null;
-
-  if (isArrowAttachment(connection.to)) {
-    const attachment = connection.to;
-    const targetConn = connections.find((c) => c.id === attachment.connectionId);
-    if (!targetConn) return null;
-
-    const targetResult = getConnectionPathPoints(targetConn, elements, connections);
-    if (!targetResult) return null;
-
-    const result = getVerticalAttachmentPath(fromEl, targetResult.points, attachment.position);
-    return { points: result.points, attachmentStyle: result.style };
-  }
-
-  const toEl = elements.find((el) => el.id === connection.to);
-  if (!toEl) return null;
-
-  // Identical-endpoint degeneracy: both elements at exactly the same position with same size.
-  if (
-    fromEl.position.x === toEl.position.x &&
-    fromEl.position.y === toEl.position.y &&
-    fromEl.size.width === toEl.size.width &&
-    fromEl.size.height === toEl.size.height
-  ) {
-    return null;
-  }
-
-  // Build siblings list — other connections also targeting toEl.
-  const siblings: { conn: Connection; fromEl: DiagramElement }[] = [];
-  for (const c of connections) {
-    if (c.id === connection.id) continue;
-    if (isArrowAttachment(c.to)) continue;
-    if (c.to !== toEl.id) continue;
-    const sFrom = elements.find((el) => el.id === c.from);
-    if (sFrom) siblings.push({ conn: c, fromEl: sFrom });
-  }
-
-  return { points: computeConnectionPath(connection, fromEl, toEl, siblings) };
-}
-
 export function ConnectionArrow({
   connection,
   elements,
