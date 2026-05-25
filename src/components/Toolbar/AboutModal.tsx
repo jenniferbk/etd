@@ -13,7 +13,10 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
     'Six argument types (claim, data, warrant, backing, qualifier, rebuttal), three support types (action, question, other), and an info box for episode metadata.',
     'Argument contributors: Given, Teacher, Student, Joint, Implicit. Support contributors: Teacher, Student. Border colors and styles reflect the contributor.',
     'Orthogonal connectors auto-route in Manhattan paths. Drag segment midpoints to reshape; drag edge anchors to slide endpoints along a box. Hover an anchor to reset.',
-    'Warrants and rebuttals attach perpendicularly to the data→claim arrow they qualify.',
+    'Warrants, backings, and rebuttals attach perpendicularly to the data→claim arrow they qualify. Drag a qualifier from the palette onto a connection line to attach it; it slides along the line and rebuttals targeting it render as a vertical line through the qualifier.',
+    'Claims that supply data to another claim are auto-labeled "DataClaim"; claims that warrant another are auto-labeled "WarrantClaim". Labels update live as connections change, and any custom rename is preserved.',
+    'Configurable subtypes for question, other, and action supports via Settings → Subtypes — added subtypes appear in the palette, properties panel, and transcript object selector.',
+    'Transcript panel links lines to elements, with search and a one-click clear (trash icon or right-click on the header).',
     'Save / load JSON, import DiagramMix .drawing files, or import from a photo of a hand-drawn diagram (sent to Google Gemini for extraction — see the Import image dialog for details).',
     "Export to PDF, PNG, SVG, or .diagramx — output covers the full diagram, not just what’s visible on screen.",
     'Full-screen mode (press F) hides the chrome for distraction-free review.',
@@ -58,7 +61,7 @@ export function AboutModal({ open, onClose }: AboutModalProps) {
         <div>
           <p style={{ color: theme.sidebar.text }}>
             <span className="font-medium">Version:</span>{' '}
-            <span style={{ color: theme.sidebar.textSecondary }}>1.4 (May 2026)</span>
+            <span style={{ color: theme.sidebar.textSecondary }}>1.6 (May 2026)</span>
           </p>
         </div>
 
