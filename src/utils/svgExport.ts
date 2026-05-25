@@ -227,11 +227,11 @@ function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number
     </g>`;
   }
 
-  // Orphan detection: any non-'action' supportType with a subtype that no longer exists.
+  // Action returned above, so el.supportType is 'question' | 'other' here.
   const subtypeList = styleConfig.subtypes[el.supportType];
-  const isOrphan = el.supportType !== 'action' && el.subtype !== undefined &&
+  const isOrphan = el.subtype !== undefined &&
     !subtypeList.some((s) => s.id === el.subtype);
-  const subtypeLabel = el.supportType !== 'action' && el.subtype
+  const subtypeLabel = el.subtype
     ? (subtypeList.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
     : null;
 
