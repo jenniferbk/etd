@@ -9,6 +9,7 @@ import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
 import { computePolylineFor } from '../../utils/connectionPath';
+import { canAttachToConnection } from '../../utils/connectionAttachment';
 import {
   hitTestPolyline,
   tForPointOnPolyline,
@@ -974,15 +975,12 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     return map;
   })();
 
-  // Determine if we're connecting from a warrant-type element
+  // Determine if we're connecting from an element that may attach to an arrow
+  // (warrant / backing / rebuttal / implicit) rather than only to an element.
   const connectingFromElement = connectingFrom
     ? elements.find((el) => el.id === connectingFrom)
     : null;
-  const isWarrantConnection = connectingFromElement &&
-    isArgumentElement(connectingFromElement) &&
-    (connectingFromElement.argumentType === 'warrant' ||
-     connectingFromElement.argumentType === 'backing' ||
-     connectingFromElement.contributor === 'implicit');
+  const isConnectionAttachment = canAttachToConnection(connectingFromElement);
 
   return (
     <div
@@ -996,7 +994,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       {connectMode && (
         <div className="absolute top-16 left-64 z-10 bg-blue-500 text-white px-3 py-1 rounded-b text-sm">
           {connectingFrom
-            ? isWarrantConnection
+            ? isConnectionAttachment
               ? 'Click an element OR an arrow to attach'
               : 'Click target element'
             : 'Click source element'}
@@ -1064,7 +1062,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
               connections={connections}
               isSelected={selectedIds.includes(connection.id)}
               isHovered={hoveredArrowId === connection.id}
-              connectModeActive={connectMode && !!connectingFrom && !!isWarrantConnection}
+              connectModeActive={connectMode && !!connectingFrom && isConnectionAttachment}
               onSelect={(e) => handleConnectionSelect(connection.id, e)}
               onArrowClick={handleArrowClick}
               onHover={handleArrowHover}

@@ -34,7 +34,7 @@ These are the structural components of arguments. Each can be contributed by stu
 | **Warrant** | Reasoning connecting data to claim | Claims |
 | **Backing** | Support for the warrant | Warrants |
 | **Qualifier** | Conditions limiting the claim | Claims |
-| **Rebuttal** | Exceptions or counterarguments | Claims, Warrants |
+| **Rebuttal** | Exceptions or counterarguments | Claims, Warrants, or the Data→Claim connection (perpendicular attachment) |
 
 **Compound Types:** Elements can serve dual roles, indicated by compound labels:
 - "Warrant/Data 1" — serves as warrant for one claim and data for another
@@ -106,7 +106,8 @@ Each element contains:
 - Arrows terminate at: Claims, Warrants
 - Warrants typically connect to the arrow between Data and Claim (perpendicular attachment)
 - Backing connects to Warrants
-- Qualifiers and Rebuttals connect to Claims
+- Qualifiers connect to Claims
+- Rebuttals connect to Claims, or attach perpendicularly to a Data→Claim connection (to rebut the inference itself)
 
 ### 3.3 Teacher Element Positioning
 - Teacher questioning/support elements are positioned **adjacent to or overlapping** the argument element they relate to
