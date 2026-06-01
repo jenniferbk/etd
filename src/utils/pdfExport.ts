@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import Konva from 'konva';
 import type { DiagramElement, Connection } from '../types';
 import { computeExportBounds } from './exportBounds';
+import { saveFile } from './saveFile';
 
 interface PdfExportOptions {
   filename?: string;
@@ -44,7 +45,13 @@ export async function exportToPdf(
   });
 
   pdf.addImage(dataURL, 'PNG', 0, 0, bounds.width, bounds.height);
-  pdf.save(filename);
+  await saveFile({
+    data: pdf.output('blob'),
+    suggestedName: filename,
+    mimeType: 'application/pdf',
+    extension: '.pdf',
+    description: 'PDF document',
+  });
 }
 
 export function downloadPdf(dataUrl: string, filename: string = 'toulmin-diagram.pdf'): void {

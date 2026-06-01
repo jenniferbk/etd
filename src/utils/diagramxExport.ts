@@ -26,6 +26,7 @@ import {
   isTeacherSupportElement,
 } from '../types';
 import { getContributorColor, getSupportColors } from './colors';
+import { saveFile } from './saveFile';
 
 // Shape symbolIds. Rectangle is a UUID from the GraphicStyle pack; textbox / oval /
 // hexagon are DiagramMix short-string built-ins that render alongside GraphicStyle.
@@ -596,13 +597,13 @@ export function exportToDiagramx(
   return JSON.stringify(doc, null, 2);
 }
 
-/** Browser download helper — matches the pattern used by Save / SVG / PDF exports. */
-export function downloadDiagramx(json: string, filename: string): void {
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+/** Browser save helper — matches the pattern used by Save / SVG / PDF exports. */
+export async function downloadDiagramx(json: string, filename: string): Promise<void> {
+  await saveFile({
+    data: new Blob([json], { type: 'application/json' }),
+    suggestedName: filename,
+    mimeType: 'application/json',
+    extension: '.diagramx',
+    description: 'DiagramMix file',
+  });
 }

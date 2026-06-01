@@ -17,7 +17,8 @@ import { useDiagramStore, useTemporalStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
-import { SAVE_SCHEMA_VERSION } from '../../utils/schema';
+import { saveDiagramJson, toFilename } from '../../utils/saveDiagram';
+import { saveFile, dataUrlToBlob } from '../../utils/saveFile';
 import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
 import { exportToPdf } from '../../utils/pdfExport';
@@ -36,13 +37,6 @@ import { computeExportBounds } from '../../utils/exportBounds';
 import { ImageImportModal } from './ImageImportModal';
 
 // Helper to create a safe filename from diagram name
-function toFilename(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    || 'diagram';
-}
 
 interface ToolbarProps {
   onLoadTranscript: () => void;
@@ -73,22 +67,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
 
   // Save diagram as JSON
   const handleSave = () => {
-    const data = {
-      version: SAVE_SCHEMA_VERSION,
-      name: diagramName,
-      elements,
-      connections,
-      styleConfig,
-      transcript,
-    };
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${toFilename(diagramName)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void saveDiagramJson({ diagramName, elements, connections, styleConfig, transcript });
   };
 
   // Load diagram from JSON file
@@ -150,10 +129,13 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
       pixelRatio: 2,
       mimeType: 'image/png',
     });
-    const a = document.createElement('a');
-    a.href = dataURL;
-    a.download = `${toFilename(diagramName)}.png`;
-    a.click();
+    await saveFile({
+      data: dataUrlToBlob(dataURL),
+      suggestedName: `${toFilename(diagramName)}.png`,
+      mimeType: 'image/png',
+      extension: '.png',
+      description: 'PNG image',
+    });
   };
 
   // Export diagram as SVG
@@ -164,7 +146,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
       return;
     }
     const svgContent = exportToSvg(elements, connections, styleConfig);
-    downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
+    await downloadSvg(svgContent, `${toFilename(diagramName)}.svg`);
   };
 
   // Export diagram as DiagramMix .diagramx (Level A MVP)
@@ -175,7 +157,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
     }
     try {
       const json = exportToDiagramx(elements, connections, diagramName, styleConfig);
-      downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
+      await downloadDiagramx(json, `${toFilename(diagramName)}.diagramx`);
       if (hasEmbeddedImages(elements)) {
         addToast('warning', 'Embedded images were dropped — DiagramMix does not support inline images.');
       }

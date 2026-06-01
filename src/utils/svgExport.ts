@@ -12,6 +12,7 @@ import {
 import { computeExportBounds } from './exportBounds';
 import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
 import { computePolylineFor } from './connectionPath';
+import { saveFile } from './saveFile';
 
 interface SvgExportOptions {
   padding?: number;
@@ -436,12 +437,12 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export function downloadSvg(svgContent: string, filename: string = 'toulmin-diagram.svg'): void {
-  const blob = new Blob([svgContent], { type: 'image/svg+xml' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+export async function downloadSvg(svgContent: string, filename: string = 'toulmin-diagram.svg'): Promise<void> {
+  await saveFile({
+    data: new Blob([svgContent], { type: 'image/svg+xml' }),
+    suggestedName: filename,
+    mimeType: 'image/svg+xml',
+    extension: '.svg',
+    description: 'SVG image',
+  });
 }
