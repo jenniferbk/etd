@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateCloudPath, computeCloudGeometry } from './cloudPath';
+import { generateCloudPath, computeCloudGeometry, MAX_LOBES, MIN_LOBES } from './cloudPath';
 
 function countCommand(path: string, cmd: string): number {
   return (path.match(new RegExp(cmd, 'g')) ?? []).length;
@@ -14,57 +14,40 @@ describe('generateCloudPath', () => {
   });
 
   it('produces a single subpath (one M command)', () => {
-    const path = generateCloudPath(140, 60);
-    expect(countCommand(path, 'M')).toBe(1);
+    expect(countCommand(generateCloudPath(140, 60), 'M')).toBe(1);
   });
 
-  it('emits 2 * (longBumps + shortBumps) arc commands at default 140x60', () => {
+  it('emits one arc per lobe (totalLobes) at default 140x60', () => {
     const geom = computeCloudGeometry(140, 60);
-    const path = generateCloudPath(140, 60);
-    expect(countCommand(path, 'A')).toBe(2 * (geom.longBumps + geom.shortBumps));
+    expect(countCommand(generateCloudPath(140, 60), 'A')).toBe(geom.totalLobes);
   });
 
-  it('emits the right arc count for square 80x80', () => {
-    const geom = computeCloudGeometry(80, 80);
-    const path = generateCloudPath(80, 80);
-    expect(countCommand(path, 'A')).toBe(2 * (geom.longBumps + geom.shortBumps));
+  it('emits the right arc count for square 80x80 and tall 60x140', () => {
+    const square = computeCloudGeometry(80, 80);
+    expect(countCommand(generateCloudPath(80, 80), 'A')).toBe(square.totalLobes);
+    const tall = computeCloudGeometry(60, 140);
+    expect(countCommand(generateCloudPath(60, 140), 'A')).toBe(tall.totalLobes);
   });
 
-  it('emits the right arc count for tall 60x140', () => {
-    const geom = computeCloudGeometry(60, 140);
-    const path = generateCloudPath(60, 140);
-    expect(countCommand(path, 'A')).toBe(2 * (geom.longBumps + geom.shortBumps));
-  });
-
-  it('produces structurally equivalent paths for 140x60 and 60x140 (rotational symmetry)', () => {
+  it('is rotationally symmetric: 140x60 and 60x140 swap top/side lobe counts', () => {
     const wide = computeCloudGeometry(140, 60);
     const tall = computeCloudGeometry(60, 140);
-    expect(wide.longBumps).toBe(tall.longBumps);
-    expect(wide.shortBumps).toBe(tall.shortBumps);
-    expect(wide.longRadius).toBeCloseTo(tall.longRadius, 6);
-    expect(wide.shortRadius).toBeCloseTo(tall.shortRadius, 6);
-    expect(wide.isWide).toBe(true);
-    expect(tall.isWide).toBe(false);
+    expect(wide.inset).toBeCloseTo(tall.inset, 6);
+    expect(wide.topLobes).toBe(tall.leftLobes);
+    expect(wide.leftLobes).toBe(tall.topLobes);
+    expect(wide.totalLobes).toBe(tall.totalLobes);
   });
 
-  it('clamps long-side bump count at floor (4) for small sizes', () => {
-    const geom = computeCloudGeometry(60, 30);
-    expect(geom.longBumps).toBe(4);
-    expect(geom.shortBumps).toBe(1);
+  it('clamps lobe counts within [MIN_LOBES, MAX_LOBES]', () => {
+    const tiny = computeCloudGeometry(40, 30);
+    expect(tiny.topLobes).toBeGreaterThanOrEqual(MIN_LOBES);
+    expect(tiny.leftLobes).toBeGreaterThanOrEqual(MIN_LOBES);
+    const huge = computeCloudGeometry(2000, 2000);
+    expect(huge.topLobes).toBeLessThanOrEqual(MAX_LOBES);
+    expect(huge.leftLobes).toBeLessThanOrEqual(MAX_LOBES);
   });
 
-  it('clamps long-side bump count at ceiling (12) for very wide sizes', () => {
-    const geom = computeCloudGeometry(400, 100);
-    expect(geom.longBumps).toBe(12);
-  });
-
-  it('clamps short-side bump count at ceiling (4) for tall+wide sizes', () => {
-    const geom = computeCloudGeometry(400, 200);
-    expect(geom.shortBumps).toBe(4);
-  });
-
-  it('keeps arc endpoints within the bbox plus 3px tolerance', () => {
-    // Walk the path and check that every arc's endpoint stays within [-3, width+3] x [-3, height+3]. (Endpoints are necessary-but-not-sufficient for full bbox containment, but the construction guarantees apexes by simultaneous-equation solution.)
+  it('keeps every arc endpoint (valley) within the bounding box', () => {
     const w = 140, h = 60;
     const path = generateCloudPath(w, h);
     const tokens = path.split(/\s+/);
@@ -76,16 +59,29 @@ describe('generateCloudPath', () => {
       } else if (t === 'A') {
         const ex = parseFloat(tokens[i + 6]);
         const ey = parseFloat(tokens[i + 7]);
-        expect(ex).toBeGreaterThanOrEqual(-3);
-        expect(ex).toBeLessThanOrEqual(w + 3);
-        expect(ey).toBeGreaterThanOrEqual(-3);
-        expect(ey).toBeLessThanOrEqual(h + 3);
+        expect(ex).toBeGreaterThanOrEqual(0);
+        expect(ex).toBeLessThanOrEqual(w);
+        expect(ey).toBeGreaterThanOrEqual(0);
+        expect(ey).toBeLessThanOrEqual(h);
         i += 8;
       } else if (t === 'Z' || t === '') {
         i += 1;
       } else {
         throw new Error(`unexpected token in path at index ${i}: ${JSON.stringify(t)}`);
       }
+    }
+  });
+
+  it('uses fat (large-arc) lobes for typical sizes', () => {
+    // With lobe width ≈ 1.5·inset, inset > chord/2, so large-arc flag is 1.
+    const path = generateCloudPath(140, 60);
+    // arc params: "A r r 0 <largeArc> 1 x y" — every large-arc flag should be 1.
+    const arcs = path.match(/A [^A]+/g) ?? [];
+    expect(arcs.length).toBeGreaterThan(0);
+    for (const arc of arcs) {
+      const parts = arc.trim().split(/\s+/);
+      expect(parts[4]).toBe('1'); // large-arc flag
+      expect(parts[5]).toBe('1'); // sweep flag (outward)
     }
   });
 });
