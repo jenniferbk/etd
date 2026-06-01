@@ -8,7 +8,7 @@ import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 import { parseTranscript } from './utils/transcriptParser';
-import { SAVE_SCHEMA_VERSION } from './utils/schema';
+import { saveDiagramJson } from './utils/saveDiagram';
 import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
@@ -89,7 +89,7 @@ function App() {
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
     if (saved) {
-      loadDiagram(saved.elements, saved.connections, undefined /* name: default */, saved.transcript, saved.styleConfig);
+      loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig);
       clearAutoSave();
     }
     setRecoveryData(null);
@@ -152,24 +152,7 @@ function App() {
 
   // Save handler for keyboard shortcut
   const handleSave = useCallback(() => {
-    const toFilename = (name: string) =>
-      name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'diagram';
-
-    const data = {
-      version: SAVE_SCHEMA_VERSION,
-      name: diagramName,
-      elements,
-      connections,
-      styleConfig,
-      transcript,
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${toFilename(diagramName)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    void saveDiagramJson({ diagramName, elements, connections, styleConfig, transcript });
   }, [elements, connections, diagramName, styleConfig, transcript]);
 
   // Load handler for keyboard shortcut

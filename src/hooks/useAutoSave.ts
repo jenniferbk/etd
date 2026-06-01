@@ -12,6 +12,9 @@ interface AutoSaveData {
   // Optional: pre-1.3 autosave entries written before styleConfig was tracked
   // lack this field. loadDiagram applies createV1_2_MigrationDefaults() when absent.
   styleConfig?: StyleConfig;
+  // Optional: autosave entries written before the title was tracked lack this
+  // field. Recovery falls back to the store default ("Untitled Diagram").
+  diagramName?: string;
   timestamp: number;
 }
 
@@ -30,6 +33,7 @@ export function useAutoSave() {
           connections: state.connections,
           transcript: state.transcript,
           styleConfig: state.styleConfig,
+          diagramName: state.diagramName,
           timestamp: Date.now(),
         };
 
