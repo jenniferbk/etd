@@ -10,6 +10,7 @@ import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
 import { computePolylineFor } from '../../utils/connectionPath';
 import { canAttachToConnection } from '../../utils/connectionAttachment';
+import { computeWheelTransform } from '../../utils/canvasWheel';
 import {
   hitTestPolyline,
   tForPointOnPolyline,
@@ -214,35 +215,28 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     [elements, moveElement, resizeElement]
   );
 
-  // Handle zoom with mouse wheel
+  // Handle wheel: two-finger swipe (ctrlKey false) pans, pinch/Ctrl+scroll zooms.
   const handleWheel = useCallback(
     (e: Konva.KonvaEventObject<WheelEvent>) => {
       e.evt.preventDefault();
 
       const stage = stageRef.current;
       if (!stage) return;
-
-      const oldScale = zoom;
       const pointer = stage.getPointerPosition();
       if (!pointer) return;
 
-      const mousePointTo = {
-        x: (pointer.x - panX) / oldScale,
-        y: (pointer.y - panY) / oldScale,
-      };
+      const next = computeWheelTransform({
+        ctrlKey: e.evt.ctrlKey,
+        deltaX: e.evt.deltaX,
+        deltaY: e.evt.deltaY,
+        pointer,
+        zoom,
+        panX,
+        panY,
+      });
 
-      const direction = e.evt.deltaY > 0 ? -1 : 1;
-      const scaleBy = 1.1;
-      const newScale =
-        direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
-
-      const clampedScale = Math.max(0.25, Math.min(4, newScale));
-
-      setZoom(clampedScale);
-      setPan(
-        pointer.x - mousePointTo.x * clampedScale,
-        pointer.y - mousePointTo.y * clampedScale
-      );
+      if (next.zoom !== zoom) setZoom(next.zoom);
+      setPan(next.panX, next.panY);
     },
     [zoom, panX, panY, setZoom, setPan]
   );
