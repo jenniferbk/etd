@@ -217,9 +217,9 @@ Point `ETD_BACKUP_DIR` at a folder that's synced by OneDrive under your
 UGA-approved storage agreement, e.g.:
 
 ```
-ETD_BACKUP_DIR=/Users/coms/Library/CloudStorage/OneDrive-UniversityofGeorgia/etd-backups
-# (the exact OneDrive path depends on your UGA account/tenant — confirm
-# locally with `ls ~/Library/CloudStorage/` before setting this)
+ETD_BACKUP_DIR=/EDIT-ME/path/to/OneDrive-synced-folder/etd-backups
+# find your Mac's actual OneDrive folder under ~/Library/CloudStorage/ —
+# the exact folder name depends on your organization's OneDrive tenant
 ```
 
 so that offsite copies happen automatically without a separate upload step.
@@ -247,9 +247,10 @@ VITE_ETD_API_URL=https://etd-api.yourdomain.edu npm run build
 ```
 
 Regardless of the build-time default, any user can override it at runtime
-by typing a different server URL into the **Sign in → Server** field in the
-app — useful for testing against a local server or a different group's
-deployment without rebuilding.
+by opening the **Sign In** modal, clicking **Server settings…** to expand
+it, and typing a different URL into the **Server** field — useful for
+testing against a local server or a different group's deployment without
+rebuilding.
 
 **Data policy:** this system is for **de-identified data only**. Do not
 store names, student IDs, or other identifying information in diagram
