@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { authRoutes } from './routes/auth.js';
 import type { Db } from './db.js';
 
 export function createApp(db: Db): express.Express {
@@ -11,8 +12,7 @@ export function createApp(db: Db): express.Express {
     res.json({ ok: true });
   });
 
-  // Routers are mounted here by later tasks.
-  void db;
+  app.use('/api/auth', authRoutes(db));
 
   return app;
 }
