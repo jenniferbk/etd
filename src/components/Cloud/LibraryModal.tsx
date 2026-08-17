@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { api } from '../../api/client';
@@ -24,15 +24,24 @@ export function LibraryModal({ open, onClose }: LibraryModalProps) {
   const [groupId, setGroupId] = useState<number | null>(null);
   const [items, setItems] = useState<DiagramListItem[] | null>(null);
   const effectiveGroupId = groupId ?? groups[0]?.id ?? null;
+  // Guards against a stale response (e.g. group A's request resolving after
+  // group B's, once the user has already switched groups) overwriting the
+  // list with out-of-date data. Only the most recently issued request may
+  // call setItems / toast.
+  const requestSeq = useRef(0);
 
   const refresh = useCallback(async () => {
     if (effectiveGroupId === null) return;
+    const seq = ++requestSeq.current;
     setItems(null);
     try {
-      setItems(await api<DiagramListItem[]>(`/api/groups/${effectiveGroupId}/diagrams`));
+      const result = await api<DiagramListItem[]>(`/api/groups/${effectiveGroupId}/diagrams`);
+      if (seq === requestSeq.current) setItems(result);
     } catch (err) {
-      useToastStore.getState().addToast('error', err instanceof Error ? err.message : 'failed to load library');
-      setItems([]);
+      if (seq === requestSeq.current) {
+        useToastStore.getState().addToast('error', err instanceof Error ? err.message : 'failed to load library');
+        setItems([]);
+      }
     }
   }, [effectiveGroupId]);
 
