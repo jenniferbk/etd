@@ -17,6 +17,9 @@ export function createApp(db: Db): express.Express {
 
   app.use('/api/auth', authRoutes(db));
   app.use('/api', inviteRoutes(db));
+  // Mount order matters: reset-password is unauthenticated, and groupRoutes
+  // applies requireAuth router-wide on the shared /api mount — any router with
+  // unauthenticated /api routes must be mounted before groupRoutes.
   app.use('/api', resetRoutes(db));
   app.use('/api', groupRoutes(db));
 
