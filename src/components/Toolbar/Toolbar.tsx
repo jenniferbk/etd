@@ -35,6 +35,7 @@ import { MoreMenu } from './MoreMenu';
 import { ToolbarGroup } from './ToolbarGroup';
 import { computeExportBounds } from '../../utils/exportBounds';
 import { ImageImportModal } from './ImageImportModal';
+import { CloudMenu } from '../Cloud';
 
 // Helper to create a safe filename from diagram name
 
@@ -344,6 +345,11 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
             onOpenAbout={() => setShowAbout(true)}
             onClear={handleClear}
           />
+
+          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
+
+          {/* Cloud — sign in / account menu */}
+          <CloudMenu />
         </div>
       </div>
 

@@ -16,6 +16,7 @@ import { ConfirmHost } from './components/ui/ConfirmHost';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
+import { useAuthStore } from './api/authStore';
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
@@ -36,6 +37,9 @@ function App() {
 
   // Auto-save hook
   useAutoSave();
+
+  // Restore a cloud session (if a token is already stored) once on mount.
+  useEffect(() => { void useAuthStore.getState().restore(); }, []);
 
   const {
     selectedIds,
