@@ -13,6 +13,7 @@
   <key>EnvironmentVariables</key>
   <dict>
     <key>PORT</key><string>8787</string>
+    <key>NODE_ENV</key><string>production</string>
     <key>ETD_DB_PATH</key><string>/EDIT-ME/path/to/etd-data/etd.sqlite</string>
   </dict>
   <key>RunAtLoad</key><true/>

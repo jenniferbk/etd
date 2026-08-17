@@ -7,7 +7,7 @@ import { theme } from '../../utils/theme';
 import { useAuthStore } from '../../api/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useCloudStore } from '../../store/cloudStore';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { buildCloudSnapshot } from './buildCloudSnapshot';
 import { SignInModal } from './SignInModal';
 import { CloudSaveDialog } from './CloudSaveDialog';
@@ -20,7 +20,11 @@ export function CloudMenu() {
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const [params] = useState(() => new URLSearchParams(window.location.search));
-  const inviteToken = params.get('invite');
+  // Sticky-until-consumed: starts from the ?invite= param (auto-opens register
+  // mode on first load), but must be cleared after a successful auth so a
+  // later sign-out → "Sign in…" doesn't reopen the Create-account form with a
+  // now-consumed invite token.
+  const [inviteToken, setInviteToken] = useState(() => params.get('invite'));
   const serverParam = params.get('server');
   const [signInOpen, setSignInOpen] = useState(inviteToken !== null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
@@ -120,9 +124,19 @@ export function CloudMenu() {
     }
     try {
       const snapshot = buildCloudSnapshot();
-      await api(`/api/diagrams/${diagramId}`, { method: 'PUT', body: { snapshot, title: snapshot.name } });
+      // Omit title when the local diagram name is blank/whitespace — the
+      // server requires a non-empty title (min length 1) but treats a
+      // missing title as "keep the existing one".
+      const title = snapshot.name.trim() ? snapshot.name : undefined;
+      await api(`/api/diagrams/${diagramId}`, { method: 'PUT', body: { snapshot, title } });
       useToastStore.getState().addToast('info', 'Saved to cloud');
     } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        useCloudStore.getState().clearCloudTarget();
+        useToastStore.getState().addToast('info', 'That diagram was removed from the cloud — save it as new');
+        setSaveDialogOpen(true);
+        return;
+      }
       useToastStore.getState().addToast('error', err instanceof Error ? err.message : 'cloud save failed');
     }
   };
@@ -210,6 +224,7 @@ export function CloudMenu() {
         onClose={() => setSignInOpen(false)}
         inviteToken={inviteToken}
         initialServerUrl={serverParam ? decodeURIComponent(serverParam) : undefined}
+        onAuthenticated={() => setInviteToken(null)}
       />
 
       <CloudSaveDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} />

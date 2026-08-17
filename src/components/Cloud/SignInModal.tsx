@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAuthStore } from '../../api/authStore';
 import { getServerUrl, setServerUrl, DEFAULT_SERVER_URL } from '../../api/client';
@@ -13,6 +13,8 @@ interface SignInModalProps {
   onClose: () => void;
   inviteToken: string | null; // non-null ⇒ register mode
   initialServerUrl?: string;
+  /** Called after a successful sign-in/register, before onClose. */
+  onAuthenticated?: () => void;
 }
 
 const inputClassName =
@@ -20,7 +22,7 @@ const inputClassName =
 
 const labelClassName = 'text-sm font-medium';
 
-export function SignInModal({ open, onClose, inviteToken, initialServerUrl }: SignInModalProps) {
+export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAuthenticated }: SignInModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -30,6 +32,23 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl }: Si
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const registerMode = inviteToken !== null;
+
+  // Reset all field/error state each time the modal transitions to open, so
+  // a previously typed password (or a stale error from a prior attempt)
+  // doesn't linger across close/reopen. The server-URL field keeps its
+  // persisted value (getServerUrl()) rather than being blanked.
+  useEffect(() => {
+    if (open) {
+      setEmail('');
+      setPassword('');
+      setDisplayName('');
+      setAcceptedPolicy(false);
+      setError(null);
+      setBusy(false);
+      setServer(initialServerUrl ?? getServerUrl());
+      setServerSectionOpen(initialServerUrl !== undefined);
+    }
+  }, [open, initialServerUrl]);
 
   const inputStyle = {
     backgroundColor: theme.input.bg,
@@ -54,6 +73,7 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl }: Si
       const name = useAuthStore.getState().user?.displayName ?? email;
       useToastStore.getState().addToast('info', `Signed in as ${name}`);
       window.history.replaceState(null, '', window.location.pathname);
+      onAuthenticated?.();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'something went wrong');

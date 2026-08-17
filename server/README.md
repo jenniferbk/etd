@@ -205,6 +205,11 @@ an office/lab machine is permitted under university network policy.** This
 is a policy question, not just a technical one — check before exposing
 anything.
 
+The server trusts exactly one proxy hop (`trust proxy: 1`), which matches
+either tunnel putting one local daemon in front of it — on deployment day,
+verify `X-Forwarded-For` is being set correctly by the tunnel (e.g. check
+that per-user rate limiting isn't bucketing the whole team behind one IP).
+
 ## 6. Backups
 
 `server/deploy/backup.sh` runs a live SQLite `.backup` (safe to run against
