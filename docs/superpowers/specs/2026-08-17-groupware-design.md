@@ -164,3 +164,32 @@ server-side.
 Live co-editing, element-anchored comments, per-diagram permissions, email
 sending, open signup, admin analytics. The data model doesn't preclude any
 of these.
+
+## Addendum (2026-08-17, approved in conversation): campus-VPN deployment variant
+
+Reality check from the COMS office: no admin password is obtainable for the
+Mac, UGA IT won't assist, and the team already reaches a Transana/MySQL
+server on that machine via its campus IP with the UGA VPN from off campus.
+ETD rides the identical access pattern instead of a tunnel:
+
+- The ETD server also **serves the built frontend** (new optional
+  `ETD_STATIC_DIR` env var: static files + SPA fallback for non-`/api` GET
+  routes). The team visits `http://<campus-ip>:<port>/` directly — app and
+  API are same-origin, which sidesteps the HTTPS-page → HTTP-API
+  mixed-content block that made jenkleiman.com unusable against a campus
+  HTTP server.
+- The frontend's **default server URL becomes same-origin** in production
+  builds when `VITE_ETD_API_URL` is unset (dev keeps `http://localhost:8787`).
+- **No-admin operation:** LaunchAgent (`~/Library/LaunchAgents`) instead of
+  LaunchDaemon, plus `caffeinate`; documented as a variant in
+  server/README.md with its stated trade-offs (survives reboot only after
+  someone logs in; no FileVault toggle). Same operational posture the
+  Transana server already has and the team already accepts.
+- **Security posture:** off-campus leg encrypted by UGA VPN; on-campus leg
+  is plain HTTP. Carried by the de-identified-data-only policy; Tailscale
+  or a certificate remain bolt-on upgrades later.
+- jenkleiman.com keeps hosting the public, local-files-only editor.
+- The real campus IP stays out of the repo (placeholders in docs).
+
+Tunnel-based deployment (previous plan) remains documented and preferred
+where an admin exists; nothing in the server depends on which is used.
