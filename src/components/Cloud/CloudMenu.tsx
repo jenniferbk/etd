@@ -11,6 +11,7 @@ import { api } from '../../api/client';
 import { buildCloudSnapshot } from './buildCloudSnapshot';
 import { SignInModal } from './SignInModal';
 import { CloudSaveDialog } from './CloudSaveDialog';
+import { LibraryModal } from './LibraryModal';
 
 export function CloudMenu() {
   const user = useAuthStore((s) => s.user);
@@ -23,13 +24,14 @@ export function CloudMenu() {
   const serverParam = params.get('server');
   const [signInOpen, setSignInOpen] = useState(inviteToken !== null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const itemCount = user ? 3 : 1;
 
-  // Disabled placeholder items ("Save to cloud…", "Library…") render real
-  // disabled <button> elements, which cannot receive focus. All navigation
-  // below must skip them — otherwise focus can get stuck on a no-op index
-  // and the only enabled item ("Sign out") becomes unreachable by keyboard.
+  // A future disabled placeholder item would render a real disabled <button>,
+  // which cannot receive focus. All navigation below skips disabled items
+  // generically — otherwise focus could get stuck on a no-op index and later
+  // enabled items would become unreachable by keyboard.
   const isEnabled = useCallback((index: number): boolean => {
     const el = itemRefs.current[index];
     return el != null && !el.disabled;
@@ -172,15 +174,12 @@ export function CloudMenu() {
                   label="Save to cloud…"
                   onClick={() => run(() => { void handleCloudSave(); })}
                 />
-                <div title="Coming in this release">
-                  <MenuItem
-                    ref={(el) => { itemRefs.current[1] = el; }}
-                    icon={Library}
-                    label="Library…"
-                    onClick={() => {}}
-                    disabled
-                  />
-                </div>
+                <MenuItem
+                  ref={(el) => { itemRefs.current[1] = el; }}
+                  icon={Library}
+                  label="Library…"
+                  onClick={() => run(() => setLibraryOpen(true))}
+                />
                 <div
                   className="my-1 mx-2"
                   style={{ height: 1, backgroundColor: theme.sidebar.border }}
@@ -214,6 +213,8 @@ export function CloudMenu() {
       />
 
       <CloudSaveDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} />
+
+      <LibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </>
   );
 }
