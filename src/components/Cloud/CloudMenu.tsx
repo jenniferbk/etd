@@ -7,9 +7,8 @@ import { theme } from '../../utils/theme';
 import { useAuthStore } from '../../api/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useCloudStore } from '../../store/cloudStore';
-import { useDiagramStore } from '../../store';
 import { api } from '../../api/client';
-import { buildDiagramFile } from '../../utils/saveDiagram';
+import { buildCloudSnapshot } from './buildCloudSnapshot';
 import { SignInModal } from './SignInModal';
 import { CloudSaveDialog } from './CloudSaveDialog';
 
@@ -118,15 +117,8 @@ export function CloudMenu() {
       return;
     }
     try {
-      const s = useDiagramStore.getState();
-      const snapshot = buildDiagramFile({
-        diagramName: s.diagramName,
-        elements: s.elements,
-        connections: s.connections,
-        styleConfig: s.styleConfig,
-        transcript: s.transcript,
-      });
-      await api(`/api/diagrams/${diagramId}`, { method: 'PUT', body: { snapshot, title: s.diagramName } });
+      const snapshot = buildCloudSnapshot();
+      await api(`/api/diagrams/${diagramId}`, { method: 'PUT', body: { snapshot, title: snapshot.name } });
       useToastStore.getState().addToast('info', 'Saved to cloud');
     } catch (err) {
       useToastStore.getState().addToast('error', err instanceof Error ? err.message : 'cloud save failed');

@@ -86,6 +86,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
       if (file.name.endsWith('.drawing')) {
         const result = await importDrawingFile(file);
         loadDiagram(result.elements, result.connections, result.name, null);
+        useCloudStore.getState().clearCloudTarget();
         e.target.value = '';
         return;
       }
@@ -97,6 +98,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
             loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig);
+            useCloudStore.getState().clearCloudTarget();
           } else {
             addToast('error', 'Invalid diagram file format');
           }

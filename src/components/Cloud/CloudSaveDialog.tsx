@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { api } from '../../api/client';
 import { useAuthStore } from '../../api/authStore';
@@ -6,7 +6,7 @@ import { useCloudStore } from '../../store/cloudStore';
 import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
-import { buildDiagramFile } from '../../utils/saveDiagram';
+import { buildCloudSnapshot } from './buildCloudSnapshot';
 
 export const SAVE_REMINDER =
   'Reminder: only de-identified data may be saved to the shared library.';
@@ -23,10 +23,19 @@ const labelClassName = 'text-sm font-medium';
 
 export function CloudSaveDialog({ open, onClose }: CloudSaveDialogProps) {
   const groups = useAuthStore((s) => s.groups);
-  const diagramName = useDiagramStore((s) => s.diagramName);
-  const [title, setTitle] = useState(diagramName);
+  const [title, setTitle] = useState(() => useDiagramStore.getState().diagramName);
   const [groupId, setGroupId] = useState<number>(groups[0]?.id ?? 0);
   const [busy, setBusy] = useState(false);
+
+  // Resync on every open, not just at mount — the dialog is rendered
+  // unconditionally (only `open` toggles), so without this a rename or a
+  // file load between opens would otherwise leave a stale title/group.
+  useEffect(() => {
+    if (open) {
+      setTitle(useDiagramStore.getState().diagramName);
+      setGroupId(groups[0]?.id ?? 0);
+    }
+  }, [open, groups]);
 
   const inputStyle = {
     backgroundColor: theme.input.bg,
@@ -39,14 +48,7 @@ export function CloudSaveDialog({ open, onClose }: CloudSaveDialogProps) {
   const handleSave = async () => {
     setBusy(true);
     try {
-      const s = useDiagramStore.getState();
-      const snapshot = buildDiagramFile({
-        diagramName: title,
-        elements: s.elements,
-        connections: s.connections,
-        styleConfig: s.styleConfig,
-        transcript: s.transcript,
-      });
+      const snapshot = buildCloudSnapshot(title);
       const res = await api<{ id: number; currentVersionId: number }>('/api/diagrams', {
         method: 'POST',
         body: { groupId, title, snapshot },
