@@ -11,6 +11,10 @@ export interface SessionUser {
 }
 
 declare global {
+  // Augmenting Express's own namespace is the documented way to extend
+  // `Request` with app-specific fields; there is no ES2015-module
+  // equivalent for this.
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: SessionUser;

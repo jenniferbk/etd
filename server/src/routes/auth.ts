@@ -123,9 +123,10 @@ export function authRoutes(db: Db): Router {
         return;
       }
       if (err instanceof Error) {
+        const code = (err as NodeJS.ErrnoException).code;
         if (
           err.message.includes('UNIQUE constraint failed: users.email') ||
-          (err as any).code === 'SQLITE_CONSTRAINT_UNIQUE'
+          code === 'SQLITE_CONSTRAINT_UNIQUE'
         ) {
           res.status(409).json({ error: 'an account with that email already exists' });
           return;
