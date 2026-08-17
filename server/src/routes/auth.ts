@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import {
-  createSession, deleteSession, requireAuth, verifyPassword, type SessionUser,
+  createSession, deleteSession, hashPassword, requireAuth, sha256, verifyPassword, type SessionUser,
 } from '../auth.js';
 import type { Db } from '../db.js';
 
@@ -47,6 +47,62 @@ export function authRoutes(db: Db): Router {
     }
     const token = createSession(db, row.id);
     res.json({ token, user: toSessionUser(row) });
+  });
+
+  const registerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'too many attempts; try again later' },
+  });
+
+  router.post('/register', registerLimiter, async (req, res) => {
+    const parsed = z
+      .object({
+        inviteToken: z.string().min(1),
+        email: z.email(),
+        password: z.string().min(8),
+        displayName: z.string().trim().min(1),
+        acceptedPolicy: z.literal(true),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        error: 'invalid request (password must be ≥ 8 characters and the data policy must be accepted)',
+      });
+      return;
+    }
+    const { inviteToken, email, password, displayName } = parsed.data;
+    const invite = db
+      .prepare(
+        `SELECT token_hash, group_id FROM invites
+         WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')`,
+      )
+      .get(sha256(inviteToken)) as { token_hash: string; group_id: number } | undefined;
+    if (!invite) {
+      res.status(400).json({ error: 'invalid or expired invite' });
+      return;
+    }
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+    if (existing) {
+      res.status(409).json({ error: 'an account with that email already exists' });
+      return;
+    }
+    const pwHash = await hashPassword(password);
+    let userId = 0;
+    db.transaction(() => {
+      const u = db
+        .prepare('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)')
+        .run(email, pwHash, displayName);
+      userId = Number(u.lastInsertRowid);
+      db.prepare(`INSERT INTO memberships (user_id, group_id, role) VALUES (?, ?, 'member')`).run(
+        userId, invite.group_id,
+      );
+      db.prepare(`UPDATE invites SET used_at = datetime('now') WHERE token_hash = ?`).run(invite.token_hash);
+    })();
+    const token = createSession(db, userId);
+    res.json({ token, user: { id: userId, email, displayName, isSiteAdmin: false } });
   });
 
   router.post('/logout', requireAuth(db), (req, res) => {
