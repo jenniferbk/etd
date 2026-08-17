@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest';
+import request from 'supertest';
+import { auth, makeTestServer } from '../../test/helpers.js';
+
+const SNAP = { version: '1.6', name: 'Test', elements: [], connections: [], styleConfig: {}, transcript: null };
+
+async function registerMember(app: import('express').Express, adminToken: string, email: string): Promise<string> {
+  const inv = await request(app).post('/api/invites').set(auth(adminToken)).send({ groupId: 1 });
+  const reg = await request(app).post('/api/auth/register').send({
+    inviteToken: inv.body.token, email, password: 'longenough', displayName: email, acceptedPolicy: true,
+  });
+  return reg.body.token as string;
+}
+
+describe('diagrams', () => {
+  it('creates, lists, opens, and saves a diagram', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken))
+      .send({ groupId: 1, title: 'Lesson 4 argument', snapshot: SNAP });
+    expect(created.status).toBe(200);
+    const { id } = created.body;
+
+    const list = await request(app).get('/api/groups/1/diagrams').set(auth(adminToken));
+    expect(list.status).toBe(200);
+    expect(list.body).toHaveLength(1);
+    expect(list.body[0]).toMatchObject({ id, title: 'Lesson 4 argument', versionCount: 1 });
+    expect(list.body[0].lastEditor).toBeTypeOf('string');
+
+    const opened = await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken));
+    expect(opened.status).toBe(200);
+    expect(opened.body.snapshot).toEqual(SNAP);
+
+    const saved = await request(app)
+      .put(`/api/diagrams/${id}`).set(auth(adminToken))
+      .send({ snapshot: { ...SNAP, name: 'Renamed' }, title: 'Renamed' });
+    expect(saved.status).toBe(200);
+    expect(saved.body.currentVersionId).not.toBe(created.body.currentVersionId);
+
+    const list2 = await request(app).get('/api/groups/1/diagrams').set(auth(adminToken));
+    expect(list2.body[0]).toMatchObject({ title: 'Renamed', versionCount: 2 });
+  });
+
+  it('every save is retained as a version row', async () => {
+    const { app, db, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'T', snapshot: SNAP });
+    await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+    await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+    const { n } = db.prepare('SELECT COUNT(*) AS n FROM diagram_versions').get() as { n: number };
+    expect(n).toBe(3);
+  });
+
+  it('non-members get 403 on every diagram route', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'Private', snapshot: SNAP });
+    const id = created.body.id;
+    // outsider: a member of a *different* group only
+    const g2 = await request(app).post('/api/groups').set(auth(adminToken)).send({ name: 'Other' });
+    const inv = await request(app).post('/api/invites').set(auth(adminToken)).send({ groupId: g2.body.id });
+    const reg = await request(app).post('/api/auth/register').send({
+      inviteToken: inv.body.token, email: 'out@uga.edu', password: 'longenough',
+      displayName: 'Out', acceptedPolicy: true,
+    });
+    const outsider = reg.body.token as string;
+
+    expect((await request(app).get('/api/groups/1/diagrams').set(auth(outsider))).status).toBe(403);
+    expect((await request(app).get(`/api/diagrams/${id}`).set(auth(outsider))).status).toBe(403);
+    expect((await request(app).put(`/api/diagrams/${id}`).set(auth(outsider)).send({ snapshot: SNAP })).status).toBe(403);
+    expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(outsider))).status).toBe(403);
+    expect(
+      (await request(app).post('/api/diagrams').set(auth(outsider)).send({ groupId: 1, title: 'X', snapshot: SNAP })).status,
+    ).toBe(403);
+  });
+
+  it('members can edit but only creator/admin can delete', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const memberToken = await registerMember(app, adminToken, 'peer@uga.edu');
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'Shared', snapshot: SNAP });
+    const id = created.body.id;
+
+    expect((await request(app).put(`/api/diagrams/${id}`).set(auth(memberToken)).send({ snapshot: SNAP })).status).toBe(200);
+    expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(memberToken))).status).toBe(403);
+    expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(204);
+    expect((await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(404);
+  });
+});

@@ -4,6 +4,7 @@ import { authRoutes } from './routes/auth.js';
 import { inviteRoutes } from './routes/invites.js';
 import { groupRoutes } from './routes/groups.js';
 import { resetRoutes } from './routes/resets.js';
+import { diagramRoutes } from './routes/diagrams.js';
 import type { Db } from './db.js';
 
 export function createApp(db: Db): express.Express {
@@ -21,6 +22,7 @@ export function createApp(db: Db): express.Express {
   // applies requireAuth router-wide on the shared /api mount — any router with
   // unauthenticated /api routes must be mounted before groupRoutes.
   app.use('/api', resetRoutes(db));
+  app.use('/api', diagramRoutes(db));
   app.use('/api', groupRoutes(db));
 
   return app;
