@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
+import { useCloudStore } from '../../store/cloudStore';
 import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { saveDiagramJson, toFilename } from '../../utils/saveDiagram';
@@ -195,7 +196,10 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
       cancelLabel: 'Cancel',
       variant: 'destructive',
     });
-    if (ok) clearDiagram();
+    if (ok) {
+      clearDiagram();
+      useCloudStore.getState().clearCloudTarget();
+    }
   };
 
   const dividerClass = 'w-px h-6 mx-2';

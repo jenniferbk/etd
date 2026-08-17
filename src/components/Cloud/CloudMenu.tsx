@@ -6,7 +6,12 @@ import { useMenu } from '../Toolbar/useMenu';
 import { theme } from '../../utils/theme';
 import { useAuthStore } from '../../api/authStore';
 import { useToastStore } from '../../store/toastStore';
+import { useCloudStore } from '../../store/cloudStore';
+import { useDiagramStore } from '../../store';
+import { api } from '../../api/client';
+import { buildDiagramFile } from '../../utils/saveDiagram';
 import { SignInModal } from './SignInModal';
+import { CloudSaveDialog } from './CloudSaveDialog';
 
 export function CloudMenu() {
   const user = useAuthStore((s) => s.user);
@@ -18,6 +23,7 @@ export function CloudMenu() {
   const inviteToken = params.get('invite');
   const serverParam = params.get('server');
   const [signInOpen, setSignInOpen] = useState(inviteToken !== null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
 
   const itemCount = user ? 3 : 1;
 
@@ -105,6 +111,28 @@ export function CloudMenu() {
     useToastStore.getState().addToast('info', 'Signed out');
   }
 
+  const handleCloudSave = async () => {
+    const { diagramId } = useCloudStore.getState();
+    if (diagramId === null) {
+      setSaveDialogOpen(true);
+      return;
+    }
+    try {
+      const s = useDiagramStore.getState();
+      const snapshot = buildDiagramFile({
+        diagramName: s.diagramName,
+        elements: s.elements,
+        connections: s.connections,
+        styleConfig: s.styleConfig,
+        transcript: s.transcript,
+      });
+      await api(`/api/diagrams/${diagramId}`, { method: 'PUT', body: { snapshot, title: s.diagramName } });
+      useToastStore.getState().addToast('info', 'Saved to cloud');
+    } catch (err) {
+      useToastStore.getState().addToast('error', err instanceof Error ? err.message : 'cloud save failed');
+    }
+  };
+
   return (
     <>
       <div className="relative inline-flex">
@@ -146,15 +174,12 @@ export function CloudMenu() {
                 >
                   {user.displayName}
                 </div>
-                <div title="Coming in this release">
-                  <MenuItem
-                    ref={(el) => { itemRefs.current[0] = el; }}
-                    icon={UploadCloud}
-                    label="Save to cloud…"
-                    onClick={() => {}}
-                    disabled
-                  />
-                </div>
+                <MenuItem
+                  ref={(el) => { itemRefs.current[0] = el; }}
+                  icon={UploadCloud}
+                  label="Save to cloud…"
+                  onClick={() => run(() => { void handleCloudSave(); })}
+                />
                 <div title="Coming in this release">
                   <MenuItem
                     ref={(el) => { itemRefs.current[1] = el; }}
@@ -195,6 +220,8 @@ export function CloudMenu() {
         inviteToken={inviteToken}
         initialServerUrl={serverParam ? decodeURIComponent(serverParam) : undefined}
       />
+
+      <CloudSaveDialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} />
     </>
   );
 }

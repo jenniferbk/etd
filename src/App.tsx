@@ -17,6 +17,7 @@ import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
 import { useAuthStore } from './api/authStore';
+import { useCloudStore } from './store/cloudStore';
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
@@ -94,6 +95,7 @@ function App() {
     const saved = getAutoSavedData();
     if (saved) {
       loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig);
+      useCloudStore.getState().clearCloudTarget();
       clearAutoSave();
     }
     setRecoveryData(null);
@@ -224,6 +226,7 @@ function App() {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
           loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig);
+          useCloudStore.getState().clearCloudTarget();
         }
       } catch (err) {
         console.error('Failed to parse diagram file:', err);

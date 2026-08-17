@@ -24,8 +24,8 @@ export interface DiagramSnapshot {
   transcript: Transcript | null;
 }
 
-export async function saveDiagramJson(snapshot: DiagramSnapshot): Promise<void> {
-  const data = {
+export function buildDiagramFile(snapshot: DiagramSnapshot) {
+  return {
     version: SAVE_SCHEMA_VERSION,
     name: snapshot.diagramName,
     elements: snapshot.elements,
@@ -33,6 +33,10 @@ export async function saveDiagramJson(snapshot: DiagramSnapshot): Promise<void> 
     styleConfig: snapshot.styleConfig,
     transcript: snapshot.transcript,
   };
+}
+
+export async function saveDiagramJson(snapshot: DiagramSnapshot): Promise<void> {
+  const data = buildDiagramFile(snapshot);
   await saveFile({
     data: new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
     suggestedName: `${toFilename(snapshot.diagramName)}.json`,
