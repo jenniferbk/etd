@@ -15,6 +15,6 @@ await bootstrap(db, {
 });
 
 const port = Number(process.env.PORT ?? 8787);
-createApp(db).listen(port, () => {
+createApp(db, { staticDir: process.env.ETD_STATIC_DIR }).listen(port, () => {
   console.log(`etd-server listening on :${port} (db: ${dbPath})`);
 });

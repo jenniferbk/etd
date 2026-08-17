@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { resolve } from 'node:path';
 import { authRoutes } from './routes/auth.js';
 import { inviteRoutes } from './routes/invites.js';
 import { groupRoutes } from './routes/groups.js';
@@ -7,7 +8,7 @@ import { resetRoutes } from './routes/resets.js';
 import { diagramRoutes } from './routes/diagrams.js';
 import type { Db } from './db.js';
 
-export function createApp(db: Db): express.Express {
+export function createApp(db: Db, opts: { staticDir?: string } = {}): express.Express {
   const app = express();
   // Documented deployments (Cloudflare Tunnel, Tailscale Funnel — see
   // server/README.md Section 5) put exactly one local proxy in front of this
@@ -37,6 +38,21 @@ export function createApp(db: Db): express.Express {
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'not found' });
   });
+
+  // Optional same-origin frontend hosting (campus-VPN deployment):
+  // static assets plus an SPA fallback for client-side routes. Mounted after
+  // all /api handlers so API behavior is unchanged.
+  if (opts.staticDir) {
+    const staticDir = resolve(opts.staticDir);
+    app.use(express.static(staticDir));
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api/')) {
+        next();
+        return;
+      }
+      res.sendFile(resolve(staticDir, 'index.html'));
+    });
+  }
 
   // Final error handler (4-arg signature required by Express to be
   // recognized as an error middleware). Must be last. Ensures malformed
