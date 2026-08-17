@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.etd.backup</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/EDIT-ME/path/to/etd/server/deploy/backup.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/EDIT-ME/path/to/etd/server</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>ETD_DB_PATH</key><string>/EDIT-ME/path/to/etd-data/etd.sqlite</string>
+    <key>ETD_BACKUP_DIR</key><string>/EDIT-ME/path/to/OneDrive/etd-backups</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>/EDIT-ME/path/to/etd-data/backup.log</string>
+  <key>StandardErrorPath</key><string>/EDIT-ME/path/to/etd-data/backup.err.log</string>
+</dict>
+</plist>
