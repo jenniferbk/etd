@@ -61,4 +61,20 @@ describe('groups', () => {
       .send({ email: 'm3@uga.edu', role: 'admin' });
     expect(res.status).toBe(403);
   });
+
+  it('returns 404 JSON when adding a member to a non-existent group', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const res = await request(app)
+      .post('/api/groups/999999/members').set(auth(adminToken))
+      .send({ email: 'admin@test.edu', role: 'member' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBeTypeOf('string');
+  });
+
+  it('returns 404 JSON when removing a member from a non-existent group', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const res = await request(app)
+      .delete('/api/groups/999999/members/1').set(auth(adminToken));
+    expect(res.status).toBe(404);
+  });
 });

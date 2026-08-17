@@ -60,6 +60,12 @@ export function groupRoutes(db: Db): Router {
       return;
     }
     if (!requireGroupAdmin(req, res, groupId)) return;
+    const group = db.prepare('SELECT id FROM groups WHERE id = ?').get(groupId) as
+      | { id: number } | undefined;
+    if (!group) {
+      res.status(404).json({ error: 'group not found' });
+      return;
+    }
     const user = db.prepare('SELECT id FROM users WHERE email = ?').get(parsed.data.email) as
       | { id: number } | undefined;
     if (!user) {
@@ -81,6 +87,12 @@ export function groupRoutes(db: Db): Router {
       return;
     }
     if (!requireGroupAdmin(req, res, groupId)) return;
+    const group = db.prepare('SELECT id FROM groups WHERE id = ?').get(groupId) as
+      | { id: number } | undefined;
+    if (!group) {
+      res.status(404).json({ error: 'group not found' });
+      return;
+    }
     db.prepare('DELETE FROM memberships WHERE user_id = ? AND group_id = ?').run(userId, groupId);
     res.status(204).end();
   });
