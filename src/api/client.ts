@@ -1,8 +1,14 @@
 const SERVER_URL_KEY = 'etd:serverUrl';
 const TOKEN_KEY = 'etd:sessionToken';
 
+// Server URL default: explicit env wins; dev (and non-browser test envs)
+// falls back to the local server; production builds served by the ETD
+// server itself default to same-origin (campus-VPN deployment).
 export const DEFAULT_SERVER_URL: string =
-  (import.meta.env.VITE_ETD_API_URL as string | undefined) ?? 'http://localhost:8787';
+  (import.meta.env.VITE_ETD_API_URL as string | undefined) ??
+  (import.meta.env.DEV || typeof window === 'undefined'
+    ? 'http://localhost:8787'
+    : window.location.origin);
 
 export function getServerUrl(): string {
   return localStorage.getItem(SERVER_URL_KEY) ?? DEFAULT_SERVER_URL;

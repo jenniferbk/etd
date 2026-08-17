@@ -13,6 +13,7 @@ import { api, ApiError, getServerUrl, getToken, setServerUrl, setToken } from '.
 describe('client config', () => {
   beforeEach(() => localStorage.clear());
 
+  // In dev (vitest DEV=true, no DOM), defaults to localhost. Production builds default to window.location.origin, verified manually in Task 3.
   it('defaults the server URL and persists an override without a trailing slash', () => {
     expect(getServerUrl()).toBe('http://localhost:8787');
     setServerUrl('https://etd.example.org/');
