@@ -23,6 +23,12 @@ export function toSessionUser(row: DbUserRow): SessionUser {
   };
 }
 
+class InviteAlreadyUsedError extends Error {
+  constructor() {
+    super('invite already used');
+  }
+}
+
 export function authRoutes(db: Db): Router {
   const router = Router();
 
@@ -74,12 +80,13 @@ export function authRoutes(db: Db): Router {
       return;
     }
     const { inviteToken, email, password, displayName } = parsed.data;
+    const inviteTokenHash = sha256(inviteToken);
     const invite = db
       .prepare(
         `SELECT token_hash, group_id FROM invites
          WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')`,
       )
-      .get(sha256(inviteToken)) as { token_hash: string; group_id: number } | undefined;
+      .get(inviteTokenHash) as { token_hash: string; group_id: number } | undefined;
     if (!invite) {
       res.status(400).json({ error: 'invalid or expired invite' });
       return;
@@ -91,16 +98,41 @@ export function authRoutes(db: Db): Router {
     }
     const pwHash = await hashPassword(password);
     let userId = 0;
-    db.transaction(() => {
-      const u = db
-        .prepare('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)')
-        .run(email, pwHash, displayName);
-      userId = Number(u.lastInsertRowid);
-      db.prepare(`INSERT INTO memberships (user_id, group_id, role) VALUES (?, ?, 'member')`).run(
-        userId, invite.group_id,
-      );
-      db.prepare(`UPDATE invites SET used_at = datetime('now') WHERE token_hash = ?`).run(invite.token_hash);
-    })();
+    try {
+      db.transaction(() => {
+        const claimed = db
+          .prepare(
+            `UPDATE invites SET used_at = datetime('now')
+             WHERE token_hash = ? AND used_at IS NULL AND expires_at > datetime('now')`,
+          )
+          .run(inviteTokenHash);
+        if (claimed.changes !== 1) {
+          throw new InviteAlreadyUsedError();
+        }
+        const u = db
+          .prepare('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)')
+          .run(email, pwHash, displayName);
+        userId = Number(u.lastInsertRowid);
+        db.prepare(`INSERT INTO memberships (user_id, group_id, role) VALUES (?, ?, 'member')`).run(
+          userId, invite.group_id,
+        );
+      })();
+    } catch (err) {
+      if (err instanceof InviteAlreadyUsedError) {
+        res.status(400).json({ error: 'invalid or expired invite' });
+        return;
+      }
+      if (err instanceof Error) {
+        if (
+          err.message.includes('UNIQUE constraint failed: users.email') ||
+          (err as any).code === 'SQLITE_CONSTRAINT_UNIQUE'
+        ) {
+          res.status(409).json({ error: 'an account with that email already exists' });
+          return;
+        }
+      }
+      throw err;
+    }
     const token = createSession(db, userId);
     res.json({ token, user: { id: userId, email, displayName, isSiteAdmin: false } });
   });

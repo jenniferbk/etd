@@ -64,4 +64,39 @@ describe('invites + register', () => {
     const res = await request(app).post('/api/invites').set(auth(reg.body.token)).send({ groupId: 1 });
     expect(res.status).toBe(403);
   });
+
+  it('atomic invite claim: second registration with same token fails with 400', async () => {
+    const { app, db, adminToken } = await makeTestServer();
+    const inviteToken = await makeInvite(app, adminToken);
+    const first = await request(app).post('/api/auth/register').send({ inviteToken, ...REG });
+    expect(first.status).toBe(200);
+    const { sha256 } = await import('../auth.js');
+    const inviteRow = db
+      .prepare('SELECT used_at FROM invites WHERE token_hash = ?')
+      .get(sha256(inviteToken)) as { used_at: string | null };
+    expect(inviteRow.used_at).not.toBeNull();
+    const second = await request(app)
+      .post('/api/auth/register')
+      .send({ inviteToken, ...REG, email: 'another@uga.edu' });
+    expect(second.status).toBe(400);
+    expect(second.body.error).toBe('invalid or expired invite');
+  });
+
+  it('race-safe duplicate email: concurrent registrations with same email return 200 and 409', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const t1 = await makeInvite(app, adminToken);
+    const t2 = await makeInvite(app, adminToken);
+    const results = await Promise.all([
+      request(app).post('/api/auth/register').send({ inviteToken: t1, ...REG }),
+      request(app)
+        .post('/api/auth/register')
+        .send({ inviteToken: t2, ...REG }),
+    ]);
+    const statuses = results.map((r) => r.status).sort();
+    expect(statuses).toEqual([200, 409]);
+    const successResult = results.find((r) => r.status === 200);
+    const failResult = results.find((r) => r.status === 409);
+    expect(successResult!.body.token).toBeTypeOf('string');
+    expect(failResult!.body.error).toBe('an account with that email already exists');
+  });
 });
