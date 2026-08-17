@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Cloud, UploadCloud, Library, LogIn, LogOut } from 'lucide-react';
 import { IconButton } from '../Toolbar/IconButton';
 import { MenuItem } from '../Toolbar/MenuItem';
@@ -21,12 +21,47 @@ export function CloudMenu() {
 
   const itemCount = user ? 3 : 1;
 
+  // Disabled placeholder items ("Save to cloud…", "Library…") render real
+  // disabled <button> elements, which cannot receive focus. All navigation
+  // below must skip them — otherwise focus can get stuck on a no-op index
+  // and the only enabled item ("Sign out") becomes unreachable by keyboard.
+  const isEnabled = useCallback((index: number): boolean => {
+    const el = itemRefs.current[index];
+    return el != null && !el.disabled;
+  }, []);
+
+  const firstEnabledIndex = useCallback((): number => {
+    for (let i = 0; i < itemCount; i++) {
+      if (isEnabled(i)) return i;
+    }
+    return 0;
+  }, [itemCount, isEnabled]);
+
+  const lastEnabledIndex = useCallback((): number => {
+    for (let i = itemCount - 1; i >= 0; i--) {
+      if (isEnabled(i)) return i;
+    }
+    return itemCount - 1;
+  }, [itemCount, isEnabled]);
+
+  const nextEnabledIndex = useCallback((from: number, step: 1 | -1): number => {
+    let idx = from;
+    for (let i = 0; i < itemCount; i++) {
+      idx = (idx + step + itemCount) % itemCount;
+      if (isEnabled(idx)) return idx;
+    }
+    return from;
+  }, [itemCount, isEnabled]);
+
   useEffect(() => {
     if (isOpen) {
-      activeIndexRef.current = 0;
-      requestAnimationFrame(() => itemRefs.current[0]?.focus());
+      requestAnimationFrame(() => {
+        const first = firstEnabledIndex();
+        activeIndexRef.current = first;
+        itemRefs.current[first]?.focus();
+      });
     }
-  }, [isOpen]);
+  }, [isOpen, firstEnabledIndex]);
 
   function run(handler: () => void) {
     close();
@@ -36,22 +71,24 @@ export function CloudMenu() {
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const next = (activeIndexRef.current + 1) % itemCount;
+      const next = nextEnabledIndex(activeIndexRef.current, 1);
       activeIndexRef.current = next;
       itemRefs.current[next]?.focus();
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      const prev = (activeIndexRef.current - 1 + itemCount) % itemCount;
+      const prev = nextEnabledIndex(activeIndexRef.current, -1);
       activeIndexRef.current = prev;
       itemRefs.current[prev]?.focus();
     } else if (e.key === 'Home') {
       e.preventDefault();
-      activeIndexRef.current = 0;
-      itemRefs.current[0]?.focus();
+      const first = firstEnabledIndex();
+      activeIndexRef.current = first;
+      itemRefs.current[first]?.focus();
     } else if (e.key === 'End') {
       e.preventDefault();
-      activeIndexRef.current = itemCount - 1;
-      itemRefs.current[itemCount - 1]?.focus();
+      const last = lastEnabledIndex();
+      activeIndexRef.current = last;
+      itemRefs.current[last]?.focus();
     }
   }
 
