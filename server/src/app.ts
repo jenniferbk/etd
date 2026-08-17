@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { authRoutes } from './routes/auth.js';
 import { inviteRoutes } from './routes/invites.js';
+import { groupRoutes } from './routes/groups.js';
 import type { Db } from './db.js';
 
 export function createApp(db: Db): express.Express {
@@ -15,6 +16,7 @@ export function createApp(db: Db): express.Express {
 
   app.use('/api/auth', authRoutes(db));
   app.use('/api', inviteRoutes(db));
+  app.use('/api', groupRoutes(db));
 
   return app;
 }
