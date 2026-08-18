@@ -44,3 +44,19 @@ export interface CloudDiagram {
   updatedAt: string;
   snapshot: SavedDiagramFile;
 }
+
+/** One row of a diagram's version history list (GET /api/diagrams/:id/versions). */
+export interface DiagramVersionListItem {
+  id: number;
+  author: string;
+  createdAt: string;
+  isCurrent: boolean;
+}
+
+/** A single version's full content (GET /api/diagrams/:id/versions/:versionId). */
+export interface DiagramVersion {
+  id: number;
+  author: string;
+  createdAt: string;
+  snapshot: SavedDiagramFile;
+}

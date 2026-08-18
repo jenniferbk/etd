@@ -29,10 +29,14 @@ export function setToken(token: string | null): void {
 
 export class ApiError extends Error {
   status: number;
+  /** Parsed error-response JSON, when the server sent one (e.g. the 409
+   *  conflict payload's `currentVersionId`). Undefined for non-JSON bodies. */
+  body?: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.status = status;
+    this.body = body;
     this.name = 'ApiError';
   }
 }
@@ -51,13 +55,15 @@ export async function api<T>(path: string, opts: { method?: string; body?: unkno
 
   if (!res.ok) {
     let message = `request failed (${res.status})`;
+    let parsedBody: unknown;
     try {
-      const body = (await res.json()) as { error?: string };
+      parsedBody = await res.json();
+      const body = parsedBody as { error?: string };
       if (body.error) message = body.error;
     } catch {
       // non-JSON error body; keep the generic message
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, parsedBody);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

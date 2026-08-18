@@ -10,6 +10,7 @@ vi.stubGlobal('localStorage', {
 
 import { saveToLibrary } from './librarySave';
 import { startDirtyTracking } from './dirtyTracking';
+import { ApiError } from '../api/client';
 import { useAuthStore } from '../api/authStore';
 import { useCloudStore } from '../store/cloudStore';
 import { useDiagramStore } from '../store';
@@ -25,7 +26,9 @@ describe('saveToLibrary', () => {
   beforeEach(() => {
     localStorage?.clear?.();
     useAuthStore.setState({ user: USER, groups: [{ id: 1, name: 'COMS', role: 'member' }] });
-    useCloudStore.setState({ diagramId: 9, groupId: 1, status: 'dirty', addToLibraryOpen: false });
+    useCloudStore.setState({
+      diagramId: 9, groupId: 1, baseVersionId: 3, conflict: null, status: 'dirty', addToLibraryOpen: false,
+    });
     useDiagramStore.getState().setDiagramName('My diagram');
     useToastStore.getState().clearAll();
   });
@@ -35,6 +38,86 @@ describe('saveToLibrary', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ currentVersionId: 4 }));
     await saveToLibrary();
     expect(useCloudStore.getState().status).toBe('saved');
+  });
+
+  it('sends the current baseVersionId in the PUT body', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({ currentVersionId: 4 }));
+    await saveToLibrary();
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(init!.body as string) as { baseVersionId?: number };
+    expect(body.baseVersionId).toBe(3);
+  });
+
+  it('updates baseVersionId from the PUT response on success', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ currentVersionId: 4 }));
+    await saveToLibrary();
+    expect(useCloudStore.getState().baseVersionId).toBe(4);
+  });
+
+  it('force: true omits baseVersionId from the PUT body', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(jsonResponse({ currentVersionId: 4 }));
+    await saveToLibrary({ force: true });
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(init!.body as string) as { baseVersionId?: number };
+    expect(body).not.toHaveProperty('baseVersionId');
+  });
+
+  it('on 409, sets conflict + dirty status with no toast', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse({ error: 'someone else saved this diagram while you were editing', currentVersionId: 11 }, 409),
+    );
+    await saveToLibrary();
+    const s = useCloudStore.getState();
+    expect(s.status).toBe('dirty');
+    expect(s.conflict).toEqual({ currentVersionId: 11 });
+    expect(useToastStore.getState().toasts).toHaveLength(0);
+  });
+
+  it('does not mutate state if the diagram target changes while the PUT is in flight (e.g. opening another diagram)', async () => {
+    let resolveFetch!: (res: Response) => void;
+    const pending = new Promise<Response>((resolve) => { resolveFetch = resolve; });
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(pending);
+
+    const savePromise = saveToLibrary(); // suspends at the PUT with diagramId 9
+    useCloudStore.setState({ diagramId: 22, groupId: 1, baseVersionId: 7 }); // switched diagrams mid-save
+    resolveFetch(jsonResponse({ currentVersionId: 4 }));
+    await savePromise;
+
+    const s = useCloudStore.getState();
+    expect(s.diagramId).toBe(22);
+    expect(s.baseVersionId).toBe(7); // not clobbered by the stale response
+  });
+
+  it('does not mutate state if the user signs out while the PUT is in flight', async () => {
+    let resolveFetch!: (res: Response) => void;
+    const pending = new Promise<Response>((resolve) => { resolveFetch = resolve; });
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(pending);
+
+    const savePromise = saveToLibrary(); // suspends at the PUT while signed in
+    useAuthStore.setState({ user: null, groups: [] }); // signed out mid-save
+    resolveFetch(jsonResponse({ currentVersionId: 4 }));
+    await savePromise;
+
+    expect(useCloudStore.getState().status).not.toBe('saved');
+    expect(useCloudStore.getState().baseVersionId).toBe(3); // untouched
+  });
+
+  it('does not set conflict/dirty from a 409 if the diagram target changed mid-flight', async () => {
+    let rejectFetch!: (err: unknown) => void;
+    const pending = new Promise<Response>((_resolve, reject) => { rejectFetch = reject; });
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(pending);
+
+    const savePromise = saveToLibrary();
+    useCloudStore.setState({ diagramId: 22, groupId: 1, conflict: null });
+    rejectFetch(new ApiError(409, 'conflict', { currentVersionId: 11 }));
+    await savePromise;
+
+    expect(useCloudStore.getState().conflict).toBeNull();
+    expect(useCloudStore.getState().diagramId).toBe(22);
   });
 
   it('opens the Add-to-library dialog for an unlinked diagram', async () => {

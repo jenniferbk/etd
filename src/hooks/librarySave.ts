@@ -9,8 +9,12 @@ import { saveDiagramJson } from '../utils/saveDiagram';
 import { getEditTick } from './dirtyTracking';
 
 /** The single Save entry point. Signed out it behaves exactly like the old
- *  local save; signed in it targets the team library. */
-export async function saveToLibrary(): Promise<void> {
+ *  local save; signed in it targets the team library.
+ *
+ *  `opts.force` skips the optimistic-concurrency check (used by "save
+ *  anyway" once the user has seen the conflict dialog) — the PUT omits
+ *  baseVersionId entirely, so the server accepts it unconditionally. */
+export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<void> {
   const user = useAuthStore.getState().user;
   const d = useDiagramStore.getState();
 
@@ -35,16 +39,44 @@ export async function saveToLibrary(): Promise<void> {
   // would otherwise create duplicate version rows.
   if (cloud.status === 'saving') return;
 
+  // The save is async; the signed-in user could sign out, or the canvas
+  // could be re-pointed at a different library diagram, before it resolves.
+  // Every handler below re-checks against this snapshot before touching
+  // state so a stale response can't clobber whatever's current now.
+  const diagramIdAtStart = cloud.diagramId;
+  const staleContext = () =>
+    useCloudStore.getState().diagramId !== diagramIdAtStart || !useAuthStore.getState().user;
+
   cloud.setStatus('saving');
   try {
     const tickBefore = getEditTick();
     const snapshot = buildCloudSnapshot();
     const title = d.diagramName.trim() || undefined;
-    await api(`/api/diagrams/${cloud.diagramId}`, { method: 'PUT', body: { snapshot, title } });
+    const baseVersionId = opts.force ? undefined : (useCloudStore.getState().baseVersionId ?? undefined);
+    const res = await api<{ currentVersionId: number }>(`/api/diagrams/${cloud.diagramId}`, {
+      method: 'PUT',
+      body: { snapshot, title, baseVersionId },
+    });
+
+    if (staleContext()) return;
+    useCloudStore.getState().setBaseVersionId(res.currentVersionId);
     // If the diagram was edited while this PUT was in flight, the snapshot
     // we just saved is already stale — reflect that instead of lying 'saved'.
     useCloudStore.getState().setStatus(getEditTick() === tickBefore ? 'saved' : 'dirty');
   } catch (err) {
+    if (staleContext()) return;
+
+    if (err instanceof ApiError && err.status === 409) {
+      // Someone else saved first. The AddToLibraryDialog's sibling — the
+      // conflict dialog — reads `conflict` and offers reload/force-save;
+      // no toast here, that dialog *is* the UI for this.
+      useCloudStore.getState().setStatus('dirty');
+      const body = err.body as { currentVersionId?: number } | undefined;
+      if (typeof body?.currentVersionId === 'number') {
+        useCloudStore.getState().setConflict({ currentVersionId: body.currentVersionId });
+      }
+      return;
+    }
     if (err instanceof ApiError && err.status === 404) {
       const c = useCloudStore.getState();
       c.clearCloudTarget();

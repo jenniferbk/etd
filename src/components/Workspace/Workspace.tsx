@@ -128,7 +128,7 @@ export function Workspace() {
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
       );
-      useCloudStore.getState().setCloudTarget(d.id, d.groupId);
+      useCloudStore.getState().setCloudTarget(d.id, d.groupId, d.currentVersionId);
       useCloudStore.getState().setView('canvas');
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));

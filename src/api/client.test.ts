@@ -60,4 +60,36 @@ describe('api()', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
     await expect(api('/api/auth/logout', { method: 'POST' })).resolves.toBeUndefined();
   });
+
+  it('captures the parsed error body on ApiError (e.g. a 409 conflict payload)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ error: 'conflict', currentVersionId: 12 }), { status: 409 }),
+    );
+    try {
+      await api('/api/diagrams/1', { method: 'PUT', body: {} });
+      expect.unreachable('expected api() to throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).body).toEqual({ error: 'conflict', currentVersionId: 12 });
+    }
+  });
+
+  it('leaves body undefined for a non-JSON error response', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('not json', { status: 500 }));
+    try {
+      await api('/api/health');
+      expect.unreachable('expected api() to throw');
+    } catch (err) {
+      expect((err as ApiError).body).toBeUndefined();
+    }
+  });
+});
+
+describe('ApiError', () => {
+  it('accepts the legacy two-arg construction', () => {
+    const err = new ApiError(404, 'not found');
+    expect(err.status).toBe(404);
+    expect(err.message).toBe('not found');
+    expect(err.body).toBeUndefined();
+  });
 });

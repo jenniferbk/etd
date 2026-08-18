@@ -58,7 +58,7 @@ export function AddToLibraryDialog() {
         body: { groupId, title, snapshot },
       });
       useDiagramStore.getState().setDiagramName(title);
-      useCloudStore.getState().setCloudTarget(res.id, groupId);
+      useCloudStore.getState().setCloudTarget(res.id, groupId, res.currentVersionId);
       useToastStore.getState().addToast('info', 'Added to the library');
       useCloudStore.getState().setAddToLibraryOpen(false);
     } catch (err) {
