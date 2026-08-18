@@ -612,7 +612,7 @@ function App() {
           )}
 
           {/* Properties — hidden in full-screen */}
-          <div className={fullScreen ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }}>
+          <div className={fullScreen ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }} inert={preview !== null}>
             <PropertiesPanel />
           </div>
 
