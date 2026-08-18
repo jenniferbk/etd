@@ -9,6 +9,12 @@ describe('friendlyError', () => {
     );
   });
 
+  it('maps the used/expired reset-token message', () => {
+    expect(friendlyError(new ApiError(400, 'invalid or expired reset token'))).toBe(
+      'That reset link has already been used or expired — ask your group admin for a new one.',
+    );
+  });
+
   it('maps the wrong-password message', () => {
     expect(friendlyError(new ApiError(401, 'invalid email or password'))).toBe(
       "That email and password don't match — try again, or ask your group admin to reset your password.",

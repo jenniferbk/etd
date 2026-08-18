@@ -6,6 +6,8 @@ import { ApiError } from './client';
 const MESSAGE_MAP: Record<string, string> = {
   'invalid or expired invite':
     'That invite link has already been used or expired — ask your group admin for a new one.',
+  'invalid or expired reset token':
+    'That reset link has already been used or expired — ask your group admin for a new one.',
   'invalid email or password':
     "That email and password don't match — try again, or ask your group admin to reset your password.",
   'only the creator or a group admin can delete a diagram':

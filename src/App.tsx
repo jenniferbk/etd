@@ -578,8 +578,13 @@ function App() {
 
       {/* Global overlay hosts — rendered in both views. */}
 
-      {/* Recovery Prompt */}
-      {recoveryData && (
+      {/* Recovery Prompt — deferred while a reset or invite link is pending:
+          both render as same-z-index global overlays, so a stale autosave
+          landing at the same time as ?reset=/?invite= would otherwise bury
+          the recovery prompt underneath. Both tokens clear once their flow
+          finishes (onDone / handleAuthenticated), so the prompt appears on
+          its own right after. */}
+      {recoveryData && resetToken === null && inviteToken === null && (
         <RecoveryPrompt
           timestamp={recoveryData.timestamp}
           onRecover={handleRecover}
