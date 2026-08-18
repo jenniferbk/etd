@@ -14,7 +14,7 @@ import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptP
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
-import { AddToLibraryDialog, CanvasHeader, SignInModal, Workspace } from './components/Workspace';
+import { AddToLibraryDialog, CanvasHeader, SetNewPasswordModal, SignInModal, Workspace } from './components/Workspace';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
@@ -59,9 +59,19 @@ function App() {
   const serverParam = params.get('server');
   const [signInOpen, setSignInOpen] = useState(inviteToken !== null);
 
+  // Password-reset links (?reset=...) — same sticky-until-consumed shape as
+  // the invite param above. onDone (success or dismiss) clears the token and
+  // hands off to the Sign-in modal.
+  const [resetToken, setResetToken] = useState(() => params.get('reset'));
+
   const handleAuthenticated = useCallback(() => {
     setInviteToken(null);
     if (!hasWork()) useCloudStore.getState().setView('workspace');
+  }, []);
+
+  const handleResetDone = useCallback(() => {
+    setResetToken(null);
+    setSignInOpen(true);
   }, []);
 
   // Restore a cloud session (if a token is already stored) once on mount.
@@ -584,6 +594,8 @@ function App() {
         initialServerUrl={serverParam ? decodeURIComponent(serverParam) : undefined}
         onAuthenticated={handleAuthenticated}
       />
+
+      {resetToken && <SetNewPasswordModal token={resetToken} onDone={handleResetDone} />}
 
       <Toaster />
       <ConfirmHost />

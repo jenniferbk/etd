@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAuthStore } from '../../api/authStore';
-import { getServerUrl, setServerUrl, DEFAULT_SERVER_URL } from '../../api/client';
+import { api, getServerUrl, setServerUrl, DEFAULT_SERVER_URL } from '../../api/client';
 import { friendlyError } from '../../api/friendlyError';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
@@ -32,6 +32,7 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAu
   const [serverSectionOpen, setServerSectionOpen] = useState(initialServerUrl !== undefined);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewGroupName, setPreviewGroupName] = useState<string | null>(null);
   const registerMode = inviteToken !== null;
 
   // Reset all field/error state each time the modal transitions to open, so
@@ -50,6 +51,33 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAu
       setServerSectionOpen(initialServerUrl !== undefined);
     }
   }, [open, initialServerUrl]);
+
+  // Register-mode greeting: resolve the invite's group name so the title can
+  // say "Join <groupName>" instead of the generic "Create your account".
+  // Any failure (expired/used/bogus token, offline, etc.) keeps the fallback
+  // title silently — this is cosmetic, not worth a toast. Stale-guarded
+  // since the modal can close (or the token can change) before the fetch
+  // resolves; keyed on [open, inviteToken] only, so it doesn't refetch on
+  // every unrelated render.
+  useEffect(() => {
+    if (!open || inviteToken === null) {
+      setPreviewGroupName(null);
+      return;
+    }
+    let cancelled = false;
+    setPreviewGroupName(null);
+    void (async () => {
+      try {
+        const res = await api<{ groupName: string }>(`/api/invites/${inviteToken}/preview`);
+        if (!cancelled) setPreviewGroupName(res.groupName);
+      } catch {
+        // 404/expired/network — fall back to "Create your account" silently.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, inviteToken]);
 
   const inputStyle = {
     backgroundColor: theme.input.bg,
@@ -100,7 +128,7 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAu
     <Modal
       open={open}
       onClose={onClose}
-      title={registerMode ? 'Create your account' : 'Sign in'}
+      title={registerMode ? (previewGroupName ? `Join ${previewGroupName}` : 'Create your account') : 'Sign in'}
       size="sm"
       initialFocus="primary"
       footer={
