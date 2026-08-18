@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { useAuthStore } from '../../api/authStore';
 import { getServerUrl, setServerUrl, DEFAULT_SERVER_URL } from '../../api/client';
+import { friendlyError } from '../../api/friendlyError';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 
@@ -76,7 +77,7 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAu
       onAuthenticated?.();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'something went wrong');
+      setError(friendlyError(err));
     } finally {
       setBusy(false);
     }
@@ -99,7 +100,7 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAu
     <Modal
       open={open}
       onClose={onClose}
-      title={registerMode ? 'Create account' : 'Sign in'}
+      title={registerMode ? 'Create your account' : 'Sign in'}
       size="sm"
       initialFocus="primary"
       footer={
@@ -203,12 +204,12 @@ export function SignInModal({ open, onClose, inviteToken, initialServerUrl, onAu
             className="text-xs underline"
             style={{ color: theme.sidebar.textSecondary }}
           >
-            {serverSectionOpen ? 'Hide server settings' : 'Server settings…'}
+            {serverSectionOpen ? 'Hide advanced' : 'Advanced…'}
           </button>
           {serverSectionOpen && (
             <div className="flex flex-col gap-1.5 mt-2">
               <label className={labelClassName} style={labelStyle}>
-                Server
+                Server address
               </label>
               <input
                 type="text"

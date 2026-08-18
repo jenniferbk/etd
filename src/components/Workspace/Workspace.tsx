@@ -14,10 +14,10 @@ import { DiagramCard } from './DiagramCard';
 
 /** Card-gallery home view — the landing page for a signed-in user, before
  *  they've opened any particular diagram onto the canvas. App renders this
- *  when cloudStore.view === 'workspace' and a user exists (wiring in Task 8).
+ *  when cloudStore.view === 'workspace' and a user exists.
  *
  *  Data logic (effectiveGroupId defaulting + requestSeq stale-response guard)
- *  is ported verbatim in behavior from src/components/Cloud/LibraryModal.tsx. */
+ *  is ported verbatim in behavior from the now-removed Cloud/LibraryModal.tsx. */
 export function Workspace() {
   const groups = useAuthStore((s) => s.groups);
   const [groupId, setGroupId] = useState<number | null>(null);

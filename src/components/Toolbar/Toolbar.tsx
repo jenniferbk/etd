@@ -12,6 +12,7 @@ import {
   Crosshair,
   Maximize2,
   ImagePlus,
+  LogIn,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
@@ -38,16 +39,17 @@ import { MoreMenu } from './MoreMenu';
 import { ToolbarGroup } from './ToolbarGroup';
 import { computeExportBounds } from '../../utils/exportBounds';
 import { ImageImportModal } from './ImageImportModal';
-import { CloudMenu } from '../Cloud';
 
 // Helper to create a safe filename from diagram name
 
 interface ToolbarProps {
   onLoadTranscript: () => void;
   onOpenSettings: () => void;
+  /** Opens the App-level SignInModal. Only used by the signed-out "Sign in" button. */
+  onOpenSignIn: () => void;
 }
 
-export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
+export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: ToolbarProps) {
   const {
     zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
@@ -360,10 +362,23 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
             onClear={handleClear}
           />
 
-          <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
+          {!user && (
+            <>
+              <div className={dividerClass} style={{ backgroundColor: theme.sidebar.border }} />
 
-          {/* Cloud — sign in / account menu */}
-          <CloudMenu />
+              {/* Signed-out entry point — opens the App-level SignInModal. */}
+              <button
+                onClick={onOpenSignIn}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+              >
+                <LogIn size={16} />
+                Sign in
+              </button>
+            </>
+          )}
         </div>
       </div>
 

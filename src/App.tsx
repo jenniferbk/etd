@@ -14,12 +14,20 @@ import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptP
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
-import { AddToLibraryDialog, CanvasHeader } from './components/Workspace';
+import { AddToLibraryDialog, CanvasHeader, SignInModal, Workspace } from './components/Workspace';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
 import { useAuthStore } from './api/authStore';
 import { useCloudStore } from './store/cloudStore';
+
+// hasWork: true when the canvas currently holds anything worth protecting
+// (used to decide whether restoring a session / finishing sign-in should
+// drop the user onto the canvas as-is, or send them to the Workspace gallery).
+function hasWork(): boolean {
+  const d = useDiagramStore.getState();
+  return d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null;
+}
 
 function App() {
   const [connectMode, setConnectMode] = useState(false);
@@ -41,8 +49,32 @@ function App() {
   // Auto-save hook
   useAutoSave();
 
+  // Invite/server-override links (?invite=...&server=...) — read once at
+  // mount. Sticky-until-consumed: signInOpen auto-opens register mode from
+  // the invite param, but the token itself is cleared post-auth (see
+  // handleAuthenticated) so a later sign-out → "Sign in" doesn't reopen the
+  // Create-account form with an already-consumed invite.
+  const [params] = useState(() => new URLSearchParams(window.location.search));
+  const [inviteToken, setInviteToken] = useState(() => params.get('invite'));
+  const serverParam = params.get('server');
+  const [signInOpen, setSignInOpen] = useState(inviteToken !== null);
+
+  const handleAuthenticated = useCallback(() => {
+    setInviteToken(null);
+    if (!hasWork()) useCloudStore.getState().setView('workspace');
+  }, []);
+
   // Restore a cloud session (if a token is already stored) once on mount.
-  useEffect(() => { void useAuthStore.getState().restore(); }, []);
+  // If it succeeds and the canvas is still blank, land the user in the
+  // Workspace gallery rather than an empty canvas.
+  useEffect(() => {
+    void (async () => {
+      await useAuthStore.getState().restore();
+      if (useAuthStore.getState().user && !hasWork()) {
+        useCloudStore.getState().setView('workspace');
+      }
+    })();
+  }, []);
 
   const {
     selectedIds,
@@ -243,6 +275,10 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Canvas-only: none of these shortcuts (undo/redo/save/zoom/etc.) make
+      // sense while browsing the Workspace gallery.
+      if (!(view === 'canvas' || !user)) return;
+
       // Ignore if typing in an input, textarea, or contenteditable
       const target = e.target as HTMLElement;
       if (
@@ -388,118 +424,137 @@ function App() {
     lightboxOpen,
     recoveryData,
     cancelPendingRetract,
+    view,
+    user,
   ]);
 
   return (
     <div className="h-screen flex flex-col relative" style={{ backgroundColor: theme.sidebar.bg }}>
-      {/* Hidden file input for Ctrl+O loading */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".json"
-        onChange={handleFileLoad}
-        className="hidden"
-      />
-      <input
-        ref={transcriptFileInputRef}
-        type="file"
-        accept=".txt"
-        onChange={handleTranscriptFileChange}
-        className="hidden"
-      />
-
-      {/* Signed-in canvas header — title, live save status, back to Workspace.
-          App does not yet switch views on ← (Task 8 wires that); it just
-          calls setView('workspace'), which is a no-op until then. */}
-      {user && view === 'canvas' && <CanvasHeader />}
-
-      {/* Toolbar wrapper — flow position normally, absolute overlay in full-screen.
-          In full-screen, slides in from above on toolbarHovered (Task 3 wires the
-          mouse handlers). Until Task 3 lands, the wrapper is just hidden via the
-          translate-up transform. */}
-      <div
-        className={fullScreen ? 'absolute top-0 left-0 right-0' : 'relative'}
-        style={
-          fullScreen
-            ? {
-                zIndex: theme.z.fsToolbar,
-                transform: toolbarHovered ? 'translateY(0)' : 'translateY(-100%)',
-                transition: prefersReducedMotion ? 'none' : 'transform 180ms ease',
-                paddingBottom: 24,
-                boxShadow: toolbarHovered ? theme.shadow.md : 'none',
-              }
-            : undefined
-        }
-        onMouseLeave={fullScreen ? handleToolbarMouseLeave : undefined}
-        onMouseDown={fullScreen ? (e) => e.stopPropagation() : undefined}
-        onFocus={fullScreen ? handleToolbarFocus : undefined}
-        onBlur={fullScreen ? handleToolbarBlur : undefined}
-      >
-        <Toolbar
-          onLoadTranscript={handleLoadTranscriptClick}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-      </div>
-
-      {/* Canvas row — Canvas always at this stable tree position. Sibling panels
-          toggled via Tailwind `hidden` (display: none) so they unmount layout-wise
-          but stay mounted component-wise; their internal state survives. */}
-      <div
-        className="flex flex-1 overflow-hidden"
-        onMouseDown={fullScreen ? () => setToolbarHovered(false) : undefined}
-      >
-        <div className={fullScreen ? 'hidden' : 'contents'}>
-          <Palette
-            connectMode={connectMode}
-            onToggleConnectMode={toggleConnectMode}
+      {user && view === 'workspace' ? (
+        <Workspace />
+      ) : (
+        <>
+          {/* Hidden file input for Ctrl+O loading */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleFileLoad}
+            className="hidden"
           />
-        </div>
+          <input
+            ref={transcriptFileInputRef}
+            type="file"
+            accept=".txt"
+            onChange={handleTranscriptFileChange}
+            className="hidden"
+          />
 
-        <Canvas
-          connectMode={connectMode}
-          onConnectionStart={handleConnectionStart}
-          connectingFrom={connectingFrom}
-        />
+          {/* Signed-in canvas header — title, live save status, back to Workspace. */}
+          {user && view === 'canvas' && <CanvasHeader />}
 
-        <div className={fullScreen ? 'hidden' : 'contents'}>
-          {transcriptPanelOpen ? (
-            <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
-          ) : (
-            <TranscriptClosedStrip onOpen={() => setTranscriptPanelOpen(true)} />
+          {/* Toolbar wrapper — flow position normally, absolute overlay in full-screen.
+              In full-screen, slides in from above on toolbarHovered. */}
+          <div
+            className={fullScreen ? 'absolute top-0 left-0 right-0' : 'relative'}
+            style={
+              fullScreen
+                ? {
+                    zIndex: theme.z.fsToolbar,
+                    transform: toolbarHovered ? 'translateY(0)' : 'translateY(-100%)',
+                    transition: prefersReducedMotion ? 'none' : 'transform 180ms ease',
+                    paddingBottom: 24,
+                    boxShadow: toolbarHovered ? theme.shadow.md : 'none',
+                  }
+                : undefined
+            }
+            onMouseLeave={fullScreen ? handleToolbarMouseLeave : undefined}
+            onMouseDown={fullScreen ? (e) => e.stopPropagation() : undefined}
+            onFocus={fullScreen ? handleToolbarFocus : undefined}
+            onBlur={fullScreen ? handleToolbarBlur : undefined}
+          >
+            <Toolbar
+              onLoadTranscript={handleLoadTranscriptClick}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenSignIn={() => setSignInOpen(true)}
+            />
+          </div>
+
+          {/* Canvas row — Canvas always at this stable tree position. Sibling panels
+              toggled via Tailwind `hidden` (display: none) so they unmount layout-wise
+              but stay mounted component-wise; their internal state survives. */}
+          <div
+            className="flex flex-1 overflow-hidden"
+            onMouseDown={fullScreen ? () => setToolbarHovered(false) : undefined}
+          >
+            <div className={fullScreen ? 'hidden' : 'contents'}>
+              <Palette
+                connectMode={connectMode}
+                onToggleConnectMode={toggleConnectMode}
+              />
+            </div>
+
+            <Canvas
+              connectMode={connectMode}
+              onConnectionStart={handleConnectionStart}
+              connectingFrom={connectingFrom}
+            />
+
+            <div className={fullScreen ? 'hidden' : 'contents'}>
+              {transcriptPanelOpen ? (
+                <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+              ) : (
+                <TranscriptClosedStrip onOpen={() => setTranscriptPanelOpen(true)} />
+              )}
+            </div>
+          </div>
+
+          {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
+          {fullScreen && (
+            <div
+              className="absolute top-0 left-0 right-0"
+              style={{ height: 12, zIndex: theme.z.hoverZone }}
+              onMouseEnter={handleHoverZoneEnter}
+            />
           )}
-        </div>
-      </div>
 
-      {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
-      {fullScreen && (
-        <div
-          className="absolute top-0 left-0 right-0"
-          style={{ height: 12, zIndex: theme.z.hoverZone }}
-          onMouseEnter={handleHoverZoneEnter}
-        />
+          {/* Entry hint — disappears after 2.5s */}
+          {fullScreen && showHint && (
+            <div
+              className="absolute bottom-4 right-4 px-3 py-1.5 rounded-md text-xs pointer-events-none"
+              style={{
+                zIndex: theme.z.fsHint,
+                background: theme.sidebar.bg,
+                color: theme.sidebar.text,
+                border: `1px solid ${theme.sidebar.border}`,
+                boxShadow: theme.shadow.sm,
+                transition: prefersReducedMotion ? 'none' : 'opacity 400ms ease',
+              }}
+            >
+              Press F or Esc to exit
+            </div>
+          )}
+
+          {/* Properties — hidden in full-screen */}
+          <div className={fullScreen ? 'hidden' : ''}>
+            <PropertiesPanel />
+          </div>
+
+          {/* Settings Modal */}
+          <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+          {/* Image Lightbox */}
+          {lightboxOpen && lightboxImage && (
+            <ImageLightbox
+              imageData={lightboxImage}
+              elementLabel={lightboxLabel || undefined}
+              onClose={closeLightbox}
+            />
+          )}
+        </>
       )}
 
-      {/* Entry hint — disappears after 2.5s */}
-      {fullScreen && showHint && (
-        <div
-          className="absolute bottom-4 right-4 px-3 py-1.5 rounded-md text-xs pointer-events-none"
-          style={{
-            zIndex: theme.z.fsHint,
-            background: theme.sidebar.bg,
-            color: theme.sidebar.text,
-            border: `1px solid ${theme.sidebar.border}`,
-            boxShadow: theme.shadow.sm,
-            transition: prefersReducedMotion ? 'none' : 'opacity 400ms ease',
-          }}
-        >
-          Press F or Esc to exit
-        </div>
-      )}
-
-      {/* Properties — hidden in full-screen */}
-      <div className={fullScreen ? 'hidden' : ''}>
-        <PropertiesPanel />
-      </div>
+      {/* Global overlay hosts — rendered in both views. */}
 
       {/* Recovery Prompt */}
       {recoveryData && (
@@ -510,17 +565,13 @@ function App() {
         />
       )}
 
-      {/* Settings Modal */}
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-
-      {/* Image Lightbox */}
-      {lightboxOpen && lightboxImage && (
-        <ImageLightbox
-          imageData={lightboxImage}
-          elementLabel={lightboxLabel || undefined}
-          onClose={closeLightbox}
-        />
-      )}
+      <SignInModal
+        open={signInOpen}
+        onClose={() => setSignInOpen(false)}
+        inviteToken={inviteToken}
+        initialServerUrl={serverParam ? decodeURIComponent(serverParam) : undefined}
+        onAuthenticated={handleAuthenticated}
+      />
 
       <Toaster />
       <ConfirmHost />

@@ -68,7 +68,7 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
     handler();
   }
 
-  // Roving-tabindex arrow-key navigation, matching MoreMenu/CloudMenu — menu
+  // Roving-tabindex arrow-key navigation, matching MoreMenu/AccountChip — menu
   // items render with tabIndex={-1} so Tab skips them entirely.
   function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'ArrowDown') {

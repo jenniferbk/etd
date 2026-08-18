@@ -21,7 +21,7 @@ const labelClassName = 'text-sm font-medium';
  *  current diagram has no cloud target yet. Self-contained: reads its open
  *  flag from cloudStore rather than taking props, so it can be mounted once
  *  in App and triggered from anywhere. Visual conventions mirror
- *  CloudSaveDialog (its predecessor, removed in a later task). */
+ *  CloudSaveDialog (its now-removed predecessor). */
 export function AddToLibraryDialog() {
   const open = useCloudStore((s) => s.addToLibraryOpen);
   const groups = useAuthStore((s) => s.groups);
