@@ -25,10 +25,10 @@ export function createApp(db: Db, opts: { staticDir?: string } = {}): express.Ex
 
   app.use('/api/auth', authRoutes(db));
   app.use('/api', inviteRoutes(db));
-  // Mount order matters: reset-password is unauthenticated, and groupRoutes
-  // and diagramRoutes both apply requireAuth router-wide on the shared /api
-  // mount — any router with unauthenticated /api routes must be mounted
-  // before any router that applies requireAuth router-wide.
+  // Mount order matters: unauthenticated routes (reset-password, invites/:token/preview)
+  // are handled here, and groupRoutes and diagramRoutes both apply requireAuth
+  // router-wide on the shared /api mount — any router with unauthenticated /api routes
+  // must be mounted before any router that applies requireAuth router-wide.
   app.use('/api', resetRoutes(db));
   app.use('/api', diagramRoutes(db));
   app.use('/api', groupRoutes(db));

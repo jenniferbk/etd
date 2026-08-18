@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { mintToken, requireAuth } from '../auth.js';
+import { mintToken, requireAuth, sha256 } from '../auth.js';
 import { getRole } from '../access.js';
 import type { Db } from '../db.js';
 
@@ -30,6 +30,23 @@ export function inviteRoutes(db: Db): Router {
       `INSERT INTO invites (token_hash, group_id, created_by, expires_at) VALUES (?, ?, ?, datetime('now', '+${INVITE_DAYS} days'))`,
     ).run(tokenHash, groupId, req.user!.id);
     res.json({ token, expiresInDays: INVITE_DAYS });
+  });
+
+  // Unauthenticated by design: lets the register modal greet with the group
+  // name. Valid+unused+unexpired only; all failures return the same 404 so the
+  // endpoint is not a token-validity oracle beyond what registration reveals.
+  router.get('/invites/:token/preview', (req, res) => {
+    const row = db
+      .prepare(
+        `SELECT g.name FROM invites i JOIN groups g ON g.id = i.group_id
+         WHERE i.token_hash = ? AND i.used_at IS NULL AND i.expires_at > datetime('now')`,
+      )
+      .get(sha256(req.params.token)) as { name: string } | undefined;
+    if (!row) {
+      res.status(404).json({ error: 'invalid or expired invite' });
+      return;
+    }
+    res.json({ groupName: row.name });
   });
 
   return router;

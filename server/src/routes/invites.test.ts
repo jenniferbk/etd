@@ -100,3 +100,27 @@ describe('invites + register', () => {
     expect(failResult!.body.error).toBe('an account with that email already exists');
   });
 });
+
+describe('invite preview', () => {
+  it('previews a valid invite without auth', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const token = await makeInvite(app, adminToken);
+    const res = await request(app).get(`/api/invites/${token}/preview`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ groupName: 'COMS' });
+  });
+
+  it('previews of used or bogus invites 404 identically', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const token = await makeInvite(app, adminToken);
+    await request(app).post('/api/auth/register').send({
+      inviteToken: token, email: 'u@uga.edu', password: 'longenough',
+      displayName: 'U', acceptedPolicy: true,
+    });
+    const used = await request(app).get(`/api/invites/${token}/preview`);
+    const bogus = await request(app).get('/api/invites/not-a-real-token/preview');
+    expect(used.status).toBe(404);
+    expect(bogus.status).toBe(404);
+    expect(used.body).toEqual(bogus.body);
+  });
+});
