@@ -16,9 +16,11 @@ import {
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { useCloudStore } from '../../store/cloudStore';
+import { useAuthStore } from '../../api/authStore';
+import { saveToLibrary } from '../../hooks/librarySave';
 import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
-import { saveDiagramJson, toFilename } from '../../utils/saveDiagram';
+import { toFilename } from '../../utils/saveDiagram';
 import { saveFile, dataUrlToBlob } from '../../utils/saveFile';
 import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
@@ -49,7 +51,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
   const {
     zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
-    transcript, styleConfig,
+    styleConfig,
   } = useDiagramStore();
 
   // Reset view: zoom to 100% and pan back to origin — rescues the user when they've
@@ -63,13 +65,15 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const temporal = useTemporalStore();
   const addToast = useToastStore((s) => s.addToast);
+  const user = useAuthStore((s) => s.user);
 
   const canUndo = temporal.pastStates.length > 0;
   const canRedo = temporal.futureStates.length > 0;
 
-  // Save diagram as JSON
+  // Save — routes through the single Save entry point (local file when
+  // signed out, team library when signed in).
   const handleSave = () => {
-    void saveDiagramJson({ diagramName, elements, connections, styleConfig, transcript });
+    void saveToLibrary();
   };
 
   // Load diagram from JSON file
@@ -223,15 +227,19 @@ export function Toolbar({ onLoadTranscript, onOpenSettings }: ToolbarProps) {
           >
             ETD
           </span>
-          <span style={{ color: theme.sidebar.border }}>|</span>
-          <input
-            type="text"
-            value={diagramName}
-            onChange={(e) => setDiagramName(e.target.value)}
-            className="text-base font-semibold tracking-tight bg-transparent border-none min-w-[200px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
-            style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
-            placeholder="Untitled Diagram"
-          />
+          {!user && (
+            <>
+              <span style={{ color: theme.sidebar.border }}>|</span>
+              <input
+                type="text"
+                value={diagramName}
+                onChange={(e) => setDiagramName(e.target.value)}
+                className="text-base font-semibold tracking-tight bg-transparent border-none min-w-[200px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
+                style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
+                placeholder="Untitled Diagram"
+              />
+            </>
+          )}
         </div>
 
         <div className="flex items-center">

@@ -7,13 +7,14 @@ import { RecoveryPrompt } from './components/RecoveryPrompt';
 import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
+import { useDirtyTracking } from './hooks/dirtyTracking';
+import { saveToLibrary } from './hooks/librarySave';
 import { parseTranscript } from './utils/transcriptParser';
-import { saveDiagramJson } from './utils/saveDiagram';
 import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
-import { AddToLibraryDialog } from './components/Workspace';
+import { AddToLibraryDialog, CanvasHeader } from './components/Workspace';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
@@ -48,17 +49,18 @@ function App() {
     removeElement,
     removeConnection,
     connections,
-    elements,
     duplicateElements,
     selectAll,
     setZoom,
     zoom,
     fitToView,
     loadDiagram,
-    diagramName,
     transcript,
-    styleConfig,
   } = useDiagramStore();
+
+  const user = useAuthStore((s) => s.user);
+  const view = useCloudStore((s) => s.view);
+  useDirtyTracking(user !== null);
 
   const { isOpen: lightboxOpen, imageData: lightboxImage, elementLabel: lightboxLabel, closeLightbox } = useLightboxStore();
 
@@ -157,10 +159,11 @@ function App() {
     }
   }, []);
 
-  // Save handler for keyboard shortcut
+  // Save handler for keyboard shortcut — routes through the single Save entry
+  // point (local file when signed out, team library when signed in).
   const handleSave = useCallback(() => {
-    void saveDiagramJson({ diagramName, elements, connections, styleConfig, transcript });
-  }, [elements, connections, diagramName, styleConfig, transcript]);
+    void saveToLibrary();
+  }, []);
 
   // Load handler for keyboard shortcut
   const handleLoad = useCallback(() => {
@@ -404,6 +407,11 @@ function App() {
         onChange={handleTranscriptFileChange}
         className="hidden"
       />
+
+      {/* Signed-in canvas header — title, live save status, back to Workspace.
+          App does not yet switch views on ← (Task 8 wires that); it just
+          calls setView('workspace'), which is a no-op until then. */}
+      {user && view === 'canvas' && <CanvasHeader />}
 
       {/* Toolbar wrapper — flow position normally, absolute overlay in full-screen.
           In full-screen, slides in from above on toolbarHovered (Task 3 wires the
