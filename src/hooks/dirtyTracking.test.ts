@@ -52,4 +52,12 @@ describe('startDirtyTracking', () => {
     useDiagramStore.setState({ selectedIds: ['x'] });
     expect(getEditTick()).toBe(before);
   });
+
+  it('does not flip saved -> dirty while a version preview is active', () => {
+    useCloudStore.setState({ status: 'saved', preview: { versionId: 3, createdAt: '2026-08-01T00:00:00' } });
+    stop = startDirtyTracking();
+    useDiagramStore.getState().setDiagramName('Previewed snapshot');
+    expect(useCloudStore.getState().status).toBe('saved');
+    useCloudStore.setState({ preview: null });
+  });
 });

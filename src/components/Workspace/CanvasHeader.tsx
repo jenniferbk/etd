@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Download, FolderOpen } from 'lucide-react';
 import { useAuthStore } from '../../api/authStore';
 import { useCloudStore, type LibrarySaveStatus } from '../../store/cloudStore';
@@ -14,6 +14,7 @@ import { MenuItem } from '../Toolbar/MenuItem';
 import { useMenu } from '../Toolbar/useMenu';
 import { AccountChip } from './AccountChip';
 import { OfflineBanner } from './OfflineBanner';
+import { PreviewBanner } from './PreviewBanner';
 
 const STATUS_TEXT: Record<LibrarySaveStatus, (group: string) => string> = {
   saved: (g) => `Saved to ${g} ✓`,
@@ -33,6 +34,9 @@ export function CanvasHeader() {
   const groups = useAuthStore((s) => s.groups);
   const cloudGroupId = useCloudStore((s) => s.groupId);
   const status = useCloudStore((s) => s.status);
+  const diagramId = useCloudStore((s) => s.diagramId);
+  const preview = useCloudStore((s) => s.preview);
+  const historyOpen = useCloudStore((s) => s.historyOpen);
   const diagramName = useDiagramStore((s) => s.diagramName);
   const setDiagramName = useDiagramStore((s) => s.setDiagramName);
 
@@ -112,6 +116,17 @@ export function CanvasHeader() {
   const activeIndexRef = useRef(0);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // File ▾ is disabled while previewing (below) — if it happened to be open
+  // the instant a preview started, force it shut rather than leave a
+  // disabled trigger with an orphaned open menu.
+  useEffect(() => {
+    if (preview !== null) closeFileMenu();
+  }, [preview, closeFileMenu]);
+
+  const handleToggleHistory = () => {
+    useCloudStore.getState().setHistoryOpen(!historyOpen);
+  };
 
   function handleFileMenuBlur(e: React.FocusEvent<HTMLDivElement>) {
     const next = e.relatedTarget as Node | null;
@@ -228,9 +243,10 @@ export function CanvasHeader() {
         <div className="flex-1 min-w-0 flex items-center">
           <button
             onClick={handleBack}
-            className="px-3 py-1.5 text-sm rounded-lg border transition-colors truncate max-w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            disabled={preview !== null}
+            className="px-3 py-1.5 text-sm rounded-lg border transition-colors truncate max-w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ borderColor: theme.sidebar.border, color: theme.sidebar.text, outlineColor: theme.focus.ring }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseEnter={(e) => { if (preview === null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
           >
             ← {backLabel}
@@ -255,7 +271,7 @@ export function CanvasHeader() {
             className="text-base font-semibold text-center bg-transparent border-none w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
             style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
           />
-          {statusText && (
+          {!preview && statusText && (
             <p className="text-xs mt-0.5 truncate w-full text-center" style={{ color: theme.sidebar.textSecondary }}>
               {statusText}
             </p>
@@ -263,16 +279,34 @@ export function CanvasHeader() {
         </div>
 
         <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+          <button
+            onClick={handleToggleHistory}
+            disabled={diagramId === null}
+            aria-pressed={historyOpen}
+            aria-label="History"
+            className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              color: theme.sidebar.text,
+              backgroundColor: historyOpen ? theme.sidebar.hover : 'transparent',
+              outlineColor: theme.focus.ring,
+            }}
+            onMouseEnter={(e) => { if (diagramId !== null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = historyOpen ? theme.sidebar.hover : 'transparent'; }}
+          >
+            History
+          </button>
+
           <div className="relative inline-flex">
             <button
               ref={triggerRef}
               onClick={toggleFileMenu}
+              disabled={preview !== null}
               aria-haspopup="menu"
               aria-expanded={fileMenuOpen}
               aria-label="File menu"
-              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors flex items-center gap-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
-              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+              onMouseEnter={(e) => { if (preview === null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
             >
               File ▾
@@ -323,7 +357,8 @@ export function CanvasHeader() {
         </div>
       </div>
 
-      {status === 'offline' && <OfflineBanner groupName={groupName} />}
+      {preview && <PreviewBanner />}
+      {!preview && status === 'offline' && <OfflineBanner groupName={groupName} />}
 
       <Modal
         open={leaveOpen}

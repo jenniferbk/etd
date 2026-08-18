@@ -6,6 +6,7 @@ describe('cloudStore view/status', () => {
     useCloudStore.setState({
       diagramId: null, groupId: null, baseVersionId: null, conflict: null, view: 'canvas',
       status: 'notInLibrary', addToLibraryOpen: false, workspaceTab: 'diagrams',
+      preview: null, historyOpen: false,
     }),
   );
 
@@ -68,5 +69,32 @@ describe('cloudStore view/status', () => {
     expect(useCloudStore.getState().workspaceTab).toBe('people');
     useCloudStore.getState().setWorkspaceTab('diagrams');
     expect(useCloudStore.getState().workspaceTab).toBe('diagrams');
+  });
+
+  it('starts with history closed and no preview', () => {
+    expect(useCloudStore.getState().historyOpen).toBe(false);
+    expect(useCloudStore.getState().preview).toBeNull();
+  });
+
+  it('setHistoryOpen toggles the history panel', () => {
+    useCloudStore.getState().setHistoryOpen(true);
+    expect(useCloudStore.getState().historyOpen).toBe(true);
+    useCloudStore.getState().setHistoryOpen(false);
+    expect(useCloudStore.getState().historyOpen).toBe(false);
+  });
+
+  it('setPreview sets and clears the previewed version', () => {
+    useCloudStore.getState().setPreview({ versionId: 12, createdAt: '2026-08-01T00:00:00' });
+    expect(useCloudStore.getState().preview).toEqual({ versionId: 12, createdAt: '2026-08-01T00:00:00' });
+    useCloudStore.getState().setPreview(null);
+    expect(useCloudStore.getState().preview).toBeNull();
+  });
+
+  it('clearCloudTarget also closes history and clears any preview', () => {
+    useCloudStore.getState().setCloudTarget(7, 1, 42);
+    useCloudStore.getState().setHistoryOpen(true);
+    useCloudStore.getState().setPreview({ versionId: 3, createdAt: '2026-08-01T00:00:00' });
+    useCloudStore.getState().clearCloudTarget();
+    expect(useCloudStore.getState()).toMatchObject({ historyOpen: false, preview: null });
   });
 });

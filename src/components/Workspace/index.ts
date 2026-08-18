@@ -13,3 +13,5 @@ export { MemberRow } from './MemberRow';
 export { InviteDialog } from './InviteDialog';
 export { ResetLinkDialog } from './ResetLinkDialog';
 export { CopyLinkField } from './CopyLinkField';
+export { HistoryPanel } from './HistoryPanel';
+export { PreviewBanner } from './PreviewBanner';

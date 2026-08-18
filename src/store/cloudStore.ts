@@ -23,6 +23,11 @@ interface CloudState {
   /** Which pane of the Workspace's header nav is showing — the diagram
    *  gallery (default) or the People roster. */
   workspaceTab: WorkspaceTab;
+  /** Whether the version-history side panel is open. */
+  historyOpen: boolean;
+  /** Set while the canvas is showing a read-only past version instead of the
+   *  live diagram. Null when viewing the current (editable) content. */
+  preview: { versionId: number; createdAt: string } | null;
   setCloudTarget: (diagramId: number, groupId: number, baseVersionId?: number) => void;
   clearCloudTarget: () => void;
   setBaseVersionId: (id: number | null) => void;
@@ -31,6 +36,8 @@ interface CloudState {
   setStatus: (status: LibrarySaveStatus) => void;
   setAddToLibraryOpen: (open: boolean) => void;
   setWorkspaceTab: (tab: WorkspaceTab) => void;
+  setHistoryOpen: (open: boolean) => void;
+  setPreview: (preview: { versionId: number; createdAt: string } | null) => void;
 }
 
 export const useCloudStore = create<CloudState>((set) => ({
@@ -42,6 +49,8 @@ export const useCloudStore = create<CloudState>((set) => ({
   status: 'notInLibrary',
   addToLibraryOpen: false,
   workspaceTab: 'diagrams',
+  historyOpen: false,
+  preview: null,
   setCloudTarget: (diagramId, groupId, baseVersionId) =>
     set({
       diagramId,
@@ -50,11 +59,21 @@ export const useCloudStore = create<CloudState>((set) => ({
       ...(baseVersionId !== undefined ? { baseVersionId } : {}),
     }),
   clearCloudTarget: () =>
-    set({ diagramId: null, groupId: null, status: 'notInLibrary', baseVersionId: null, conflict: null }),
+    set({
+      diagramId: null,
+      groupId: null,
+      status: 'notInLibrary',
+      baseVersionId: null,
+      conflict: null,
+      preview: null,
+      historyOpen: false,
+    }),
   setBaseVersionId: (baseVersionId) => set({ baseVersionId }),
   setConflict: (conflict) => set({ conflict }),
   setView: (view) => set({ view }),
   setStatus: (status) => set({ status }),
   setAddToLibraryOpen: (addToLibraryOpen) => set({ addToLibraryOpen }),
   setWorkspaceTab: (workspaceTab) => set({ workspaceTab }),
+  setHistoryOpen: (historyOpen) => set({ historyOpen }),
+  setPreview: (preview) => set({ preview }),
 }));

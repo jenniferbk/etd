@@ -14,7 +14,7 @@ import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptP
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
-import { AddToLibraryDialog, CanvasHeader, ConflictDialog, SetNewPasswordModal, SignInModal, Workspace } from './components/Workspace';
+import { AddToLibraryDialog, CanvasHeader, ConflictDialog, HistoryPanel, SetNewPasswordModal, SignInModal, Workspace } from './components/Workspace';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
@@ -102,7 +102,20 @@ function App() {
 
   const user = useAuthStore((s) => s.user);
   const view = useCloudStore((s) => s.view);
-  useDirtyTracking(user !== null);
+  const preview = useCloudStore((s) => s.preview);
+  const historyOpen = useCloudStore((s) => s.historyOpen);
+  useDirtyTracking(user !== null && preview === null);
+
+  // Defensive: preview is normally exited via "Back to current" (clears it
+  // itself) since CanvasHeader's ← is disabled while previewing — but if the
+  // view ever flips to 'workspace' with a preview still set (sign-out,
+  // future code path), don't let it leak into whatever diagram is opened
+  // next from the gallery.
+  useEffect(() => {
+    if (view === 'workspace' && useCloudStore.getState().preview !== null) {
+      useCloudStore.getState().setPreview(null);
+    }
+  }, [view]);
 
   const { isOpen: lightboxOpen, imageData: lightboxImage, elementLabel: lightboxLabel, closeLightbox } = useLightboxStore();
 
@@ -289,6 +302,19 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Read-only preview: none of these shortcuts make sense against a past
+      // version (undo/redo would rewrite history state that isn't really
+      // "current"; save must go through Restore). Same shape as the
+      // Workspace-view guard below — still swallow ⌘S/⌘O so the browser's
+      // native Save-Page / Open-File dialog doesn't leak through.
+      if (preview !== null) {
+        const isModPreview = e.metaKey || e.ctrlKey;
+        if (isModPreview && (e.key === 's' || e.key === 'o')) {
+          e.preventDefault();
+        }
+        return;
+      }
+
       // Canvas-only: none of these shortcuts (undo/redo/save/zoom/etc.) make
       // sense while browsing the Workspace gallery.
       if (!(view === 'canvas' || !user)) {
@@ -428,6 +454,7 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    preview,
     toggleConnectMode,
     selectedIds,
     removeElement,
@@ -479,8 +506,8 @@ function App() {
               In full-screen, slides in from above on toolbarHovered. */}
           <div
             className={fullScreen ? 'absolute top-0 left-0 right-0' : 'relative'}
-            style={
-              fullScreen
+            style={{
+              ...(fullScreen
                 ? {
                     zIndex: theme.z.fsToolbar,
                     transform: toolbarHovered ? 'translateY(0)' : 'translateY(-100%)',
@@ -488,8 +515,13 @@ function App() {
                     paddingBottom: 24,
                     boxShadow: toolbarHovered ? theme.shadow.md : 'none',
                   }
-                : undefined
-            }
+                : {}),
+              // Read-only preview: the toolbar's save/zoom/undo/draw tools
+              // don't apply to a past version. CanvasHeader, PreviewBanner
+              // and HistoryPanel stay interactive (rendered outside this
+              // wrapper, or with their own pointerEvents: 'auto' override).
+              pointerEvents: preview ? 'none' : undefined,
+            }}
             onMouseLeave={fullScreen ? handleToolbarMouseLeave : undefined}
             onMouseDown={fullScreen ? (e) => e.stopPropagation() : undefined}
             onFocus={fullScreen ? handleToolbarFocus : undefined}
@@ -507,6 +539,7 @@ function App() {
               but stay mounted component-wise; their internal state survives. */}
           <div
             className="flex flex-1 overflow-hidden"
+            style={{ pointerEvents: preview ? 'none' : undefined }}
             onMouseDown={fullScreen ? () => setToolbarHovered(false) : undefined}
           >
             <div className={fullScreen ? 'hidden' : 'contents'}>
@@ -529,13 +562,19 @@ function App() {
                 <TranscriptClosedStrip onOpen={() => setTranscriptPanelOpen(true)} />
               )}
             </div>
+
+            {/* History side panel — stays interactive during preview (its own
+                pointerEvents: 'auto' overrides this row's blocking above). */}
+            <div className={fullScreen ? 'hidden' : 'contents'}>
+              {historyOpen && <HistoryPanel />}
+            </div>
           </div>
 
           {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
           {fullScreen && (
             <div
               className="absolute top-0 left-0 right-0"
-              style={{ height: 12, zIndex: theme.z.hoverZone }}
+              style={{ height: 12, zIndex: theme.z.hoverZone, pointerEvents: preview ? 'none' : undefined }}
               onMouseEnter={handleHoverZoneEnter}
             />
           )}
@@ -558,7 +597,7 @@ function App() {
           )}
 
           {/* Properties — hidden in full-screen */}
-          <div className={fullScreen ? 'hidden' : ''}>
+          <div className={fullScreen ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }}>
             <PropertiesPanel />
           </div>
 

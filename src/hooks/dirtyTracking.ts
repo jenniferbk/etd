@@ -17,7 +17,16 @@ export function getEditTick(): number {
 }
 
 /** Flip the library save status to 'dirty' on any diagram content change.
- *  Reference inequality is enough: the store replaces arrays/objects on edit. */
+ *  Reference inequality is enough: the store replaces arrays/objects on edit.
+ *
+ *  Suspended while previewing a read-only past version (cloudStore.preview !==
+ *  null): loading a previewed snapshot mutates this same store, and that load
+ *  must not mark the diagram dirty. This check reads cloudStore's live state
+ *  synchronously — it does not depend on React re-rendering useDirtyTracking's
+ *  caller with a new `enabled` value, which could otherwise race the
+ *  subscription's own (also synchronous) notification. Callers that enter
+ *  preview must call setPreview() *before* loadDiagram() so this check sees
+ *  preview already set when the load's mutation fires. */
 export function startDirtyTracking(): () => void {
   return useDiagramStore.subscribe((state, prev) => {
     if (
@@ -29,6 +38,7 @@ export function startDirtyTracking(): () => void {
     ) {
       editTick += 1;
       const cloud = useCloudStore.getState();
+      if (cloud.preview !== null) return;
       if (cloud.status === 'saved') cloud.setStatus('dirty');
     }
   });
