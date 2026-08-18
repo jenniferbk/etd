@@ -520,8 +520,13 @@ function App() {
               // don't apply to a past version. CanvasHeader, PreviewBanner
               // and HistoryPanel stay interactive (rendered outside this
               // wrapper, or with their own pointerEvents: 'auto' override).
+              // `inert` (final-review Fix 1) closes the keyboard hole that
+              // pointerEvents alone leaves open — Tab could still reach and
+              // Enter/Space could still activate these controls with the
+              // mouse blocked but focus untouched.
               pointerEvents: preview ? 'none' : undefined,
             }}
+            inert={preview !== null}
             onMouseLeave={fullScreen ? handleToolbarMouseLeave : undefined}
             onMouseDown={fullScreen ? (e) => e.stopPropagation() : undefined}
             onFocus={fullScreen ? handleToolbarFocus : undefined}
@@ -536,35 +541,45 @@ function App() {
 
           {/* Canvas row — Canvas always at this stable tree position. Sibling panels
               toggled via Tailwind `hidden` (display: none) so they unmount layout-wise
-              but stay mounted component-wise; their internal state survives. */}
+              but stay mounted component-wise; their internal state survives.
+              HistoryPanel is a sibling OUTSIDE the inert/pointer-events-blocked
+              wrapper below — `inert` cannot be overridden by a descendant the way
+              pointerEvents: 'auto' can, so it must live outside the subtree that
+              goes inert during preview to stay interactive. */}
           <div
             className="flex flex-1 overflow-hidden"
-            style={{ pointerEvents: preview ? 'none' : undefined }}
             onMouseDown={fullScreen ? () => setToolbarHovered(false) : undefined}
           >
-            <div className={fullScreen ? 'hidden' : 'contents'}>
-              <Palette
+            <div
+              className="flex flex-1 overflow-hidden"
+              style={{ pointerEvents: preview ? 'none' : undefined }}
+              inert={preview !== null}
+            >
+              <div className={fullScreen ? 'hidden' : 'contents'}>
+                <Palette
+                  connectMode={connectMode}
+                  onToggleConnectMode={toggleConnectMode}
+                />
+              </div>
+
+              <Canvas
                 connectMode={connectMode}
-                onToggleConnectMode={toggleConnectMode}
+                onConnectionStart={handleConnectionStart}
+                connectingFrom={connectingFrom}
               />
-            </div>
 
-            <Canvas
-              connectMode={connectMode}
-              onConnectionStart={handleConnectionStart}
-              connectingFrom={connectingFrom}
-            />
-
-            <div className={fullScreen ? 'hidden' : 'contents'}>
-              {transcriptPanelOpen ? (
-                <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
-              ) : (
-                <TranscriptClosedStrip onOpen={() => setTranscriptPanelOpen(true)} />
-              )}
+              <div className={fullScreen ? 'hidden' : 'contents'}>
+                {transcriptPanelOpen ? (
+                  <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
+                ) : (
+                  <TranscriptClosedStrip onOpen={() => setTranscriptPanelOpen(true)} />
+                )}
+              </div>
             </div>
 
             {/* History side panel — stays interactive during preview (its own
-                pointerEvents: 'auto' overrides this row's blocking above). */}
+                pointerEvents: 'auto' override, plus living outside the inert
+                wrapper above). */}
             <div className={fullScreen ? 'hidden' : 'contents'}>
               {historyOpen && <HistoryPanel />}
             </div>

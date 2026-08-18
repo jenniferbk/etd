@@ -367,7 +367,9 @@ export function CanvasHeader() {
       </div>
 
       {preview && <PreviewBanner />}
-      {!preview && status === 'offline' && <OfflineBanner groupName={groupName} />}
+      {/* Shown during preview too (final-review Fix 2) — otherwise Restore
+          silently no-ops when the save lands 'offline' with no feedback. */}
+      {status === 'offline' && <OfflineBanner groupName={groupName} />}
 
       <Modal
         open={leaveOpen}

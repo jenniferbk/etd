@@ -46,6 +46,10 @@ export function HistoryPanel() {
       } catch (err) {
         if (requestSeqRef.current !== seq) return;
         setLoadFailed(true);
+        // Unblock the error branch below (it's gated on `versions !== null`) —
+        // without this, a first-load failure leaves versions at its initial
+        // null and the panel is stuck on "Loading…" forever (final-review Fix 3).
+        setVersions([]);
         useToastStore.getState().addToast('error', friendlyError(err));
       }
     })();
