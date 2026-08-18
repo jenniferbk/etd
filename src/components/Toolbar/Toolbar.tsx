@@ -68,6 +68,14 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
   const temporal = useTemporalStore();
   const addToast = useToastStore((s) => s.addToast);
   const user = useAuthStore((s) => s.user);
+  // Read-only preview: App.tsx makes the whole toolbar row pointer-events:
+  // none, but that only blocks mouse hit-testing — a button that's merely
+  // wrapped in a pointer-events:none ancestor can still be Tab-focused and
+  // activated with Enter/Space (native <button> keyboard behavior doesn't
+  // consult pointer-events). Mirror CanvasHeader's pattern and disable these
+  // mutating actions for real, so previewing an old version can't silently
+  // save/replace/undo it into a new "current" version.
+  const preview = useCloudStore((s) => s.preview);
 
   const canUndo = temporal.pastStates.length > 0;
   const canRedo = temporal.futureStates.length > 0;
@@ -249,14 +257,14 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
           <ToolbarGroup label="History">
             <IconButton
               onClick={() => temporal.undo()}
-              disabled={!canUndo}
+              disabled={!canUndo || preview !== null}
               icon={Undo2}
               tooltip="Undo"
               shortcut="Ctrl+Z"
             />
             <IconButton
               onClick={() => temporal.redo()}
-              disabled={!canRedo}
+              disabled={!canRedo || preview !== null}
               icon={Redo2}
               tooltip="Redo"
               shortcut="Ctrl+Shift+Z"
@@ -269,18 +277,21 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
           <ToolbarGroup label="File">
             <IconButton
               onClick={handleSave}
+              disabled={preview !== null}
               icon={Save}
               tooltip="Save diagram"
               shortcut="Ctrl+S"
             />
             <IconButton
               onClick={handleLoad}
+              disabled={preview !== null}
               icon={FolderOpen}
               tooltip="Load diagram"
               shortcut="Ctrl+O"
             />
             <IconButton
               onClick={() => setImportModalOpen(true)}
+              disabled={preview !== null}
               icon={ImagePlus}
               tooltip="Import diagram from image"
             />
@@ -313,6 +324,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
             />
             <IconButton
               onClick={onLoadTranscript}
+              disabled={preview !== null}
               icon={FileInput}
               tooltip="Load transcript"
             />
