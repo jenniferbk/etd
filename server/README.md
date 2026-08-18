@@ -158,7 +158,7 @@ in, running the server as a `launchd` daemon.
        repo checkout is recommended, e.g. `/Users/coms/etd-data/etd.sqlite`)
      - the two log paths
    - `com.etd.backup.plist` — same treatment, plus set `ETD_BACKUP_DIR` to
-     your OneDrive-synced backup folder (see Section 6).
+     your OneDrive-synced backup folder (see Section 7).
    - The first time the server plist runs, its `EnvironmentVariables` block
      only carries `PORT`/`ETD_DB_PATH` — add `ETD_ADMIN_EMAIL` and
      `ETD_ADMIN_PASSWORD` to that same dict temporarily for the very first
@@ -175,7 +175,7 @@ in, running the server as a `launchd` daemon.
    ```
 
    Use `sudo launchctl unload /Library/LaunchDaemons/com.etd.server.plist`
-   to stop it (needed before restoring a backup — see Section 6).
+   to stop it (needed before restoring a backup — see Section 7).
 
 7. **Logs** live wherever you pointed `StandardOutPath` /
    `StandardErrorPath` in each plist — by convention alongside the database,
@@ -197,7 +197,7 @@ documented options:
   under `*.ts.net` and Funnel exposes `localhost:8787` on the public
   internet over that hostname. Docs: <https://tailscale.com/kb/>
 
-Either way, point the frontend's server URL (Section 7) at whichever public
+Either way, point the frontend's server URL (Section 8) at whichever public
 hostname you end up with, over HTTPS.
 
 **Before going live, confirm with UGA IT that running a tunneled service on
@@ -210,7 +210,173 @@ either tunnel putting one local daemon in front of it — on deployment day,
 verify `X-Forwarded-For` is being set correctly by the tunnel (e.g. check
 that per-user rate limiting isn't bucketing the whole team behind one IP).
 
-## 6. Backups
+## 6. Campus-network / VPN deployment (no admin required)
+
+Everything in Sections 4–5 assumes you can get `sudo` on the Mac (to install
+a LaunchDaemon in `/Library/LaunchDaemons/` and to turn on FileVault). If
+that's not available — you don't have the admin password for the machine —
+but your team can already reach it over the campus network or the UGA VPN,
+this section covers a variant that needs no admin access anywhere in the
+setup, at the cost of a few trade-offs spelled out in Section 6.5.
+
+### 6.1 When to use it
+
+Use this path when both of the following are true:
+
+- You cannot get an admin password on the Mac (so no LaunchDaemon in
+  `/Library/LaunchDaemons/`, no toggling FileVault, no `sudo` anything).
+- The people who need access already reach this Mac over the campus network,
+  or over the UGA VPN when off campus — i.e. everyone connects to
+  `<campus-ip>` (a placeholder — substitute the Mac's actual campus-network
+  IP or hostname; never hard-code a real one into shared docs or scripts).
+
+If you *can* get admin access, prefer Sections 4–5 instead — a LaunchDaemon
+survives logout, and a real tunnel (Cloudflare/Tailscale, Section 5) avoids
+the plain-HTTP trade-off below.
+
+### 6.2 Build the frontend for same-origin
+
+At the repo root (not `server/`), build the frontend **without** setting
+`VITE_ETD_API_URL`:
+
+```bash
+npm run build
+```
+
+With that variable unset, a production build defaults its API server to
+`window.location.origin` — the address the page itself was loaded from —
+so the same build works no matter what IP or hostname you end up serving it
+from, and no `?server=` param is needed on invite links (Section 6.6). This
+is the same-origin behavior added by the ETD server's `ETD_STATIC_DIR` option
+(Section 2, `server/.env.example`); see `src/api/client.ts` for the default
+logic.
+
+The build output lands in `dist/` at the repo root. Point `ETD_STATIC_DIR`
+(in the LaunchAgent plist below, or in your own `.env`) at that `dist/`
+path — the server will serve it as static files with SPA fallback, alongside
+its own `/api/*` routes, so one process on one port serves both the app and
+the API.
+
+### 6.3 LaunchAgent install
+
+`server/deploy/com.etd.server.agent.plist` is the same shape as
+`com.etd.server.plist` (Section 4), plus `ETD_STATIC_DIR`, and it installs
+to `~/Library/LaunchAgents/` — a per-user directory that needs no admin
+password. The trade-off is that a LaunchAgent only runs while that user is
+logged into a graphical session (see Section 6.5).
+
+1. Fill in every `/EDIT-ME/...` path in
+   `server/deploy/com.etd.server.agent.plist`, same as Section 4 Step 5:
+   the `node` binary, `WorkingDirectory`, `ETD_DB_PATH`, `ETD_STATIC_DIR`
+   (the `dist/` path from Section 6.2), and the two log paths. Add
+   `ETD_ADMIN_EMAIL` / `ETD_ADMIN_PASSWORD` temporarily for the very first
+   load, exactly as in Section 4.
+2. Copy and load it — no `sudo`:
+
+   ```bash
+   cp server/deploy/com.etd.server.agent.plist ~/Library/LaunchAgents/
+   launchctl load ~/Library/LaunchAgents/com.etd.server.agent.plist
+   ```
+
+   Use `launchctl unload ~/Library/LaunchAgents/com.etd.server.agent.plist`
+   to stop it.
+3. The backup daemon (`com.etd.backup.plist`, Section 7) follows the same
+   pattern at user level — fill in its `/EDIT-ME/...` paths, then:
+
+   ```bash
+   cp server/deploy/com.etd.backup.plist ~/Library/LaunchAgents/
+   launchctl load ~/Library/LaunchAgents/com.etd.backup.plist
+   ```
+
+### 6.4 Keeping the Mac awake without admin
+
+Preventing sleep normally goes through System Settings, which can be
+locked down by MDM on machines you don't administer. `caffeinate(8)` is a
+user-level command-line tool that needs no admin rights, so a LaunchAgent
+that runs it at login keeps the Mac awake for as long as that user stays
+logged in:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.etd.caffeinate</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/caffeinate</string>
+    <string>-dims</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+</dict>
+</plist>
+```
+
+Save that as, e.g., `~/Library/LaunchAgents/com.etd.caffeinate.plist`, then
+`launchctl load` it the same way as above. `-dims` prevents display sleep,
+system idle sleep, and disk idle sleep, and holds while on AC power (see
+`man caffeinate`) — it does not require the utility it wraps to keep
+running, since `caffeinate` itself is the long-running process here.
+
+### 6.5 Trade-offs, stated plainly
+
+This path trades some robustness for not needing an admin password:
+
+- **Downtime after a reboot.** A LaunchAgent (unlike a LaunchDaemon) does
+  not start until a user logs into a graphical session. If the Mac
+  restarts (power outage, macOS update), the server — and the caffeinate
+  agent keeping it awake — stay down until someone physically logs into
+  that account.
+- **No FileVault.** Turning on FileVault requires admin rights. The SQLite
+  database (account credentials, hashed, plus diagram content) is
+  therefore not encrypted at rest on this machine under this setup.
+- **Plain HTTP on campus.** The server is not fronted by a tunnel or TLS
+  certificate here, so traffic between a user's browser and `<campus-ip>`
+  travels as plain HTTP while on the campus network itself. The leg
+  between an off-campus user and the campus network is encrypted by the
+  UGA VPN tunnel, but the on-campus hop is not separately encrypted.
+
+Given those gaps, the **de-identified-data-only policy** (Section 8) is the
+primary safeguard here, not disk encryption or transport encryption — don't
+store names, student IDs, or other identifying information in this
+deployment regardless of which trade-offs apply. If admin access becomes
+available later, or a tunnel (Section 5) is set up, upgrading from this
+plain-HTTP campus setup needs **no code changes** — the server and frontend
+already support HTTPS via a fronting tunnel/proxy; it's purely a
+deployment/config change (LaunchDaemon instead of LaunchAgent, tunnel
+hostname instead of `<campus-ip>`, rebuild if you want a different
+`VITE_ETD_API_URL`).
+
+### 6.6 Team usage
+
+Team members visit:
+
+```
+http://<campus-ip>:<port>/
+```
+
+turning the VPN on first if they're off campus. Invite links (created the
+same way as Section 3) are:
+
+```
+http://<campus-ip>:<port>/?invite=<INVITE_TOKEN>
+```
+
+No `server=` param is needed — the same-origin default from Section 6.2
+means the page already points at the host it was loaded from.
+
+### 6.7 jenkleiman.com stays separate
+
+The public editor at jenkleiman.com continues to serve the local-files-only
+version of the tool — diagrams saved to disk, no groupware. Its cloud
+sign-in cannot be pointed at a plain-HTTP campus server: browsers block
+"mixed content" (an HTTPS page making requests to a plain HTTP endpoint),
+and jenkleiman.com is served over HTTPS. For groupware/cloud features
+against this campus deployment, use the campus URL directly (Section 6.6),
+not jenkleiman.com.
+
+## 7. Backups
 
 `server/deploy/backup.sh` runs a live SQLite `.backup` (safe to run against
 a database that's actively being written to) into `$ETD_BACKUP_DIR`, named
@@ -240,12 +406,14 @@ sudo launchctl load /Library/LaunchDaemons/com.etd.server.plist     # start it a
 Copying over `ETD_DB_PATH` while the server is stopped avoids restoring
 onto a file that's mid-write.
 
-## 7. Connecting the frontend
+## 8. Connecting the frontend
 
 The editor frontend picks its default API server from the build-time
-environment variable `VITE_ETD_API_URL` (falls back to
-`http://localhost:8787` if unset). Set it when you build the frontend for
-deployment, e.g.:
+environment variable `VITE_ETD_API_URL`. If you set it, that value wins;
+if you leave it unset, a production build defaults to `window.location.origin`
+(same-origin — see Section 6.2) and a dev build falls back to
+`http://localhost:8787`. Set `VITE_ETD_API_URL` explicitly when the frontend
+is served from somewhere other than the API server itself, e.g.:
 
 ```bash
 VITE_ETD_API_URL=https://etd-api.yourdomain.edu npm run build

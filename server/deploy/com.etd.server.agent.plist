@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  LaunchAgent variant of com.etd.server.plist — installs to
+  ~/Library/LaunchAgents/ (per-user, NO admin password required). It only
+  runs while that user is logged into a graphical session; unlike a
+  LaunchDaemon in /Library/LaunchDaemons/, it does not start at boot before
+  login and does not survive a logout. See server/README.md, "Campus-network
+  / VPN deployment (no admin required)" for the full setup.
+
+  This variant also serves the built frontend itself (ETD_STATIC_DIR), so a
+  same-origin build of the app is reachable directly from this server —
+  no separate static file host needed.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.etd.server.agent</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/EDIT-ME/path/to/node</string> <!-- `which node` -->
+    <string>node_modules/.bin/tsx</string>
+    <string>src/index.ts</string>
+  </array>
+  <key>WorkingDirectory</key><string>/EDIT-ME/path/to/etd/server</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PORT</key><string>8787</string>
+    <key>NODE_ENV</key><string>production</string>
+    <key>ETD_DB_PATH</key><string>/EDIT-ME/path/to/etd-data/etd.sqlite</string>
+    <key>ETD_STATIC_DIR</key><string>/EDIT-ME/path/to/etd/dist</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/EDIT-ME/path/to/etd-data/server.log</string>
+  <key>StandardErrorPath</key><string>/EDIT-ME/path/to/etd-data/server.err.log</string>
+</dict>
+</plist>
