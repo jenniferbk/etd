@@ -77,4 +77,37 @@ describe('groups', () => {
       .delete('/api/groups/999999/members/1').set(auth(adminToken));
     expect(res.status).toBe(404);
   });
+
+  it('lists group members with roles, ordered by displayName', async () => {
+    const { app, adminToken } = await makeTestServer();
+    await registerMember(app, adminToken, 'zoe@uga.edu');
+    await registerMember(app, adminToken, 'amir@uga.edu');
+    const res = await request(app).get('/api/groups/1/members').set(auth(adminToken));
+    expect(res.status).toBe(200);
+    // makeTestServer's admin has display_name 'Admin'; registerMember uses the
+    // email as displayName — case-insensitive name order:
+    expect(res.body.map((m: { displayName: string }) => m.displayName)).toEqual([
+      'Admin', 'amir@uga.edu', 'zoe@uga.edu',
+    ]);
+    expect(res.body[0]).toMatchObject({ email: 'admin@test.edu', role: 'admin' });
+  });
+
+  it('a plain member can view the roster', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const member = await registerMember(app, adminToken, 'm@uga.edu');
+    const res = await request(app).get('/api/groups/1/members').set(auth(member.token));
+    expect(res.status).toBe(200);
+  });
+
+  it('non-members get 403; unknown group 404', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const g2 = await request(app).post('/api/groups').set(auth(adminToken)).send({ name: 'Other' });
+    const inv = await request(app).post('/api/invites').set(auth(adminToken)).send({ groupId: g2.body.id });
+    const reg = await request(app).post('/api/auth/register').send({
+      inviteToken: inv.body.token, email: 'out@uga.edu', password: 'longenough',
+      displayName: 'Out', acceptedPolicy: true,
+    });
+    expect((await request(app).get('/api/groups/1/members').set(auth(reg.body.token))).status).toBe(403);
+    expect((await request(app).get('/api/groups/999/members').set(auth(adminToken))).status).toBe(404);
+  });
 });

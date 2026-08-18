@@ -19,6 +19,32 @@ export function groupRoutes(db: Db): Router {
     res.json(rows);
   });
 
+  router.get('/groups/:id/members', (req, res) => {
+    const groupId = Number(req.params.id);
+    if (!Number.isInteger(groupId)) {
+      res.status(400).json({ error: 'invalid group id' });
+      return;
+    }
+    const group = db.prepare('SELECT id FROM groups WHERE id = ?').get(groupId);
+    if (!group) {
+      res.status(404).json({ error: 'group not found' });
+      return;
+    }
+    if (!req.user!.isSiteAdmin && getRole(db, req.user!.id, groupId) === null) {
+      res.status(403).json({ error: 'not a member of this group' });
+      return;
+    }
+    const rows = db
+      .prepare(
+        `SELECT u.id, u.email, u.display_name AS displayName, m.role
+         FROM memberships m JOIN users u ON u.id = m.user_id
+         WHERE m.group_id = ?
+         ORDER BY u.display_name COLLATE NOCASE`,
+      )
+      .all(groupId);
+    res.json(rows);
+  });
+
   router.post('/groups', (req, res) => {
     if (!req.user!.isSiteAdmin) {
       res.status(403).json({ error: 'only site admins can create groups' });
