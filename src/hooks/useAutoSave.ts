@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDiagramStore } from '../store';
+import { useCloudStore } from '../store/cloudStore';
 import type { Transcript, StyleConfig } from '../types';
 
 const AUTO_SAVE_KEY = 'toulmin-diagram-autosave';
@@ -24,6 +25,11 @@ export function useAutoSave() {
   useEffect(() => {
     // Start auto-save interval
     intervalRef.current = window.setInterval(() => {
+      // Previewing a read-only past version: the canvas holds historical
+      // content, not the live diagram — don't let it clobber the
+      // crash-recovery snapshot of what the user was actually editing.
+      if (useCloudStore.getState().preview) return;
+
       const state = useDiagramStore.getState();
 
       // Save if there's any work in progress: diagram content or a loaded transcript.

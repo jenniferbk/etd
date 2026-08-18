@@ -34,6 +34,15 @@ export function ConflictDialog() {
       await saveToLibrary({ force: true });
       if (useCloudStore.getState().status === 'saved') {
         useCloudStore.getState().setConflict(null);
+        // This dialog can appear mid-Restore: PreviewBanner's Restore is just
+        // a saveToLibrary() call, so a concurrent teammate save 409s here
+        // exactly like any other save. Overwrite just persisted the
+        // previewed content as the new current version, so exit preview too
+        // — otherwise the banner/blocked-canvas would stick around pointing
+        // at a version that's no longer "previewed", it's just current.
+        if (useCloudStore.getState().preview) {
+          useCloudStore.getState().setPreview(null);
+        }
       }
       // Else: the force-save failed too (offline, 404, ...) — that already
       // surfaced through saveToLibrary's own handling. Leave this dialog
@@ -59,6 +68,13 @@ export function ConflictDialog() {
       // always sets diagramId/groupId together.
       useCloudStore.getState().setCloudTarget(res.id, cloud.groupId as number, res.currentVersionId);
       useCloudStore.getState().setConflict(null);
+      // Same Restore-409 composition as Overwrite above: the canvas content
+      // (whatever was previewed) is now the *copy's* current content, linked
+      // to a brand-new diagram — there's no more "previewed version" to be
+      // in preview of, so exit preview here too.
+      if (useCloudStore.getState().preview) {
+        useCloudStore.getState().setPreview(null);
+      }
       useToastStore.getState().addToast('info', 'Saved as a copy');
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));

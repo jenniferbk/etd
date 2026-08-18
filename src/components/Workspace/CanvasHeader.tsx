@@ -266,9 +266,10 @@ export function CanvasHeader() {
                 e.currentTarget.blur();
               }
             }}
+            disabled={preview !== null}
             aria-label="Diagram title"
             placeholder="Untitled diagram"
-            className="text-base font-semibold text-center bg-transparent border-none w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm"
+            className="text-base font-semibold text-center bg-transparent border-none w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 rounded-sm disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ color: theme.sidebar.text, outlineColor: theme.focus.ring }}
           />
           {!preview && statusText && (
