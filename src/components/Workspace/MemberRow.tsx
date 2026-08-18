@@ -46,13 +46,6 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [busy, setBusy] = useState<'role' | 'remove' | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      activeIndexRef.current = 0;
-      requestAnimationFrame(() => itemRefs.current[0]?.focus());
-    }
-  }, [isOpen]);
-
   function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
     const next = e.relatedTarget as Node | null;
     if (!next) return;
@@ -138,26 +131,74 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
     });
   }
 
-  function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+  // Reset password… is a disabled placeholder until Task 5, and role-change
+  // items are absent on your own row — so the "first"/"next" item is often
+  // disabled (or, on your own row today, every item is). These helpers skip
+  // disabled entries (wrapping around) so focus and arrow-key nav never land
+  // on something unfocusable; when nothing is enabled they return -1 and the
+  // caller leaves focus where it is (the trigger).
+  function firstEnabledIndex(): number {
+    return actions.findIndex((a) => !a.disabled);
+  }
+  function lastEnabledIndex(): number {
+    for (let i = actions.length - 1; i >= 0; i--) {
+      if (!actions[i].disabled) return i;
+    }
+    return -1;
+  }
+  function nextEnabledIndex(from: number, direction: 1 | -1): number {
     const count = actions.length;
+    for (let step = 1; step <= count; step++) {
+      const idx = (((from + direction * step) % count) + count) % count;
+      if (!actions[idx].disabled) return idx;
+    }
+    return -1;
+  }
+
+  // `actions` is a fresh array every render, so the effect depends on the
+  // plain-number index instead — it only needs to re-run when isOpen flips
+  // or which index is first-enabled actually changes (e.g. a role change
+  // finishing clears `busy` and re-enables items).
+  const firstEnabledActionIndex = firstEnabledIndex();
+
+  useEffect(() => {
+    if (isOpen && firstEnabledActionIndex >= 0) {
+      activeIndexRef.current = firstEnabledActionIndex;
+      requestAnimationFrame(() => itemRefs.current[firstEnabledActionIndex]?.focus());
+    }
+    // Otherwise every item is disabled (own row, before Task 5 wires up
+    // Reset password) — leave focus on the trigger.
+  }, [isOpen, firstEnabledActionIndex]);
+
+  function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      const next = (activeIndexRef.current + 1) % count;
-      activeIndexRef.current = next;
-      itemRefs.current[next]?.focus();
+      const next = nextEnabledIndex(activeIndexRef.current, 1);
+      if (next >= 0) {
+        activeIndexRef.current = next;
+        itemRefs.current[next]?.focus();
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      const prev = (activeIndexRef.current - 1 + count) % count;
-      activeIndexRef.current = prev;
-      itemRefs.current[prev]?.focus();
+      const prev = nextEnabledIndex(activeIndexRef.current, -1);
+      if (prev >= 0) {
+        activeIndexRef.current = prev;
+        itemRefs.current[prev]?.focus();
+      }
     } else if (e.key === 'Home') {
       e.preventDefault();
-      activeIndexRef.current = 0;
-      itemRefs.current[0]?.focus();
+      const first = firstEnabledIndex();
+      if (first >= 0) {
+        activeIndexRef.current = first;
+        itemRefs.current[first]?.focus();
+      }
     } else if (e.key === 'End') {
       e.preventDefault();
-      activeIndexRef.current = count - 1;
-      itemRefs.current[count - 1]?.focus();
+      const last = lastEnabledIndex();
+      if (last >= 0) {
+        activeIndexRef.current = last;
+        itemRefs.current[last]?.focus();
+      }
     } else if (e.key === 'Enter' || e.key === ' ') {
       // Let the browser's native click-on-activation proceed (MenuItem's own
       // onClick handles the action) but don't let this keydown keep bubbling
