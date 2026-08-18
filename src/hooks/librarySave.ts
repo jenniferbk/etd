@@ -68,8 +68,8 @@ export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<voi
 
     if (err instanceof ApiError && err.status === 409) {
       // Someone else saved first. The AddToLibraryDialog's sibling — the
-      // conflict dialog — reads `conflict` and offers reload/force-save;
-      // no toast here, that dialog *is* the UI for this.
+      // conflict dialog — reads `conflict` and offers Overwrite, Save as a
+      // copy, or Cancel; no toast here, that dialog *is* the UI for this.
       useCloudStore.getState().setStatus('dirty');
       const body = err.body as { currentVersionId?: number } | undefined;
       if (typeof body?.currentVersionId === 'number') {

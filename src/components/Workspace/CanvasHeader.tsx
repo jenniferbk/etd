@@ -107,6 +107,14 @@ export function CanvasHeader() {
       setLeaveOpen(false);
       return;
     }
+    if (cloud.conflict !== null) {
+      // A teammate saved a newer version first: saveToLibrary set a conflict
+      // instead of saving. Close the leave-confirm so it doesn't sit on top
+      // of the ConflictDialog, and don't leave — the user resolves the
+      // conflict (or cancels, staying dirty), then presses ← again.
+      setLeaveOpen(false);
+      return;
+    }
     // Otherwise (still dirty/offline/error) leave the modal open so the user
     // can see the status and choose again.
   };

@@ -156,71 +156,71 @@ export function Workspace() {
       {workspaceTab === 'people' ? (
         effectiveGroupId !== null && <PeoplePage groupId={effectiveGroupId} groupName={selectedGroup?.name ?? ''} />
       ) : (
-      <div className="max-w-5xl w-full mx-auto px-6 py-8 flex-1">
-        <div className="flex items-center gap-3 mb-8">
-          <button
-            onClick={handleNewDiagram}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={primaryButtonStyle}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.button.primary.bgHover; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.button.primary.bg; }}
-          >
-            ＋ New diagram
-          </button>
-          <button
-            onClick={handleOpenFileClick}
-            className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-            style={secondaryButtonStyle}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bgHover; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bg; }}
-          >
-            Open a file…
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,.drawing"
-            onChange={(e) => void handleFileChange(e)}
-            className="hidden"
-          />
-        </div>
-
-        {items === null ? (
-          <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
-            Loading your diagrams…
-          </p>
-        ) : loadError ? (
-          <div className="flex flex-col items-center gap-3 py-16">
-            <p className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
-              Something went wrong loading your diagrams.
-            </p>
+        <div className="max-w-5xl w-full mx-auto px-6 py-8 flex-1">
+          <div className="flex items-center gap-3 mb-8">
             <button
-              onClick={() => void refresh()}
+              onClick={handleNewDiagram}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              style={primaryButtonStyle}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.button.primary.bgHover; }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.button.primary.bg; }}
+            >
+              ＋ New diagram
+            </button>
+            <button
+              onClick={handleOpenFileClick}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
               style={secondaryButtonStyle}
               onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bgHover; }}
               onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bg; }}
             >
-              Try again
+              Open a file…
             </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,.drawing"
+              onChange={(e) => void handleFileChange(e)}
+              className="hidden"
+            />
           </div>
-        ) : items.length === 0 ? (
-          <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
-            No diagrams yet — create the first one.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((item) => (
-              <DiagramCard
-                key={item.id}
-                item={item}
-                onOpen={() => void openDiagram(item)}
-                onChanged={() => void refresh()}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+
+          {items === null ? (
+            <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
+              Loading your diagrams…
+            </p>
+          ) : loadError ? (
+            <div className="flex flex-col items-center gap-3 py-16">
+              <p className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
+                Something went wrong loading your diagrams.
+              </p>
+              <button
+                onClick={() => void refresh()}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={secondaryButtonStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bgHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bg; }}
+              >
+                Try again
+              </button>
+            </div>
+          ) : items.length === 0 ? (
+            <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
+              No diagrams yet — create the first one.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {items.map((item) => (
+                <DiagramCard
+                  key={item.id}
+                  item={item}
+                  onOpen={() => void openDiagram(item)}
+                  onChanged={() => void refresh()}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -32,7 +32,6 @@ interface RowMenuAction {
   label: string;
   variant?: 'default' | 'danger';
   disabled?: boolean;
-  isLoading?: boolean;
   onClick: () => void;
 }
 
@@ -100,7 +99,6 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
             key: 'make-member',
             icon: Shield,
             label: 'Make member',
-            isLoading: busy === 'role',
             disabled: busy !== null,
             onClick: () => run(() => { void handleChangeRole('member'); }),
           }
@@ -108,7 +106,6 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
             key: 'make-admin',
             icon: ShieldCheck,
             label: 'Make admin',
-            isLoading: busy === 'role',
             disabled: busy !== null,
             onClick: () => run(() => { void handleChangeRole('admin'); }),
           },
@@ -118,6 +115,7 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
     key: 'reset-password',
     icon: KeyRound,
     label: 'Reset password…',
+    disabled: busy !== null,
     onClick: () => run(() => setResetOpen(true)),
   });
   if (!isSelf) {
@@ -126,7 +124,6 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
       icon: UserMinus,
       label: 'Remove from group…',
       variant: 'danger',
-      isLoading: busy === 'remove',
       disabled: busy !== null,
       onClick: () => run(() => { void handleRemove(); }),
     });
@@ -265,7 +262,6 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
                       label={action.label}
                       variant={action.variant}
                       disabled={action.disabled}
-                      isLoading={action.isLoading}
                       onClick={action.onClick}
                     />
                   ))}

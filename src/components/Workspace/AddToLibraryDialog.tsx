@@ -47,7 +47,14 @@ export function AddToLibraryDialog() {
   };
   const labelStyle = { color: theme.sidebar.text };
 
-  const handleClose = () => useCloudStore.getState().setAddToLibraryOpen(false);
+  const handleClose = () => {
+    // Ignore dismissal (X / Escape / scrim all route through this) while an
+    // Add is in flight — otherwise the in-flight promise keeps running and
+    // mutates state/toasts after the user thinks they've canceled. Mirrors
+    // ConflictDialog's handleCancel.
+    if (busy) return;
+    useCloudStore.getState().setAddToLibraryOpen(false);
+  };
 
   const handleAdd = async () => {
     setBusy(true);
@@ -76,7 +83,8 @@ export function AddToLibraryDialog() {
     }
   };
 
-  const addDisabled = busy || !title.trim();
+  const noGroups = groups.length === 0;
+  const addDisabled = busy || !title.trim() || noGroups;
 
   const handleFieldKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !addDisabled) {
@@ -96,7 +104,8 @@ export function AddToLibraryDialog() {
         <>
           <button
             onClick={handleClose}
-            className="px-4 py-2 text-sm rounded-lg"
+            disabled={busy}
+            className="px-4 py-2 text-sm rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
             style={{
               backgroundColor: theme.button.secondary.bg,
               color: theme.button.secondary.text,
@@ -118,6 +127,12 @@ export function AddToLibraryDialog() {
       }
     >
       <div className="px-5 py-4 space-y-4">
+        {noGroups && (
+          <p className="text-sm" style={{ color: theme.danger.fg }}>
+            You're not in a group yet — ask your admin for an invite.
+          </p>
+        )}
+
         {groups.length > 1 && (
           <div className="flex flex-col gap-1.5">
             <label className={labelClassName} style={labelStyle}>
