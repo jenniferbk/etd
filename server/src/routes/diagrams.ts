@@ -116,6 +116,43 @@ export function diagramRoutes(db: Db): Router {
     });
   });
 
+  router.get('/diagrams/:id/versions', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const versions = db
+      .prepare(
+        `SELECT v.id, u.display_name AS author, v.created_at AS createdAt
+         FROM diagram_versions v JOIN users u ON u.id = v.author_id
+         WHERE v.diagram_id = ? ORDER BY v.id DESC`,
+      )
+      .all(row.id) as { id: number; author: string; createdAt: string }[];
+    res.json(versions.map((v) => ({ ...v, isCurrent: v.id === row.current_version_id })));
+  });
+
+  router.get('/diagrams/:id/versions/:versionId', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const versionId = Number(req.params.versionId);
+    if (!Number.isInteger(versionId)) {
+      res.status(400).json({ error: 'invalid version id' });
+      return;
+    }
+    const v = db
+      .prepare(
+        `SELECT v.id, v.snapshot_gz, v.created_at AS createdAt, u.display_name AS author
+         FROM diagram_versions v JOIN users u ON u.id = v.author_id
+         WHERE v.id = ? AND v.diagram_id = ?`,
+      )
+      .get(versionId, row.id) as
+      | { id: number; snapshot_gz: Buffer; createdAt: string; author: string }
+      | undefined;
+    if (!v) {
+      res.status(404).json({ error: 'version not found' });
+      return;
+    }
+    res.json({ id: v.id, author: v.author, createdAt: v.createdAt, snapshot: unpackSnapshot(v.snapshot_gz) });
+  });
+
   router.put('/diagrams/:id', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;

@@ -67,6 +67,7 @@ describe('diagrams', () => {
 
     expect((await request(app).get('/api/groups/1/diagrams').set(auth(outsider))).status).toBe(403);
     expect((await request(app).get(`/api/diagrams/${id}`).set(auth(outsider))).status).toBe(403);
+    expect((await request(app).get(`/api/diagrams/${id}/versions`).set(auth(outsider))).status).toBe(403);
     expect((await request(app).put(`/api/diagrams/${id}`).set(auth(outsider)).send({ snapshot: SNAP })).status).toBe(403);
     expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(outsider))).status).toBe(403);
     expect(
@@ -107,5 +108,38 @@ describe('diagrams', () => {
       .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'T', snapshot: SNAP });
     expect((await request(app).patch(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ title: '  ' })).status).toBe(400);
     expect((await request(app).patch(`/api/diagrams/${created.body.id}`).send({ title: 'X' })).status).toBe(401);
+  });
+
+  it('lists versions newest-first with authors and isCurrent', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'V', snapshot: SNAP });
+    await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+    const res = await request(app).get(`/api/diagrams/${created.body.id}/versions`).set(auth(adminToken));
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].isCurrent).toBe(true);
+    expect(res.body[1].isCurrent).toBe(false);
+    expect(res.body[0].id).toBeGreaterThan(res.body[1].id);
+    expect(res.body[0].author).toBeTypeOf('string');
+  });
+
+  it('fetches a single version snapshot; cross-diagram access 404s', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const a = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'A', snapshot: SNAP });
+    const b = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'B', snapshot: { ...SNAP, name: 'B' } });
+    const bVersions = await request(app).get(`/api/diagrams/${b.body.id}/versions`).set(auth(adminToken));
+    const bVersionId = bVersions.body[0].id;
+
+    const ok = await request(app)
+      .get(`/api/diagrams/${b.body.id}/versions/${bVersionId}`).set(auth(adminToken));
+    expect(ok.status).toBe(200);
+    expect(ok.body.snapshot).toEqual({ ...SNAP, name: 'B' });
+
+    const cross = await request(app)
+      .get(`/api/diagrams/${a.body.id}/versions/${bVersionId}`).set(auth(adminToken));
+    expect(cross.status).toBe(404);
   });
 });
