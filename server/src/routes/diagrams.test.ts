@@ -86,4 +86,26 @@ describe('diagrams', () => {
     expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(204);
     expect((await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(404);
   });
+
+  it('PATCH renames without creating a version row', async () => {
+    const { app, db, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'Old', snapshot: SNAP });
+    const before = (db.prepare('SELECT COUNT(*) AS n FROM diagram_versions').get() as { n: number }).n;
+    const res = await request(app)
+      .patch(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ title: 'New name' });
+    expect(res.status).toBe(200);
+    const after = (db.prepare('SELECT COUNT(*) AS n FROM diagram_versions').get() as { n: number }).n;
+    expect(after).toBe(before);
+    const list = await request(app).get('/api/groups/1/diagrams').set(auth(adminToken));
+    expect(list.body[0].title).toBe('New name');
+  });
+
+  it('PATCH rejects blank titles and enforces membership', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'T', snapshot: SNAP });
+    expect((await request(app).patch(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ title: '  ' })).status).toBe(400);
+    expect((await request(app).patch(`/api/diagrams/${created.body.id}`).send({ title: 'X' })).status).toBe(401);
+  });
 });

@@ -136,6 +136,21 @@ export function diagramRoutes(db: Db): Router {
     res.json({ currentVersionId });
   });
 
+  // Title-only rename: no version row (renames are metadata, not content).
+  router.patch('/diagrams/:id', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const parsed = z.object({ title: z.string().trim().min(1) }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'title must not be empty' });
+      return;
+    }
+    db.prepare(`UPDATE diagrams SET title = ?, updated_at = datetime('now') WHERE id = ?`).run(
+      parsed.data.title, row.id,
+    );
+    res.json({ ok: true });
+  });
+
   router.delete('/diagrams/:id', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;
