@@ -1,5 +1,5 @@
-import { useDiagramStore } from '../../store';
-import { buildDiagramFile } from '../../utils/saveDiagram';
+import { useDiagramStore } from '../store';
+import { buildDiagramFile } from './saveDiagram';
 
 /**
  * Snapshot of the current diagram store state in the cloud API's save-file

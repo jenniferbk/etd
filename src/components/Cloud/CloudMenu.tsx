@@ -8,7 +8,7 @@ import { useAuthStore } from '../../api/authStore';
 import { useToastStore } from '../../store/toastStore';
 import { useCloudStore } from '../../store/cloudStore';
 import { api, ApiError } from '../../api/client';
-import { buildCloudSnapshot } from './buildCloudSnapshot';
+import { buildCloudSnapshot } from '../../utils/buildCloudSnapshot';
 import { SignInModal } from './SignInModal';
 import { CloudSaveDialog } from './CloudSaveDialog';
 import { LibraryModal } from './LibraryModal';

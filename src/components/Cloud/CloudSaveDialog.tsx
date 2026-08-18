@@ -6,7 +6,7 @@ import { useCloudStore } from '../../store/cloudStore';
 import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
-import { buildCloudSnapshot } from './buildCloudSnapshot';
+import { buildCloudSnapshot } from '../../utils/buildCloudSnapshot';
 
 export const SAVE_REMINDER =
   'Reminder: only de-identified data may be saved to the shared library.';
