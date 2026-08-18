@@ -13,6 +13,7 @@ import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptP
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
+import { AddToLibraryDialog } from './components/Workspace';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
@@ -515,6 +516,7 @@ function App() {
 
       <Toaster />
       <ConfirmHost />
+      <AddToLibraryDialog />
     </div>
   );
 }
