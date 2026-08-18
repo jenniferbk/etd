@@ -1,4 +1,5 @@
 export { AddToLibraryDialog } from './AddToLibraryDialog';
+export { ConflictDialog } from './ConflictDialog';
 export { Workspace } from './Workspace';
 export { WorkspaceHeader } from './WorkspaceHeader';
 export { DiagramCard } from './DiagramCard';
