@@ -109,16 +109,7 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
     if (!title || renameBusy) return;
     setRenameBusy(true);
     try {
-      const d = await api<CloudDiagram>(`/api/diagrams/${item.id}`);
-      // There is no rename-only endpoint, so a rename fetches the current
-      // snapshot and PUTs it straight back with the new title. That adds a
-      // version row (harmless — versions are cheap); a dedicated rename
-      // endpoint would be a nice sub-project-B addition.
-      // The snapshot's own `name` field must be kept in sync with the title —
-      // openDiagram() reads snapshot.name for the canvas header, so leaving
-      // it stale here would show the old name after the next open.
-      const snapshot = { ...d.snapshot, name: title };
-      await api(`/api/diagrams/${item.id}`, { method: 'PUT', body: { snapshot, title } });
+      await api(`/api/diagrams/${item.id}`, { method: 'PATCH', body: { title } });
       setRenameOpen(false);
       onChanged();
     } catch (err) {

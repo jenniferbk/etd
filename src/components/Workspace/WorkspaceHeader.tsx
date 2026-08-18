@@ -1,8 +1,12 @@
+import { useState } from 'react';
+import { Plus } from 'lucide-react';
 import type { CloudGroup } from '../../api/types';
+import { useAuthStore } from '../../api/authStore';
 import type { WorkspaceTab } from '../../store/cloudStore';
 import { useCloudStore } from '../../store/cloudStore';
 import { theme } from '../../utils/theme';
 import { AccountChip } from './AccountChip';
+import { NewGroupDialog } from './NewGroupDialog';
 
 interface WorkspaceHeaderProps {
   groupName: string;
@@ -18,10 +22,13 @@ const NAV_TABS: { tab: WorkspaceTab; label: string }[] = [
 
 /** "<group name> Workspace" heading + group switcher (only when the user
  *  belongs to more than one group) + Diagrams/People nav + the account chip,
- *  right-aligned. */
+ *  right-aligned. Site admins additionally see a "New group" affordance next
+ *  to the switcher, opening NewGroupDialog. */
 export function WorkspaceHeader({ groupName, groups, selectedGroupId, onSelectGroup }: WorkspaceHeaderProps) {
   const workspaceTab = useCloudStore((s) => s.workspaceTab);
   const setWorkspaceTab = useCloudStore((s) => s.setWorkspaceTab);
+  const isSiteAdmin = useAuthStore((s) => s.user?.isSiteAdmin ?? false);
+  const [newGroupOpen, setNewGroupOpen] = useState(false);
 
   return (
     <header
@@ -56,6 +63,23 @@ export function WorkspaceHeader({ groupName, groups, selectedGroupId, onSelectGr
             ))}
           </select>
         )}
+        {isSiteAdmin && (
+          <button
+            onClick={() => setNewGroupOpen(true)}
+            aria-label="New group"
+            title="New group"
+            className="flex items-center gap-1 px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+            style={{
+              backgroundColor: theme.button.secondary.bg,
+              color: theme.button.secondary.text,
+              border: `1px solid ${theme.button.secondary.border}`,
+              outlineColor: theme.focus.ring,
+            }}
+          >
+            <Plus size={14} />
+            New group
+          </button>
+        )}
         <nav className="flex items-center gap-1 ml-2" aria-label="Workspace section">
           {NAV_TABS.map(({ tab, label }) => {
             const active = workspaceTab === tab;
@@ -78,6 +102,14 @@ export function WorkspaceHeader({ groupName, groups, selectedGroupId, onSelectGr
         </nav>
       </div>
       <AccountChip />
+
+      {isSiteAdmin && (
+        <NewGroupDialog
+          open={newGroupOpen}
+          onClose={() => setNewGroupOpen(false)}
+          onCreated={onSelectGroup}
+        />
+      )}
     </header>
   );
 }

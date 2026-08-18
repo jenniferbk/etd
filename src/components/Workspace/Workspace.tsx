@@ -117,10 +117,14 @@ export function Workspace() {
         useToastStore.getState().addToast('error', 'That diagram looks corrupted — ask your group admin.');
         return;
       }
+      // Prefer the diagrams-table title over the snapshot's embedded name:
+      // PATCH-renaming a diagram (DiagramCard) updates only the title column,
+      // not the snapshot, so snap.name goes stale on rename until the next
+      // content save. d.title is always current.
       useDiagramStore.getState().loadDiagram(
         snap.elements as DiagramElement[],
         snap.connections as Connection[],
-        snap.name,
+        d.title,
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
       );
