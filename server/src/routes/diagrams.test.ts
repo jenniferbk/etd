@@ -142,4 +142,34 @@ describe('diagrams', () => {
       .get(`/api/diagrams/${a.body.id}/versions/${bVersionId}`).set(auth(adminToken));
     expect(cross.status).toBe(404);
   });
+
+  it('409s a stale baseVersionId without creating a version; matching base saves', async () => {
+    const { app, db, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'C', snapshot: SNAP });
+    const id = created.body.id;
+    const base = created.body.currentVersionId;
+
+    const second = await request(app)
+      .put(`/api/diagrams/${id}`).set(auth(adminToken)).send({ snapshot: SNAP, baseVersionId: base });
+    expect(second.status).toBe(200);
+
+    const before = (db.prepare('SELECT COUNT(*) AS n FROM diagram_versions').get() as { n: number }).n;
+    const stale = await request(app)
+      .put(`/api/diagrams/${id}`).set(auth(adminToken)).send({ snapshot: SNAP, baseVersionId: base });
+    expect(stale.status).toBe(409);
+    expect(stale.body.currentVersionId).toBe(second.body.currentVersionId);
+    expect(stale.body.error).toBe('someone else saved this diagram while you were editing');
+    const after = (db.prepare('SELECT COUNT(*) AS n FROM diagram_versions').get() as { n: number }).n;
+    expect(after).toBe(before);
+  });
+
+  it('PUT without baseVersionId keeps last-write-wins', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const created = await request(app)
+      .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'L', snapshot: SNAP });
+    await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+    const res = await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+    expect(res.status).toBe(200);
+  });
 });

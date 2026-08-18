@@ -157,10 +157,17 @@ export function diagramRoutes(db: Db): Router {
     const row = getDiagramForMember(req, res);
     if (!row) return;
     const parsed = z
-      .object({ snapshot: snapshotSchema, title: z.string().trim().min(1).optional() })
+      .object({ snapshot: snapshotSchema, title: z.string().trim().min(1).optional(), baseVersionId: z.number().int().optional() })
       .safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid request' });
+      return;
+    }
+    if (parsed.data.baseVersionId !== undefined && parsed.data.baseVersionId !== row.current_version_id) {
+      res.status(409).json({
+        error: 'someone else saved this diagram while you were editing',
+        currentVersionId: row.current_version_id,
+      });
       return;
     }
     let currentVersionId = 0;
