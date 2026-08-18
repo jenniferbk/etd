@@ -135,6 +135,12 @@ curl -s localhost:8787/api/auth/reset-password \
 The new password must be at least 8 characters. A successful reset also
 signs the user out of any existing sessions.
 
+Only a site admin can issue a reset for another site admin; a group admin
+can only issue resets for non-site-admin members of a group they admin. This
+is also the recovery invariant for the whole system: because site admins can
+manage any group's membership, the bootstrap site-admin account is always
+the recovery path if a group ever loses all of its own admins.
+
 ## 4. COMS Mac setup
 
 This assumes a shared Mac in the COMS lab that stays powered on and logged

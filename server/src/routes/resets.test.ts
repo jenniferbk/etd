@@ -50,4 +50,31 @@ describe('password resets', () => {
       .post('/api/password-resets').set(auth(memberToken)).send({ email: 'target@uga.edu' });
     expect(res.status).toBe(403);
   });
+
+  it('a plain member gets an identical 403 whether or not the target email exists (no email-existence oracle)', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const memberToken = await registerMember(app, adminToken, 'm2@uga.edu');
+    await registerMember(app, adminToken, 'exists@uga.edu');
+
+    const existing = await request(app)
+      .post('/api/password-resets').set(auth(memberToken)).send({ email: 'exists@uga.edu' });
+    const nonexistent = await request(app)
+      .post('/api/password-resets').set(auth(memberToken)).send({ email: 'nobody-here@uga.edu' });
+
+    expect(existing.status).toBe(403);
+    expect(nonexistent.status).toBe(403);
+    expect(existing.body).toEqual(nonexistent.body);
+  });
+
+  it('a group admin cannot issue a reset for a site admin sharing their group (no privilege escalation)', async () => {
+    const { app, adminToken } = await makeTestServer();
+    const groupAdminToken = await registerMember(app, adminToken, 'groupadmin@uga.edu');
+    await request(app)
+      .post('/api/groups/1/members').set(auth(adminToken))
+      .send({ email: 'groupadmin@uga.edu', role: 'admin' });
+
+    const res = await request(app)
+      .post('/api/password-resets').set(auth(groupAdminToken)).send({ email: 'admin@test.edu' });
+    expect(res.status).toBe(403);
+  });
 });

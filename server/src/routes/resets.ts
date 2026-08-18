@@ -12,23 +12,38 @@ export function resetRoutes(db: Db): Router {
       res.status(400).json({ error: 'invalid request' });
       return;
     }
-    const target = db.prepare('SELECT id FROM users WHERE email = ?').get(parsed.data.email) as
-      | { id: number } | undefined;
-    if (!target) {
-      res.status(404).json({ error: 'no account with that email' });
-      return;
-    }
+    // Look up the target internally, but don't let its existence (or the
+    // requester's permission over it) leak via response status: the
+    // permission check runs first and always returns a uniform 403 for any
+    // disallowed caller, whether or not an account with that email exists.
+    const target = db.prepare('SELECT id, is_site_admin FROM users WHERE email = ?').get(
+      parsed.data.email,
+    ) as { id: number; is_site_admin: number } | undefined;
+    const targetIsSiteAdmin = !!target && target.is_site_admin === 1;
     const allowed =
       req.user!.isSiteAdmin ||
-      !!db
-        .prepare(
-          `SELECT 1 FROM memberships mine
-           JOIN memberships theirs ON theirs.group_id = mine.group_id
-           WHERE mine.user_id = ? AND mine.role = 'admin' AND theirs.user_id = ?`,
-        )
-        .get(req.user!.id, target.id);
+      (!!target &&
+        !targetIsSiteAdmin &&
+        !!db
+          .prepare(
+            `SELECT 1 FROM memberships mine
+             JOIN memberships theirs ON theirs.group_id = mine.group_id
+             WHERE mine.user_id = ? AND mine.role = 'admin' AND theirs.user_id = ?`,
+          )
+          .get(req.user!.id, target.id));
     if (!allowed) {
+      // Fires whether the account doesn't exist, the requester isn't an
+      // admin of a shared group, or (privilege escalation guard) the target
+      // is a site admin and the requester isn't — same status, same body,
+      // so a non-site-admin can't use this endpoint to probe emails or to
+      // mint a reset link for a site admin account.
       res.status(403).json({ error: 'only admins can issue password resets' });
+      return;
+    }
+    // Only reachable here for site admins (trusted) or a confirmed
+    // non-site-admin target with a shared-group admin — safe to 404 now.
+    if (!target) {
+      res.status(404).json({ error: 'no account with that email' });
       return;
     }
     const { token, tokenHash } = mintToken();
