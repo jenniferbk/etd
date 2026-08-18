@@ -131,6 +131,10 @@ function App() {
     if (saved) {
       loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig);
       useCloudStore.getState().clearCloudTarget();
+      // Recovered work must be immediately visible — otherwise it loads
+      // invisibly behind the Workspace gallery and a stray card click can
+      // silently overwrite it (see final-review Fix 1).
+      useCloudStore.getState().setView('canvas');
       clearAutoSave();
     }
     setRecoveryData(null);
@@ -277,7 +281,15 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Canvas-only: none of these shortcuts (undo/redo/save/zoom/etc.) make
       // sense while browsing the Workspace gallery.
-      if (!(view === 'canvas' || !user)) return;
+      if (!(view === 'canvas' || !user)) {
+        // Still swallow ⌘S / ⌘O here so the browser's native Save-Page /
+        // Open-File dialog doesn't leak through while on the Workspace view.
+        const isModWorkspace = e.metaKey || e.ctrlKey;
+        if (isModWorkspace && (e.key === 's' || e.key === 'o')) {
+          e.preventDefault();
+        }
+        return;
+      }
 
       // Ignore if typing in an input, textarea, or contenteditable
       const target = e.target as HTMLElement;

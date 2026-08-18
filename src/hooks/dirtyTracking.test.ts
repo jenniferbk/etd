@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { useDiagramStore } from '../store';
 import { useCloudStore } from '../store/cloudStore';
-import { startDirtyTracking } from './dirtyTracking';
+import { getEditTick, startDirtyTracking } from './dirtyTracking';
 
 let stop: (() => void) | null = null;
 
@@ -33,5 +33,23 @@ describe('startDirtyTracking', () => {
     stop = null;
     useDiagramStore.getState().setDiagramName('Late change');
     expect(useCloudStore.getState().status).toBe('saved');
+  });
+
+  it('increments getEditTick on a tracked change even while not "saved" (e.g. "saving")', () => {
+    useCloudStore.setState({ status: 'saving' });
+    stop = startDirtyTracking();
+    const before = getEditTick();
+    useDiagramStore.getState().setDiagramName('Edited mid-save');
+    expect(getEditTick()).toBe(before + 1);
+    // The saved→dirty flip only fires from 'saved'; getEditTick is the
+    // mechanism that still records the edit happened while 'saving'.
+    expect(useCloudStore.getState().status).toBe('saving');
+  });
+
+  it('does not increment getEditTick for unrelated store fields', () => {
+    stop = startDirtyTracking();
+    const before = getEditTick();
+    useDiagramStore.setState({ selectedIds: ['x'] });
+    expect(getEditTick()).toBe(before);
   });
 });

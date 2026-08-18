@@ -2,6 +2,20 @@ import { useEffect } from 'react';
 import { useDiagramStore } from '../store';
 import { useCloudStore } from '../store/cloudStore';
 
+// Incremented on every tracked diagram edit, regardless of the current
+// library save status — including while a save is in flight ('saving').
+// saveToLibrary compares a tick captured before its PUT against this value
+// after the request resolves to detect edits that happened mid-save, which
+// the saved→dirty flip below cannot catch (it's a no-op while status is
+// 'saving', not 'saved').
+let editTick = 0;
+
+/** Current edit-tick value. Monotonically increasing for the lifetime of the
+ *  page; only meaningful as a before/after comparison. */
+export function getEditTick(): number {
+  return editTick;
+}
+
 /** Flip the library save status to 'dirty' on any diagram content change.
  *  Reference inequality is enough: the store replaces arrays/objects on edit. */
 export function startDirtyTracking(): () => void {
@@ -13,6 +27,7 @@ export function startDirtyTracking(): () => void {
       state.transcript !== prev.transcript ||
       state.diagramName !== prev.diagramName
     ) {
+      editTick += 1;
       const cloud = useCloudStore.getState();
       if (cloud.status === 'saved') cloud.setStatus('dirty');
     }

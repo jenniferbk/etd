@@ -6,6 +6,7 @@ import { useDiagramStore } from '../store';
 import { useToastStore } from '../store/toastStore';
 import { buildCloudSnapshot } from '../utils/buildCloudSnapshot';
 import { saveDiagramJson } from '../utils/saveDiagram';
+import { getEditTick } from './dirtyTracking';
 
 /** The single Save entry point. Signed out it behaves exactly like the old
  *  local save; signed in it targets the team library. */
@@ -30,12 +31,19 @@ export async function saveToLibrary(): Promise<void> {
     return;
   }
 
+  // Guard against concurrent PUTs (double ⌘S, double "Try again") which
+  // would otherwise create duplicate version rows.
+  if (cloud.status === 'saving') return;
+
   cloud.setStatus('saving');
   try {
+    const tickBefore = getEditTick();
     const snapshot = buildCloudSnapshot();
     const title = d.diagramName.trim() || undefined;
     await api(`/api/diagrams/${cloud.diagramId}`, { method: 'PUT', body: { snapshot, title } });
-    useCloudStore.getState().setStatus('saved');
+    // If the diagram was edited while this PUT was in flight, the snapshot
+    // we just saved is already stale — reflect that instead of lying 'saved'.
+    useCloudStore.getState().setStatus(getEditTick() === tickBefore ? 'saved' : 'dirty');
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) {
       const c = useCloudStore.getState();

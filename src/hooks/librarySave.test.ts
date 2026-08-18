@@ -9,6 +9,7 @@ vi.stubGlobal('localStorage', {
 });
 
 import { saveToLibrary } from './librarySave';
+import { startDirtyTracking } from './dirtyTracking';
 import { useAuthStore } from '../api/authStore';
 import { useCloudStore } from '../store/cloudStore';
 import { useDiagramStore } from '../store';
@@ -64,5 +65,23 @@ describe('saveToLibrary', () => {
     await saveToLibrary();
     expect(useCloudStore.getState().status).toBe('dirty');
     expect(useToastStore.getState().toasts.some((t) => t.variant === 'error')).toBe(true);
+  });
+
+  it('lands on dirty (not saved) if the diagram is edited while the PUT is in flight', async () => {
+    let resolveFetch!: (res: Response) => void;
+    const pending = new Promise<Response>((resolve) => { resolveFetch = resolve; });
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(pending);
+
+    const stop = startDirtyTracking();
+    try {
+      const savePromise = saveToLibrary(); // not awaited yet — suspends at the PUT
+      // Mid-flight edit: simulates the user typing while the save is in flight.
+      useDiagramStore.getState().setDiagramName('Edited mid-save');
+      resolveFetch(jsonResponse({ currentVersionId: 5 }));
+      await savePromise;
+      expect(useCloudStore.getState().status).toBe('dirty');
+    } finally {
+      stop();
+    }
   });
 });

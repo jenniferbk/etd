@@ -4,8 +4,8 @@ import { buildDiagramFile } from './saveDiagram';
 /**
  * Snapshot of the current diagram store state in the cloud API's save-file
  * shape (same shape as buildDiagramFile / the local .json save file).
- * Shared by CloudMenu's direct-PUT (already-linked) path and
- * CloudSaveDialog's first-save POST path so the five-field reconstruction
+ * Shared by saveToLibrary's direct-PUT (already-linked) path and
+ * AddToLibraryDialog's first-save POST path so the five-field reconstruction
  * isn't duplicated between them.
  */
 export function buildCloudSnapshot(titleOverride?: string) {

@@ -65,6 +65,16 @@ export function CanvasHeader() {
       setLeaveOpen(true);
       return;
     }
+    // A brand-new, never-saved diagram (status 'notInLibrary') can still
+    // hold content worth protecting — gate on it too, or it's abandoned
+    // silently.
+    if (currentStatus === 'notInLibrary') {
+      const d = useDiagramStore.getState();
+      if (d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null) {
+        setLeaveOpen(true);
+        return;
+      }
+    }
     useCloudStore.getState().setView('workspace');
   };
 
@@ -79,9 +89,19 @@ export function CanvasHeader() {
     setLeaveSaving(true);
     await saveToLibrary();
     setLeaveSaving(false);
-    if (useCloudStore.getState().status === 'saved') {
+    const cloud = useCloudStore.getState();
+    if (cloud.status === 'saved') {
       setLeaveOpen(false);
-      useCloudStore.getState().setView('workspace');
+      cloud.setView('workspace');
+      return;
+    }
+    if (cloud.addToLibraryOpen) {
+      // Never-saved diagram: saveToLibrary opened the Add-to-library dialog
+      // instead of saving directly. Close the leave-confirm so it doesn't
+      // sit on top of it; the user completes the Add dialog, then presses
+      // ← again — status is 'saved' by then and they leave cleanly.
+      setLeaveOpen(false);
+      return;
     }
     // Otherwise (still dirty/offline/error) leave the modal open so the user
     // can see the status and choose again.

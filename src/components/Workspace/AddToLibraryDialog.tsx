@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../ui/Modal';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { friendlyError } from '../../api/friendlyError';
 import { useAuthStore } from '../../api/authStore';
 import { useCloudStore } from '../../store/cloudStore';
@@ -62,7 +62,15 @@ export function AddToLibraryDialog() {
       useToastStore.getState().addToast('info', 'Added to the library');
       useCloudStore.getState().setAddToLibraryOpen(false);
     } catch (err) {
-      useToastStore.getState().addToast('error', friendlyError(err));
+      if (err instanceof TypeError || (err instanceof ApiError && err.status >= 500)) {
+        // Align with saveToLibrary's network-failure handling: go offline
+        // and close the dialog — the OfflineBanner (rendered in canvas view,
+        // which is where this dialog is always opened from) takes over.
+        useCloudStore.getState().setStatus('offline');
+        useCloudStore.getState().setAddToLibraryOpen(false);
+      } else {
+        useToastStore.getState().addToast('error', friendlyError(err));
+      }
     } finally {
       setBusy(false);
     }
