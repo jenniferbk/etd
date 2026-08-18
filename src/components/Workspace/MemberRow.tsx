@@ -9,6 +9,7 @@ import type { GroupMember } from '../../api/types';
 import { useToastStore } from '../../store/toastStore';
 import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
+import { ResetLinkDialog } from './ResetLinkDialog';
 
 interface MemberRowProps {
   member: GroupMember;
@@ -45,6 +46,7 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
   const activeIndexRef = useRef(0);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [busy, setBusy] = useState<'role' | 'remove' | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
 
   function handleBlur(e: React.FocusEvent<HTMLDivElement>) {
     const next = e.relatedTarget as Node | null;
@@ -116,8 +118,7 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
     key: 'reset-password',
     icon: KeyRound,
     label: 'Reset password…',
-    disabled: true,
-    onClick: () => {},
+    onClick: () => run(() => setResetOpen(true)),
   });
   if (!isSelf) {
     actions.push({
@@ -131,11 +132,11 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
     });
   }
 
-  // Reset password… is a disabled placeholder until Task 5, and role-change
-  // items are absent on your own row — so the "first"/"next" item is often
-  // disabled (or, on your own row today, every item is). These helpers skip
-  // disabled entries (wrapping around) so focus and arrow-key nav never land
-  // on something unfocusable; when nothing is enabled they return -1 and the
+  // Role-change and remove items are absent on your own row (Reset
+  // password… is the only action ever offered there) — so the "first"/
+  // "next" enabled item still needs care. These helpers skip disabled
+  // entries (wrapping around) so focus and arrow-key nav never land on
+  // something unfocusable; when nothing is enabled they return -1 and the
   // caller leaves focus where it is (the trigger).
   function firstEnabledIndex(): number {
     return actions.findIndex((a) => !a.disabled);
@@ -166,8 +167,6 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
       activeIndexRef.current = firstEnabledActionIndex;
       requestAnimationFrame(() => itemRefs.current[firstEnabledActionIndex]?.focus());
     }
-    // Otherwise every item is disabled (own row, before Task 5 wires up
-    // Reset password) — leave focus on the trigger.
   }, [isOpen, firstEnabledActionIndex]);
 
   function handleMenuKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -209,71 +208,74 @@ export function MemberRow({ member, groupId, groupName, isAdmin, isSelf, onChang
   }
 
   return (
-    <div
-      className="grid grid-cols-[1fr_1fr_100px_40px] gap-4 items-center px-4 py-3 border-b last:border-b-0"
-      style={{ borderColor: theme.sidebar.borderSubtle }}
-    >
-      <p className="text-sm font-medium truncate" style={{ color: theme.sidebar.text }}>
-        {member.displayName}
-        {isSelf && <span style={{ color: theme.sidebar.textSecondary }}> (you)</span>}
-      </p>
-      <p className="text-sm truncate" style={{ color: theme.sidebar.textSecondary }}>
-        {member.email}
-      </p>
-      <p className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
-        {member.role === 'admin' ? 'Admin' : 'Member'}
-      </p>
+    <>
+      <div
+        className="grid grid-cols-[1fr_1fr_100px_40px] gap-4 items-center px-4 py-3 border-b last:border-b-0"
+        style={{ borderColor: theme.sidebar.borderSubtle }}
+      >
+        <p className="text-sm font-medium truncate" style={{ color: theme.sidebar.text }}>
+          {member.displayName}
+          {isSelf && <span style={{ color: theme.sidebar.textSecondary }}> (you)</span>}
+        </p>
+        <p className="text-sm truncate" style={{ color: theme.sidebar.textSecondary }}>
+          {member.email}
+        </p>
+        <p className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
+          {member.role === 'admin' ? 'Admin' : 'Member'}
+        </p>
 
-      <div className="relative inline-flex flex-shrink-0 justify-self-end">
-        {isAdmin && (
-          <>
-            <IconButton
-              ref={triggerRef}
-              onClick={toggle}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-              }}
-              icon={MoreHorizontal}
-              tooltip="Member options"
-              ariaHasPopup
-              ariaExpanded={isOpen}
-              ariaLabel={`Options for ${member.displayName}`}
-            />
-
-            {isOpen && (
-              <div
-                ref={menuRef}
-                role="menu"
-                aria-label="Member options"
-                onKeyDown={handleMenuKeyDown}
-                onBlur={handleBlur}
-                className="absolute right-0 rounded-lg py-1"
-                style={{
-                  top: 'calc(100% + 4px)',
-                  width: 200,
-                  backgroundColor: theme.sidebar.surface,
-                  border: `1px solid ${theme.sidebar.border}`,
-                  boxShadow: theme.shadow.md,
-                  zIndex: theme.z.dropdown,
+        <div className="relative inline-flex flex-shrink-0 justify-self-end">
+          {isAdmin && (
+            <>
+              <IconButton
+                ref={triggerRef}
+                onClick={toggle}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
                 }}
-              >
-                {actions.map((action, i) => (
-                  <MenuItem
-                    key={action.key}
-                    ref={(el) => { itemRefs.current[i] = el; }}
-                    icon={action.icon}
-                    label={action.label}
-                    variant={action.variant}
-                    disabled={action.disabled}
-                    isLoading={action.isLoading}
-                    onClick={action.onClick}
-                  />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+                icon={MoreHorizontal}
+                tooltip="Member options"
+                ariaHasPopup
+                ariaExpanded={isOpen}
+                ariaLabel={`Options for ${member.displayName}`}
+              />
+
+              {isOpen && (
+                <div
+                  ref={menuRef}
+                  role="menu"
+                  aria-label="Member options"
+                  onKeyDown={handleMenuKeyDown}
+                  onBlur={handleBlur}
+                  className="absolute right-0 rounded-lg py-1"
+                  style={{
+                    top: 'calc(100% + 4px)',
+                    width: 200,
+                    backgroundColor: theme.sidebar.surface,
+                    border: `1px solid ${theme.sidebar.border}`,
+                    boxShadow: theme.shadow.md,
+                    zIndex: theme.z.dropdown,
+                  }}
+                >
+                  {actions.map((action, i) => (
+                    <MenuItem
+                      key={action.key}
+                      ref={(el) => { itemRefs.current[i] = el; }}
+                      icon={action.icon}
+                      label={action.label}
+                      variant={action.variant}
+                      disabled={action.disabled}
+                      isLoading={action.isLoading}
+                      onClick={action.onClick}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
-    </div>
+      <ResetLinkDialog member={member} open={resetOpen} onClose={() => setResetOpen(false)} />
+    </>
   );
 }
