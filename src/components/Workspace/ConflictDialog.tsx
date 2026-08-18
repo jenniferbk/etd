@@ -20,6 +20,11 @@ export function ConflictDialog() {
   const [busy, setBusy] = useState(false);
 
   const handleCancel = () => {
+    // Ignore dismissal (X / Escape / scrim all route through this) while an
+    // Overwrite or Save-as-copy is in flight — otherwise the in-flight
+    // promise keeps running and mutates state/toasts after the user thinks
+    // they've canceled.
+    if (busy) return;
     useCloudStore.getState().setConflict(null);
   };
 
