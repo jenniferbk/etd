@@ -89,6 +89,13 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
       e.preventDefault();
       activeIndexRef.current = MENU_ITEM_COUNT - 1;
       itemRefs.current[MENU_ITEM_COUNT - 1]?.focus();
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      // Let the browser's native click-on-activation proceed (MenuItem's own
+      // onClick handles Rename/Download/Delete) but don't let this keydown
+      // keep bubbling past the popover — otherwise it would reach the card's
+      // own onKeyDown and also fire onOpen(). Escape is intentionally left
+      // alone here so it keeps bubbling to useMenu's document-level listener.
+      e.stopPropagation();
     }
   }
 
@@ -193,11 +200,17 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
           <div
             className="relative inline-flex flex-shrink-0"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
           >
             <IconButton
               ref={triggerRef}
               onClick={toggle}
+              onKeyDown={(e) => {
+                // Stop only Enter/Space from bubbling to the card's own
+                // onOpen keydown handler — everything else (notably Escape,
+                // which useMenu listens for at the document level to close
+                // the popover) must keep propagating.
+                if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
+              }}
               icon={MoreHorizontal}
               tooltip="Diagram options"
               ariaHasPopup

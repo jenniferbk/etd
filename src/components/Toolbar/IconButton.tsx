@@ -7,6 +7,10 @@ import { Tooltip } from '../ui/Tooltip';
 
 interface IconButtonProps {
   onClick: () => void;
+  /** Optional escape hatch for callers that need to intercept specific keys
+   *  (e.g. a trigger nested inside a click-stopPropagation wrapper that must
+   *  still let Escape bubble to a document-level listener). */
+  onKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   icon: ComponentType<LucideProps>;
   tooltip: string;
@@ -22,6 +26,7 @@ interface IconButtonProps {
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
   {
     onClick,
+    onKeyDown,
     disabled,
     icon: Icon,
     tooltip,
@@ -42,6 +47,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       <button
         ref={ref}
         onClick={onClick}
+        onKeyDown={onKeyDown}
         disabled={disabled || isLoading}
         aria-label={ariaLabel ?? tooltip}
         aria-haspopup={ariaHasPopup ? 'menu' : undefined}
