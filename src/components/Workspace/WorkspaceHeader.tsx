@@ -1,4 +1,6 @@
 import type { CloudGroup } from '../../api/types';
+import type { WorkspaceTab } from '../../store/cloudStore';
+import { useCloudStore } from '../../store/cloudStore';
 import { theme } from '../../utils/theme';
 import { AccountChip } from './AccountChip';
 
@@ -9,9 +11,18 @@ interface WorkspaceHeaderProps {
   onSelectGroup: (groupId: number) => void;
 }
 
+const NAV_TABS: { tab: WorkspaceTab; label: string }[] = [
+  { tab: 'diagrams', label: 'Diagrams' },
+  { tab: 'people', label: 'People' },
+];
+
 /** "<group name> Workspace" heading + group switcher (only when the user
- *  belongs to more than one group) + the account chip, right-aligned. */
+ *  belongs to more than one group) + Diagrams/People nav + the account chip,
+ *  right-aligned. */
 export function WorkspaceHeader({ groupName, groups, selectedGroupId, onSelectGroup }: WorkspaceHeaderProps) {
+  const workspaceTab = useCloudStore((s) => s.workspaceTab);
+  const setWorkspaceTab = useCloudStore((s) => s.setWorkspaceTab);
+
   return (
     <header
       className="h-16 px-6 flex items-center justify-between border-b flex-shrink-0"
@@ -45,6 +56,26 @@ export function WorkspaceHeader({ groupName, groups, selectedGroupId, onSelectGr
             ))}
           </select>
         )}
+        <nav className="flex items-center gap-1 ml-2" aria-label="Workspace section">
+          {NAV_TABS.map(({ tab, label }) => {
+            const active = workspaceTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => setWorkspaceTab(tab)}
+                aria-current={active ? 'page' : undefined}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{
+                  backgroundColor: active ? theme.sidebar.surfaceActive : 'transparent',
+                  color: active ? theme.sidebar.text : theme.sidebar.textSecondary,
+                  outlineColor: theme.focus.ring,
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </nav>
       </div>
       <AccountChip />
     </header>

@@ -11,6 +11,7 @@ import { importDrawingFile } from '../../utils/drawingImporter';
 import type { Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
+import { PeoplePage } from './PeoplePage';
 
 /** Card-gallery home view — the landing page for a signed-in user, before
  *  they've opened any particular diagram onto the canvas. App renders this
@@ -20,6 +21,7 @@ import { DiagramCard } from './DiagramCard';
  *  is ported verbatim in behavior from the now-removed Cloud/LibraryModal.tsx. */
 export function Workspace() {
   const groups = useAuthStore((s) => s.groups);
+  const workspaceTab = useCloudStore((s) => s.workspaceTab);
   const [groupId, setGroupId] = useState<number | null>(null);
   const [items, setItems] = useState<DiagramListItem[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -147,6 +149,9 @@ export function Workspace() {
         onSelectGroup={setGroupId}
       />
 
+      {workspaceTab === 'people' ? (
+        effectiveGroupId !== null && <PeoplePage groupId={effectiveGroupId} groupName={selectedGroup?.name ?? ''} />
+      ) : (
       <div className="max-w-5xl w-full mx-auto px-6 py-8 flex-1">
         <div className="flex items-center gap-3 mb-8">
           <button
@@ -212,6 +217,7 @@ export function Workspace() {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

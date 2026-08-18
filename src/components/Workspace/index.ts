@@ -6,3 +6,5 @@ export { AccountChip } from './AccountChip';
 export { CanvasHeader } from './CanvasHeader';
 export { OfflineBanner } from './OfflineBanner';
 export { SignInModal } from './SignInModal';
+export { PeoplePage } from './PeoplePage';
+export { MemberRow } from './MemberRow';

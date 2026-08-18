@@ -5,6 +5,7 @@ describe('cloudStore view/status', () => {
   beforeEach(() =>
     useCloudStore.setState({
       diagramId: null, groupId: null, view: 'canvas', status: 'notInLibrary', addToLibraryOpen: false,
+      workspaceTab: 'diagrams',
     }),
   );
 
@@ -29,5 +30,16 @@ describe('cloudStore view/status', () => {
     useCloudStore.getState().setStatus('dirty');
     useCloudStore.getState().setAddToLibraryOpen(true);
     expect(useCloudStore.getState()).toMatchObject({ view: 'workspace', status: 'dirty', addToLibraryOpen: true });
+  });
+
+  it('starts on the diagrams tab', () => {
+    expect(useCloudStore.getState().workspaceTab).toBe('diagrams');
+  });
+
+  it('setWorkspaceTab switches to people and back', () => {
+    useCloudStore.getState().setWorkspaceTab('people');
+    expect(useCloudStore.getState().workspaceTab).toBe('people');
+    useCloudStore.getState().setWorkspaceTab('diagrams');
+    expect(useCloudStore.getState().workspaceTab).toBe('diagrams');
   });
 });

@@ -11,6 +11,13 @@ export interface CloudGroup {
   role: 'admin' | 'member';
 }
 
+export interface GroupMember {
+  id: number;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'member';
+}
+
 export interface DiagramListItem {
   id: number;
   title: string;
