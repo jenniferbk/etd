@@ -223,7 +223,7 @@ a LaunchDaemon in `/Library/LaunchDaemons/` and to turn on FileVault). If
 that's not available — you don't have the admin password for the machine —
 but your team can already reach it over the campus network or the UGA VPN,
 this section covers a variant that needs no admin access anywhere in the
-setup, at the cost of a few trade-offs spelled out in Section 6.5.
+setup, at the cost of a few trade-offs spelled out in Section 6.6.
 
 ### 6.1 When to use it
 
@@ -252,7 +252,7 @@ npm run build
 With that variable unset, a production build defaults its API server to
 `window.location.origin` — the address the page itself was loaded from —
 so the same build works no matter what IP or hostname you end up serving it
-from, and no `?server=` param is needed on invite links (Section 6.6). This
+from, and no `?server=` param is needed on invite links (Section 6.7). This
 is the same-origin behavior added by the ETD server's `ETD_STATIC_DIR` option
 (Section 2, `server/.env.example`); see `src/api/client.ts` for the default
 logic.
@@ -269,7 +269,7 @@ the API.
 `com.etd.server.plist` (Section 4), plus `ETD_STATIC_DIR`, and it installs
 to `~/Library/LaunchAgents/` — a per-user directory that needs no admin
 password. The trade-off is that a LaunchAgent only runs while that user is
-logged into a graphical session (see Section 6.5).
+logged into a graphical session (see Section 6.6).
 
 1. Fill in every `/EDIT-ME/...` path in
    `server/deploy/com.etd.server.agent.plist`, same as Section 4 Step 5:
@@ -448,7 +448,7 @@ version of the tool — diagrams saved to disk, no groupware. Its cloud
 sign-in cannot be pointed at a plain-HTTP campus server: browsers block
 "mixed content" (an HTTPS page making requests to a plain HTTP endpoint),
 and jenkleiman.com is served over HTTPS. For groupware/cloud features
-against this campus deployment, use the campus URL directly (Section 6.6),
+against this campus deployment, use the campus URL directly (Section 6.7),
 not jenkleiman.com.
 
 ## 7. Backups
