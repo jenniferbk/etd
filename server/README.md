@@ -294,7 +294,76 @@ logged into a graphical session (see Section 6.5).
    launchctl load ~/Library/LaunchAgents/com.etd.backup.plist
    ```
 
-### 6.4 Keeping the Mac awake without admin
+### 6.4 Automatic updates from GitHub
+
+The `com.etd.update` daemon pulls `origin/main` every 15 minutes, rebuilds the
+frontend and server if anything changed, restarts the server LaunchAgent, and
+rolls back to the previous commit if the health check fails — all unattended.
+
+**What happens:** A successful pull-and-rebuild takes a few seconds; during
+that window the server restarts. If users are already signed in when the restart
+happens, the frontend's reconnect logic catches the brief outage and resumes on
+retry. An in-flight save that straddles the restart will appear to lose contact,
+then reconnect and succeed; this is the same behavior as a network hiccup.
+
+**Install steps:**
+
+1. Fill in every `/EDIT-ME/...` path in `server/deploy/com.etd.update.plist`:
+   - the script path
+   - the `PATH` environment variable: the directory containing `node` binary
+     (usually something like `~/.nvm/versions/node/vXX/bin` if using nvm; use
+     `which node` to find the binary, then use its directory)
+   - the two log paths (by convention alongside the server and backup logs,
+     e.g. `/Users/coms/etd-data/update.log`, `update.err.log`)
+2. In `server/deploy/update.sh`, verify that `PORT=8787` matches the `PORT`
+   in the `com.etd.server.agent.plist` (or your `.env`) — they must be the
+   same.
+3. Make the script executable:
+
+   ```bash
+   chmod +x server/deploy/update.sh
+   ```
+
+4. Copy and load the plist — no `sudo`:
+
+   ```bash
+   cp server/deploy/com.etd.update.plist ~/Library/LaunchAgents/
+   launchctl load ~/Library/LaunchAgents/com.etd.update.plist
+   ```
+
+   Use `launchctl unload ~/Library/LaunchAgents/com.etd.update.plist`
+   to stop it.
+
+**Adjusting the update schedule:** By default, updates check every 15 minutes
+(StartInterval 900). If you prefer to avoid mid-day restarts, change the plist
+to use `StartCalendarInterval` instead — e.g. a 2:00 AM nightly update:
+
+```xml
+<key>StartCalendarInterval</key>
+<dict><key>Hour</key><integer>2</integer><key>Minute</key><integer>0</integer></dict>
+```
+
+Then reload: `launchctl unload` and `launchctl load` again.
+
+**Logs:** Both `update.log` and `update.err.log` (wherever you pointed the plist)
+contain timestamps and messages like `updating <hash> -> <hash>` on success,
+or `update FAILED — rolling back to <hash>` if a rebuild failed. Tail them
+while testing:
+
+```bash
+tail -f /EDIT-ME/path/to/etd-data/update.log
+```
+
+**Trust and dependency scripts:** The update loop runs `npm install` with no
+human supervision, which means it executes any install scripts in the
+`package.json` of this repo and its dependencies. Pin dependency versions and
+use the usual care you would for any `npm install` in a production environment.
+This repo's own `package.json` has no install scripts; the risk is in its
+dependencies, so keep them up to date (or vendor them if you run an older
+snapshot). A failed install blocks the update but does not halt the server —
+the next interval's pull will retry.
+
+### 6.5 Keeping the Mac awake without admin
 
 Preventing sleep normally goes through System Settings, which can be
 locked down by MDM on machines you don't administer. `caffeinate(8)` is a
@@ -325,7 +394,7 @@ system idle sleep, and disk idle sleep, and holds while on AC power (see
 `man caffeinate`) — it does not require the utility it wraps to keep
 running, since `caffeinate` itself is the long-running process here.
 
-### 6.5 Trade-offs, stated plainly
+### 6.6 Trade-offs, stated plainly
 
 This path trades some robustness for not needing an admin password:
 
@@ -354,7 +423,7 @@ deployment/config change (LaunchDaemon instead of LaunchAgent, tunnel
 hostname instead of `<campus-ip>`, rebuild if you want a different
 `VITE_ETD_API_URL`).
 
-### 6.6 Team usage
+### 6.7 Team usage
 
 Team members visit:
 
@@ -372,7 +441,7 @@ http://<campus-ip>:<port>/?invite=<INVITE_TOKEN>
 No `server=` param is needed — the same-origin default from Section 6.2
 means the page already points at the host it was loaded from.
 
-### 6.7 jenkleiman.com stays separate
+### 6.8 jenkleiman.com stays separate
 
 The public editor at jenkleiman.com continues to serve the local-files-only
 version of the tool — diagrams saved to disk, no groupware. Its cloud
