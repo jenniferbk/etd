@@ -158,8 +158,9 @@ export function PropertiesPanel() {
             style={{ borderColor: theme.input.border }}
             onClick={(e) => {
               const target = (e.target as HTMLElement).closest('button[data-connection-type]');
-              if (target) {
-                setConnectionType(selectedConnection.id, target.getAttribute('data-connection-type') as ConnectionType);
+              const match = CONNECTION_TYPES.find((c) => c.value === target?.getAttribute('data-connection-type'));
+              if (match) {
+                setConnectionType(selectedConnection.id, match.value);
               }
             }}
           >
