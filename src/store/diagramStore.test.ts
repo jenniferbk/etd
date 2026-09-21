@@ -209,3 +209,29 @@ describe('removeElement scrub', () => {
     expect((els.find(e => e.id === 's1') as SupportElement).associatedWith).toBe('argA');
   });
 });
+
+describe('setConnectionType', () => {
+  it('flips a connection between support and counterclaim', () => {
+    useDiagramStore.setState({
+      elements: [arg('a'), arg('b')],
+      connections: [{ id: 'c1', from: 'a', to: 'b', type: 'support' }],
+    });
+    useDiagramStore.getState().setConnectionType('c1', 'counterclaim');
+    expect(useDiagramStore.getState().connections[0].type).toBe('counterclaim');
+    useDiagramStore.getState().setConnectionType('c1', 'support');
+    expect(useDiagramStore.getState().connections[0].type).toBe('support');
+  });
+
+  it('preserves routing fields and leaves other connections untouched', () => {
+    const c1: Connection = {
+      id: 'c1', from: 'a', to: 'b', type: 'support',
+      waypoints: [{ x: 50, y: 50 }], fromAnchor: { edge: 'right', t: 0.5 },
+    };
+    const c2: Connection = { id: 'c2', from: 'b', to: 'a', type: 'support' };
+    useDiagramStore.setState({ elements: [arg('a'), arg('b')], connections: [c1, c2] });
+    useDiagramStore.getState().setConnectionType('c1', 'counterclaim');
+    const [n1, n2] = useDiagramStore.getState().connections;
+    expect(n1).toEqual({ ...c1, type: 'counterclaim' });
+    expect(n2).toBe(c2);
+  });
+});

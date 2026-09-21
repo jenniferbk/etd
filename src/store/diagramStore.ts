@@ -4,7 +4,7 @@ import type {
   DiagramElement, Connection, Position, Size, ContributorType,
   ImageSettings, SupportType, SupportSubtype, ArgumentType,
   SupportContributor, ArgumentElement, SupportElement,
-  Transcript, TranscriptLine, EdgeAnchor,
+  Transcript, TranscriptLine, EdgeAnchor, ConnectionType,
 } from '../types';
 import type { StyleConfig } from '../types/styleConfig';
 import { createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
@@ -121,6 +121,7 @@ interface DiagramState {
   updateConnectionWaypoints: (id: string, waypoints: Position[] | undefined) => void;
   updateConnectionAnchor: (id: string, end: 'from' | 'to', anchor: EdgeAnchor | undefined) => void;
   resetConnectionRouting: (id: string) => void;
+  setConnectionType: (id: string, type: ConnectionType) => void;
 
   // Actions - Selection
   setSelectedIds: (ids: string[]) => void;
@@ -506,6 +507,13 @@ export const useDiagramStore = create<DiagramState>()(
             delete next.toAnchor;
             return next;
           }),
+        })),
+
+      setConnectionType: (id, type) =>
+        set((state) => ({
+          connections: state.connections.map((conn) =>
+            conn.id === id ? { ...conn, type } : conn,
+          ),
         })),
 
       setSelectedIds: (ids) => set({ selectedIds: ids }),

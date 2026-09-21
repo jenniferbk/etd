@@ -4,7 +4,7 @@ import type { Position } from './elements';
 
 export type { Position };
 
-export type ConnectionType = 'support';
+export type ConnectionType = 'support' | 'counterclaim';
 
 // Edge anchor positions (orthogonal routing)
 export type BoxEdge = 'left' | 'right' | 'top' | 'bottom';
