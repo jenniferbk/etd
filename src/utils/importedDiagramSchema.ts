@@ -49,7 +49,7 @@ const connectionSchema = z.object({
   id: z.string(),
   from: z.string(),
   to: z.string(),
-  type: z.literal('support'),
+  type: z.enum(['support', 'counterclaim']),
 });
 
 const importedDiagramSchema = z.object({

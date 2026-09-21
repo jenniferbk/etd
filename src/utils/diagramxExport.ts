@@ -440,6 +440,11 @@ export function hasAttachedQualifiers(elements: DiagramElement[]): boolean {
   );
 }
 
+/** True if any connection is a counterclaim. Used for the dropped-slash warning. */
+export function hasCounterclaims(connections: Connection[]): boolean {
+  return connections.some((c) => c.type === 'counterclaim');
+}
+
 // ETD generates element/connection IDs like `"elem-1776639276555-a8r76gsgj"` which
 // are not RFC 4122 UUIDs. DiagramMix decodes `id.uuid` into Swift's `UUID` type and
 // rejects anything that isn't in 8-4-4-4-12 hex format. So we mint a proper UUID
@@ -493,7 +498,9 @@ export function exportToDiagramx(
     if (!fromEl) continue;
 
     let endpoints: ConnectorEndpoints | null = null;
-    let hasEndArrow = true;
+    // Counterclaims are symmetric — no arrowhead. Their slash has no
+    // DiagramMix equivalent and is dropped (Toolbar warns).
+    let hasEndArrow = conn.type !== 'counterclaim';
 
     if (isArrowAttachment(conn.to)) {
       const target = endpointsById.get(conn.to.connectionId);

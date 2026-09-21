@@ -78,4 +78,16 @@ describe('parseImportedDiagram', () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it('accepts counterclaim connections', () => {
+    const withCounter = {
+      ...validResponse,
+      connections: [{ id: 'conn-1', from: 'import-1', to: 'import-2', type: 'counterclaim' }],
+    };
+    const result = parseImportedDiagram(withCounter);
+    expect(result.kind).toBe('ok');
+    if (result.kind === 'ok') {
+      expect(result.diagram.connections[0].type).toBe('counterclaim');
+    }
+  });
 });

@@ -31,6 +31,7 @@ import {
   exportToDiagramx,
   hasEmbeddedImages,
   hasAttachedQualifiers,
+  hasCounterclaims,
 } from '../../utils/diagramxExport';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { IconButton } from './IconButton';
@@ -181,6 +182,9 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
       }
       if (hasAttachedQualifiers(elements)) {
         addToast('warning', 'Qualifier-on-connection positions were dropped — DiagramMix does not support inline qualifiers.');
+      }
+      if (hasCounterclaims(connections)) {
+        addToast('warning', 'Counterclaim slashes were dropped — DiagramMix has no equivalent marker.');
       }
     } catch (err) {
       console.error('.diagramx export failed:', err);
