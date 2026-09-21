@@ -32,3 +32,6 @@ IMG_*.jpg
 IMG_*.jpeg
 IMG_*.png
 IMG_*.json
+
+# Playwright MCP session artifacts (console logs, page snapshots)
+.playwright-mcp/
