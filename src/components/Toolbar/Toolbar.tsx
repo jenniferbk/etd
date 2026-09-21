@@ -40,6 +40,7 @@ import { ExportMenu } from './ExportMenu';
 import { MoreMenu } from './MoreMenu';
 import { ToolbarGroup } from './ToolbarGroup';
 import { computeExportBounds } from '../../utils/exportBounds';
+import { NOTE_BADGE_SELECTOR, withNodesHidden } from '../../utils/exportHideNodes';
 import { ImageImportModal } from './ImageImportModal';
 
 // Helper to create a safe filename from diagram name
@@ -142,14 +143,16 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
     }
     const stage = stages[0];
     const bounds = computeExportBounds(elements, connections);
-    const dataURL = stage.toDataURL({
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height,
-      pixelRatio: 2,
-      mimeType: 'image/png',
-    });
+    const dataURL = withNodesHidden(stage, NOTE_BADGE_SELECTOR, () =>
+      stage.toDataURL({
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        pixelRatio: 2,
+        mimeType: 'image/png',
+      }),
+    );
     await saveFile({
       data: dataUrlToBlob(dataURL),
       suggestedName: `${toFilename(diagramName)}.png`,

@@ -5,6 +5,7 @@ import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor, Argumen
 import { isArrowAttachment, isArgumentElement } from '../../../types';
 import { computePolylineFor, counterclaimSlash, getConnectionPathPoints } from '../../../utils/connectionPath';
 import { useDiagramStore } from '../../../store';
+import { NoteBadge } from './NoteBadge';
 import {
   getEffectiveWaypoints,
   getOrthogonalPath,
@@ -94,6 +95,9 @@ interface ArrowProps {
   onArrowClick?: (connectionId: string, position: number, point: { x: number; y: number }) => void;
   onHover?: (connectionId: string | null) => void;
   onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  /** Number of analytic notes anchored to this connection (badge hidden when 0/undefined). */
+  noteCount?: number;
+  onNoteBadgeClick?: () => void;
 }
 
 // Resolve a connection to its rendered polyline points plus optional rendering
@@ -113,6 +117,8 @@ export function ConnectionArrow({
   onArrowClick,
   onHover,
   onContextMenu,
+  noteCount,
+  onNoteBadgeClick,
 }: ArrowProps) {
   const isAttachment = isArrowAttachment(connection.to);
 
@@ -799,6 +805,11 @@ export function ConnectionArrow({
           lineCap="round"
           listening={false}
         />
+      )}
+
+      {/* Analytic-note badge just above the polyline midpoint. */}
+      {(noteCount ?? 0) > 0 && (
+        <NoteBadge x={midPoint.x - 7} y={midPoint.y - 24} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
       )}
 
       {/* Show attachment point indicator when hovered in connect mode */}

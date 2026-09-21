@@ -3,6 +3,7 @@ import type Konva from 'konva';
 import type { SupportElement } from '../../../types';
 import { useDiagramStore } from '../../../store';
 import { resolveSupportStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
+import { NoteBadge } from './NoteBadge';
 
 interface SupportShapeProps {
   element: SupportElement;
@@ -15,6 +16,9 @@ interface SupportShapeProps {
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;
   onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  /** Number of analytic notes anchored to this element (badge hidden when 0/undefined). */
+  noteCount?: number;
+  onNoteBadgeClick?: () => void;
 }
 
 export function SupportShape({
@@ -28,6 +32,8 @@ export function SupportShape({
   shapeRef,
   onTransformEnd,
   onContextMenu,
+  noteCount,
+  onNoteBadgeClick,
 }: SupportShapeProps) {
   const { position, size, content, supportType, subtype, contributor, attribution } = element;
 
@@ -203,6 +209,9 @@ export function SupportShape({
           fontStyle="italic"
           align={style.borderShape === 'ellipse' ? 'center' : 'right'}
         />
+      )}
+      {(noteCount ?? 0) > 0 && (
+        <NoteBadge x={size.width - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
       )}
     </Group>
   );

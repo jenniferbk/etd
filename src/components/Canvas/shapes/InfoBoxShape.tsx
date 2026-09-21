@@ -1,6 +1,7 @@
 import { Group, Rect, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { InfoBoxElement } from '../../../types';
+import { NoteBadge } from './NoteBadge';
 
 interface InfoBoxShapeProps {
   element: InfoBoxElement;
@@ -12,6 +13,9 @@ interface InfoBoxShapeProps {
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;
   onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  /** Number of analytic notes anchored to this element (badge hidden when 0/undefined). */
+  noteCount?: number;
+  onNoteBadgeClick?: () => void;
 }
 
 export function InfoBoxShape({
@@ -24,6 +28,8 @@ export function InfoBoxShape({
   shapeRef,
   onTransformEnd,
   onContextMenu,
+  noteCount,
+  onNoteBadgeClick,
 }: InfoBoxShapeProps) {
   const { position, size, label, content, attribution } = element;
 
@@ -91,6 +97,9 @@ export function InfoBoxShape({
           fontStyle="italic"
           align="right"
         />
+      )}
+      {(noteCount ?? 0) > 0 && (
+        <NoteBadge x={size.width - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
       )}
     </Group>
   );

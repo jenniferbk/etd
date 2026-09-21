@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react';
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Stage, Layer, Transformer } from 'react-konva';
 import type Konva from 'konva';
 import { ArrowLeft } from 'lucide-react';
@@ -31,6 +31,7 @@ import { InlineEditor } from './InlineEditor';
 import { ClusterHalo } from './shapes/ClusterHalo';
 import { computeCluster, bboxesOverlap } from '../../utils/clusters';
 import type { Cluster } from '../../utils/clusters';
+import { countNotesByAnchor } from '../../utils/noteAnchors';
 
 interface ContextMenuState {
   visible: boolean;
@@ -141,6 +142,17 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     moveLegend,
     addElement,
   } = useDiagramStore();
+
+  const notes = useDiagramStore((s) => s.notes);
+  const setNotesPanelOpen = useDiagramStore((s) => s.setNotesPanelOpen);
+  const noteCounts = useMemo(() => countNotesByAnchor(notes), [notes]);
+  const handleNoteBadgeClick = useCallback(
+    (id: string) => {
+      setSelectedIds([id]);
+      setNotesPanelOpen(true);
+    },
+    [setSelectedIds, setNotesPanelOpen],
+  );
 
   // Track the container's actual size via ResizeObserver. Fires on any layout
   // change — window resize, sibling panel collapse, full-screen toggle —
@@ -1073,6 +1085,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
               onArrowClick={handleArrowClick}
               onHover={handleArrowHover}
               onContextMenu={(e) => handleContextMenu(connection.id, 'connection', e)}
+              noteCount={noteCounts.get(connection.id)}
+              onNoteBadgeClick={() => handleNoteBadgeClick(connection.id)}
             />
           ))}
 
@@ -1092,6 +1106,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
                   onContextMenu={(e) => handleContextMenu(element.id, 'argument', e)}
+                  noteCount={noteCounts.get(element.id)}
+                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
                 />
               );
             }
@@ -1109,6 +1125,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
                   onContextMenu={(e) => handleContextMenu(element.id, 'support', e)}
+                  noteCount={noteCounts.get(element.id)}
+                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
                 />
               );
             }
@@ -1125,6 +1143,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
                   onContextMenu={(e) => handleContextMenu(element.id, 'teacherSupport', e)}
+                  noteCount={noteCounts.get(element.id)}
+                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
                 />
               );
             }
@@ -1140,6 +1160,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
                   shapeRef={(node) => registerShapeRef(element.id, node)}
                   onTransformEnd={(node) => handleTransformEnd(element.id, node)}
                   onContextMenu={(e) => handleContextMenu(element.id, 'infoBox', e)}
+                  noteCount={noteCounts.get(element.id)}
+                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
                 />
               );
             }

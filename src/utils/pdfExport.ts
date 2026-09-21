@@ -3,6 +3,7 @@ import Konva from 'konva';
 import type { DiagramElement, Connection } from '../types';
 import { computeExportBounds } from './exportBounds';
 import { saveFile } from './saveFile';
+import { NOTE_BADGE_SELECTOR, withNodesHidden } from './exportHideNodes';
 
 interface PdfExportOptions {
   filename?: string;
@@ -29,14 +30,16 @@ export async function exportToPdf(
 
   const bounds = computeExportBounds(elements, connections);
 
-  const dataURL = stage.toDataURL({
-    x: bounds.x,
-    y: bounds.y,
-    width: bounds.width,
-    height: bounds.height,
-    pixelRatio: quality,
-    mimeType: 'image/png',
-  });
+  const dataURL = withNodesHidden(stage, NOTE_BADGE_SELECTOR, () =>
+    stage.toDataURL({
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      pixelRatio: quality,
+      mimeType: 'image/png',
+    }),
+  );
 
   const pdf = new jsPDF({
     orientation,

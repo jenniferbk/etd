@@ -4,6 +4,7 @@ import { generateCloudPath } from '../../../utils/cloudPath';
 import type Konva from 'konva';
 import type { ArgumentElement } from '../../../types';
 import { EmbeddedImage } from './EmbeddedImage';
+import { NoteBadge } from './NoteBadge';
 import { useDiagramStore } from '../../../store';
 import { resolveArgumentStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
 import { getClaimRole, deriveClaimLabel } from '../../../utils/claimRoleDerivation';
@@ -21,6 +22,9 @@ interface ArgumentShapeProps {
   shapeRef?: (node: Konva.Group | null) => void;
   onTransformEnd?: (node: Konva.Group) => void;
   onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
+  /** Number of analytic notes anchored to this element (badge hidden when 0/undefined). */
+  noteCount?: number;
+  onNoteBadgeClick?: () => void;
 }
 
 export function ArgumentShape({
@@ -34,6 +38,8 @@ export function ArgumentShape({
   shapeRef,
   onTransformEnd,
   onContextMenu,
+  noteCount,
+  onNoteBadgeClick,
 }: ArgumentShapeProps) {
   const { position, size, label, content, attribution, image, imageSettings } = element;
   const styleConfig = useDiagramStore((s) => s.styleConfig);
@@ -146,6 +152,9 @@ export function ArgumentShape({
             dash={[5, 3]}
           />
         )}
+        {(noteCount ?? 0) > 0 && (
+          <NoteBadge x={qWidth - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
+        )}
       </Group>
     );
   }
@@ -228,6 +237,9 @@ export function ArgumentShape({
             fontStyle="italic"
             align="right"
           />
+        )}
+        {(noteCount ?? 0) > 0 && (
+          <NoteBadge x={size.width - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
         )}
       </Group>
     );
@@ -368,6 +380,9 @@ export function ArgumentShape({
           fontStyle="italic"
           align="right"
         />
+      )}
+      {(noteCount ?? 0) > 0 && (
+        <NoteBadge x={size.width - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
       )}
     </Group>
   );
