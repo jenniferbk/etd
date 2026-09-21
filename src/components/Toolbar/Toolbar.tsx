@@ -13,6 +13,7 @@ import {
   Maximize2,
   ImagePlus,
   LogIn,
+  StickyNote,
 } from 'lucide-react';
 import { useDiagramStore, useTemporalStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
@@ -55,6 +56,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
     zoom, setZoom, setPan, fitToView, elements, connections, loadDiagram, clearDiagram,
     toggleLegend, legendConfig, diagramName, setDiagramName,
     styleConfig,
+    notesPanelOpen, setNotesPanelOpen,
   } = useDiagramStore();
 
   // Reset view: zoom to 100% and pan back to origin — rescues the user when they've
@@ -325,6 +327,13 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
               icon={LayoutGrid}
               tooltip="Toggle legend"
               isActive={legendConfig.visible}
+            />
+            <IconButton
+              onClick={() => setNotesPanelOpen(!notesPanelOpen)}
+              icon={StickyNote}
+              tooltip="Notes"
+              shortcut="N"
+              isActive={notesPanelOpen}
             />
             <IconButton
               onClick={onLoadTranscript}

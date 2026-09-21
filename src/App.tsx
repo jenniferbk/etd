@@ -4,6 +4,7 @@ import { Palette } from './components/Palette';
 import { Canvas } from './components/Canvas';
 import { PropertiesPanel } from './components/Properties';
 import { RecoveryPrompt } from './components/RecoveryPrompt';
+import { NotesPanel } from './components/Notes';
 import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
@@ -99,6 +100,8 @@ function App() {
     loadDiagram,
     transcript,
   } = useDiagramStore();
+
+  const notesPanelOpen = useDiagramStore((s) => s.notesPanelOpen);
 
   const user = useAuthStore((s) => s.user);
   const view = useCloudStore((s) => s.view);
@@ -416,6 +419,15 @@ function App() {
         return;
       }
 
+      // Notes panel toggle: N (no modifier). Same guards as F so ⌘N / Ctrl+N
+      // (browser new window) and Shift/Alt combos pass through untouched.
+      if ((e.key === 'n' || e.key === 'N') && !isMod && !e.altKey && !e.shiftKey) {
+        e.preventDefault();
+        const d = useDiagramStore.getState();
+        d.setNotesPanelOpen(!d.notesPanelOpen);
+        return;
+      }
+
       // 'C' for connect mode
       if (e.key === 'c' || e.key === 'C') {
         toggleConnectMode();
@@ -568,6 +580,12 @@ function App() {
                 onConnectionStart={handleConnectionStart}
                 connectingFrom={connectingFrom}
               />
+
+              {/* Notes side panel — inside the inert wrapper on purpose: notes
+                  are diagram content, so they're read-only during preview. */}
+              <div className={fullScreen ? 'hidden' : 'contents'}>
+                {notesPanelOpen && <NotesPanel />}
+              </div>
 
               <div className={fullScreen ? 'hidden' : 'contents'}>
                 {transcriptPanelOpen ? (
