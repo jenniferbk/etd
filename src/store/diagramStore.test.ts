@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useDiagramStore, sweepOrphanedQualifiers } from './diagramStore';
-import type { ArgumentElement, SupportElement, DiagramElement, Connection } from '../types';
+import type { ArgumentElement, SupportElement, DiagramElement, Connection, AnalyticNote } from '../types';
 
 function arg(id: string, x = 0, y = 0): ArgumentElement {
   return {
@@ -233,5 +233,77 @@ describe('setConnectionType', () => {
     const [n1, n2] = useDiagramStore.getState().connections;
     expect(n1).toEqual({ ...c1, type: 'counterclaim' });
     expect(n2).toBe(c2);
+  });
+});
+
+describe('analytic notes', () => {
+  beforeEach(() => {
+    useDiagramStore.setState({ notes: [] });
+  });
+
+  it('addNote appends a note with id, createdAt, text, anchor and author', () => {
+    const note = useDiagramStore.getState().addNote({
+      text: 'The warrant is implicit here.',
+      anchor: { kind: 'element', id: 'w1' },
+      author: 'Jennifer',
+    });
+    expect(note.id).toMatch(/^note-/);
+    expect(Number.isNaN(Date.parse(note.createdAt))).toBe(false);
+    expect(note.anchor).toEqual({ kind: 'element', id: 'w1' });
+    expect(note.author).toBe('Jennifer');
+    expect(useDiagramStore.getState().notes).toEqual([note]);
+  });
+
+  it('addNote omits author and anchor keys when not given (general, signed-out note)', () => {
+    const note = useDiagramStore.getState().addNote({ text: 'General memo' });
+    expect('author' in note).toBe(false);
+    expect('anchor' in note).toBe(false);
+  });
+
+  it('updateNoteText changes only that note and stamps updatedAt', () => {
+    const a = useDiagramStore.getState().addNote({ text: 'a' });
+    const b = useDiagramStore.getState().addNote({ text: 'b' });
+    useDiagramStore.getState().updateNoteText(a.id, 'a2');
+    const notes = useDiagramStore.getState().notes;
+    const a2 = notes.find((n) => n.id === a.id)!;
+    expect(a2.text).toBe('a2');
+    expect(a2.updatedAt).toBeDefined();
+    expect(notes.find((n) => n.id === b.id)).toEqual(b);
+  });
+
+  it('removeNote drops only that note', () => {
+    const a = useDiagramStore.getState().addNote({ text: 'a' });
+    const b = useDiagramStore.getState().addNote({ text: 'b' });
+    useDiagramStore.getState().removeNote(a.id);
+    expect(useDiagramStore.getState().notes).toEqual([b]);
+  });
+
+  it('removeElement keeps notes anchored to the removed element (detached, not deleted)', () => {
+    useDiagramStore.setState({ elements: [arg('a')] });
+    const note = useDiagramStore.getState().addNote({ text: 'memo', anchor: { kind: 'element', id: 'a' } });
+    useDiagramStore.getState().removeElement('a');
+    expect(useDiagramStore.getState().notes).toEqual([note]);
+  });
+
+  it('clearDiagram empties notes', () => {
+    useDiagramStore.getState().addNote({ text: 'memo' });
+    useDiagramStore.getState().clearDiagram();
+    expect(useDiagramStore.getState().notes).toEqual([]);
+  });
+
+  it('loadDiagram defaults notes to [] when omitted and loads them when given', () => {
+    useDiagramStore.getState().addNote({ text: 'stale' });
+    useDiagramStore.getState().loadDiagram([], [], 'Untitled');
+    expect(useDiagramStore.getState().notes).toEqual([]);
+    const loaded: AnalyticNote[] = [{ id: 'note-1', text: 'from file', createdAt: '2026-09-21T10:00:00.000Z' }];
+    useDiagramStore.getState().loadDiagram([], [], 'Untitled', null, undefined, loaded);
+    expect(useDiagramStore.getState().notes).toEqual(loaded);
+  });
+
+  it('setNotesPanelOpen toggles the panel flag', () => {
+    useDiagramStore.getState().setNotesPanelOpen(true);
+    expect(useDiagramStore.getState().notesPanelOpen).toBe(true);
+    useDiagramStore.getState().setNotesPanelOpen(false);
+    expect(useDiagramStore.getState().notesPanelOpen).toBe(false);
   });
 });

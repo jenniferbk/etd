@@ -5,6 +5,7 @@ import type {
   ImageSettings, SupportType, SupportSubtype, ArgumentType,
   SupportContributor, ArgumentElement, SupportElement,
   Transcript, TranscriptLine, EdgeAnchor, ConnectionType,
+  AnalyticNote, NoteAnchor,
 } from '../types';
 import type { StyleConfig } from '../types/styleConfig';
 import { createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
@@ -97,6 +98,12 @@ interface DiagramState {
   // Style configuration (per-diagram)
   styleConfig: StyleConfig;
 
+  // Analytic notes — researcher memos saved with the diagram, never exported.
+  notes: AnalyticNote[];
+
+  // UI: whether the Notes side panel is open (not persisted, not undoable).
+  notesPanelOpen: boolean;
+
   // Actions - Elements
   addElement: (element: DiagramElement) => void;
   updateElement: (id: string, updates: Partial<DiagramElement>) => void;
@@ -147,6 +154,12 @@ interface DiagramState {
   // Actions - Style config
   replaceStyleConfig: (config: StyleConfig) => void;
 
+  // Actions - Notes
+  addNote: (input: { text: string; anchor?: NoteAnchor; author?: string }) => AnalyticNote;
+  updateNoteText: (id: string, text: string) => void;
+  removeNote: (id: string) => void;
+  setNotesPanelOpen: (open: boolean) => void;
+
   // Actions - File operations
   loadDiagram: (
     elements: DiagramElement[],
@@ -154,6 +167,7 @@ interface DiagramState {
     name?: string,
     transcript?: Transcript | null,
     styleConfig?: StyleConfig,
+    notes?: AnalyticNote[],
   ) => void;
   clearDiagram: () => void;
 }
@@ -174,6 +188,8 @@ export const useDiagramStore = create<DiagramState>()(
       },
       transcript: null,
       styleConfig: createCurrentDefaults(),
+      notes: [],
+      notesPanelOpen: false,
 
       addElement: (element) =>
         set((state) => {
@@ -588,6 +604,30 @@ export const useDiagramStore = create<DiagramState>()(
 
       replaceStyleConfig: (config) => set({ styleConfig: config }),
 
+      addNote: ({ text, anchor, author }) => {
+        const note: AnalyticNote = {
+          id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          text,
+          createdAt: new Date().toISOString(),
+          ...(author ? { author } : {}),
+          ...(anchor ? { anchor } : {}),
+        };
+        set((state) => ({ notes: [...state.notes, note] }));
+        return note;
+      },
+
+      updateNoteText: (id, text) =>
+        set((state) => ({
+          notes: state.notes.map((n) =>
+            n.id === id ? { ...n, text, updatedAt: new Date().toISOString() } : n,
+          ),
+        })),
+
+      removeNote: (id) =>
+        set((state) => ({ notes: state.notes.filter((n) => n.id !== id) })),
+
+      setNotesPanelOpen: (notesPanelOpen) => set({ notesPanelOpen }),
+
       updateTranscriptLine: (lineIndex, patch) =>
         set((state) => {
           if (!state.transcript) return state;
@@ -603,7 +643,7 @@ export const useDiagramStore = create<DiagramState>()(
 
       setDiagramName: (name) => set({ diagramName: name }),
 
-      loadDiagram: (elements, connections, name, transcript, styleConfig) => {
+      loadDiagram: (elements, connections, name, transcript, styleConfig, notes) => {
         // Orphan sweep: clear attachedTo on qualifiers whose connectionId is
         // no longer valid. Pure helper so it's testable without DOM.
         const sweptElements = sweepOrphanedQualifiers(elements, connections);
@@ -619,6 +659,7 @@ export const useDiagramStore = create<DiagramState>()(
           selectedIds: [],
           diagramName: name || 'Untitled Diagram',
           transcript: transcript ?? null,
+          notes: notes ?? [],
           // v1.2 files have no styleConfig — apply the FROZEN migration defaults.
           // v1.3/v1.4 files have the old `otherSubtypes` shape; normalize moves it
           // into `subtypes.other` and seeds empty action/question buckets.
@@ -639,6 +680,7 @@ export const useDiagramStore = create<DiagramState>()(
           legendConfig: { visible: false, position: { x: 50, y: 50 } },
           transcript: state.transcript, // preserved intentionally
           styleConfig: createCurrentDefaults(),
+          notes: [],
         })),
     }),
     {
