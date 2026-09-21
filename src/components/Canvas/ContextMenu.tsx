@@ -7,9 +7,16 @@ import {
   Users,
   ImagePlus,
   ArrowRightLeft,
+  Slash,
 } from 'lucide-react';
 import { theme } from '../../utils/theme';
-import type { ContributorType, SupportContributor, ArgumentType, SupportType } from '../../types';
+import type {
+  ContributorType,
+  SupportContributor,
+  ArgumentType,
+  SupportType,
+  ConnectionType,
+} from '../../types';
 
 interface ContextMenuProps {
   x: number;
@@ -26,6 +33,9 @@ interface ContextMenuProps {
   onConvertToArgument?: (argumentType: ArgumentType) => void;
   onConvertToSupport?: (supportType: SupportType) => void;
   onAddImage?: () => void;
+  /** Present only when elementType === 'connection'. */
+  connectionType?: ConnectionType;
+  onToggleCounterclaim?: () => void;
 }
 
 export function ContextMenu({
@@ -42,6 +52,8 @@ export function ContextMenu({
   onConvertToArgument,
   onConvertToSupport,
   onAddImage,
+  connectionType,
+  onToggleCounterclaim,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +135,20 @@ export function ContextMenu({
         >
           <Copy size={16} />
           Duplicate
+        </button>
+      )}
+
+      {/* Counterclaim toggle (connections only) */}
+      {elementType === 'connection' && onToggleCounterclaim && (
+        <button
+          onClick={() => {
+            onToggleCounterclaim();
+            onClose();
+          }}
+          className={menuItemClass}
+        >
+          <Slash size={16} />
+          {connectionType === 'counterclaim' ? 'Mark as support' : 'Mark as counterclaim'}
         </button>
       )}
 

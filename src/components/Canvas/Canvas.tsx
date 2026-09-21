@@ -130,6 +130,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     addConnection,
     removeElement,
     removeConnection,
+    setConnectionType,
     duplicateElements,
     bringToFront,
     sendToBack,
@@ -644,6 +645,17 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     }
   }, [contextMenu.elementId, contextMenu.elementType, removeElement, removeConnection]);
 
+  const contextConnection =
+    contextMenu.elementType === 'connection'
+      ? connections.find((c) => c.id === contextMenu.elementId)
+      : undefined;
+
+  const handleContextMenuToggleCounterclaim = useCallback(() => {
+    const conn = connections.find((c) => c.id === contextMenu.elementId);
+    if (!conn) return;
+    setConnectionType(conn.id, conn.type === 'counterclaim' ? 'support' : 'counterclaim');
+  }, [contextMenu.elementId, connections, setConnectionType]);
+
   const handleContextMenuBringToFront = useCallback(() => {
     if (contextMenu.elementId) {
       bringToFront(contextMenu.elementId);
@@ -1060,6 +1072,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
               onSelect={(e) => handleConnectionSelect(connection.id, e)}
               onArrowClick={handleArrowClick}
               onHover={handleArrowHover}
+              onContextMenu={(e) => handleContextMenu(connection.id, 'connection', e)}
             />
           ))}
 
@@ -1185,6 +1198,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           onDelete={handleContextMenuDelete}
           onBringToFront={handleContextMenuBringToFront}
           onSendToBack={handleContextMenuSendToBack}
+          connectionType={contextConnection?.type}
+          onToggleCounterclaim={contextConnection ? handleContextMenuToggleCounterclaim : undefined}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
           onChangeSupportContributor={contextMenu.elementType === 'support' ? handleContextMenuChangeSupportContributor : undefined}
           onConvertToArgument={
