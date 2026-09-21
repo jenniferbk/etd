@@ -15,6 +15,9 @@
 //
 //   - Both roles can be active at once → "data+warrant".
 //
+//   - Counterclaim connections are ignored entirely: they mark conflict, not
+//     inference, so they never change a claim's derived role.
+//
 // Removing the relevant outgoing connection reverts the claim to "plain".
 // Storage is unchanged — argumentType stays 'claim'; the role is computed
 // at render time.
@@ -36,6 +39,9 @@ export function getClaimRole(
 
   for (const c of connections) {
     if (c.from !== claim.id) continue;
+    // A counterclaim is a symmetric "these two claims conflict" mark, not an
+    // inference — it never makes the source a data- or warrant-claim.
+    if (c.type === 'counterclaim') continue;
     if (isArrowAttachment(c.to)) {
       asWarrant = true;
     } else {

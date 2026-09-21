@@ -97,6 +97,35 @@ describe('getClaimRole', () => {
   });
 });
 
+describe('getClaimRole ignores counterclaim links', () => {
+  it('a claim→claim counterclaim does not make the source a data-claim', () => {
+    const c1 = claim('1');
+    const c2 = claim('2');
+    const conns: Connection[] = [{ id: 'cc', from: '1', to: '2', type: 'counterclaim' }];
+    expect(getClaimRole(c1, conns, elementsById([c1, c2]))).toBe('plain');
+  });
+
+  it('a counterclaim attached to a line does not make the source a warrant-claim', () => {
+    const c1 = claim('1');
+    const conns: Connection[] = [
+      elemConn('base', 'd', 'x'),
+      { id: 'cc', from: '1', to: { connectionId: 'base', position: 0.5 }, type: 'counterclaim' },
+    ];
+    expect(getClaimRole(c1, conns, elementsById([c1]))).toBe('plain');
+  });
+
+  it('a support link alongside a counterclaim still derives the role from the support link', () => {
+    const c1 = claim('1');
+    const c2 = claim('2');
+    const c3 = claim('3');
+    const conns: Connection[] = [
+      { id: 'cc', from: '1', to: '2', type: 'counterclaim' },
+      elemConn('s', '1', '3'),
+    ];
+    expect(getClaimRole(c1, conns, elementsById([c1, c2, c3]))).toBe('data');
+  });
+});
+
 describe('deriveClaimLabel', () => {
   it('returns the input label unchanged when role is plain', () => {
     expect(deriveClaimLabel('Claim 1', 'plain')).toBe('Claim 1');
