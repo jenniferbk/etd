@@ -375,6 +375,7 @@ These are NOT required for initial release but noted for potential future develo
 9. **Desktop App** - Locally installed editor (macOS/Windows) that runs fully offline and can optionally connect to a group library server (team request, 2026-09-21)
 10. **Custom File Extension** - Save diagrams under an ETD-specific extension registered to the desktop app, so double-clicking a file opens it in the editor (team request, 2026-09-21)
 11. **Resizable Embedded Images** - Images embedded in elements are fixed-size today (`imageSettings.scale` caps at 1.0); allow resizing them (team request, 2026-09-21; design pending)
+12. **Straighter Auto-Routing** - Auto-routed connectors sometimes carry an unnecessary jog (a small `_|-` turn); eliminate these algorithmically where possible, with a click-to-straighten fallback (team request, 2026-09-21; example pictures to follow; design pending)
 
 ---
 
