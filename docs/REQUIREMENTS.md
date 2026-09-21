@@ -296,6 +296,8 @@ Primary use case: Screenshots from classroom video
 }
 ```
 
+**Since 1.7 — `notes`:** an optional top-level array of analytic notes `{ id, text, author?, createdAt, updatedAt?, anchor?: { kind: 'element' | 'connection', id } }`. Notes are researcher memos: they save with the diagram (and with every library version) but are never drawn in PNG/SVG/PDF/DiagramMix exports. A note whose anchored item was deleted is kept and shown as detached.
+
 ### 6.2 Export Formats
 
 | Format | Use Case | Notes |
@@ -468,6 +470,7 @@ The editor is complete when a user can:
 | Select All | Cmd/Ctrl + A |
 | Deselect | Escape |
 | Connect mode | C |
+| Toggle notes panel | N |
 | Zoom In | Cmd/Ctrl + Plus |
 | Zoom Out | Cmd/Ctrl + Minus |
 | Zoom to Fit | Cmd/Ctrl + 0 |
