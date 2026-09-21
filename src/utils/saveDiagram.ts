@@ -2,7 +2,7 @@
 // the toolbar Save button. Routes through saveFile() so it gets the native
 // save dialog where available.
 
-import type { Connection, DiagramElement, StyleConfig, Transcript } from '../types';
+import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../types';
 import { SAVE_SCHEMA_VERSION } from './schema';
 import { saveFile } from './saveFile';
 
@@ -22,6 +22,7 @@ export interface DiagramSnapshot {
   connections: Connection[];
   styleConfig: StyleConfig;
   transcript: Transcript | null;
+  notes: AnalyticNote[];
 }
 
 export function buildDiagramFile(snapshot: DiagramSnapshot) {
@@ -32,6 +33,7 @@ export function buildDiagramFile(snapshot: DiagramSnapshot) {
     connections: snapshot.connections,
     styleConfig: snapshot.styleConfig,
     transcript: snapshot.transcript,
+    notes: snapshot.notes,
   };
 }
 

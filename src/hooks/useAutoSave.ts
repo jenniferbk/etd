@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useDiagramStore } from '../store';
 import { useCloudStore } from '../store/cloudStore';
-import type { Transcript, StyleConfig } from '../types';
+import type { Transcript, StyleConfig, AnalyticNote } from '../types';
 
 const AUTO_SAVE_KEY = 'toulmin-diagram-autosave';
 const AUTO_SAVE_INTERVAL = 60000; // 60 seconds
@@ -16,6 +16,8 @@ interface AutoSaveData {
   // Optional: autosave entries written before the title was tracked lack this
   // field. Recovery falls back to the store default ("Untitled Diagram").
   diagramName?: string;
+  // Optional: autosave entries written before notes existed lack this field.
+  notes?: AnalyticNote[];
   timestamp: number;
 }
 
@@ -33,13 +35,14 @@ export function useAutoSave() {
       const state = useDiagramStore.getState();
 
       // Save if there's any work in progress: diagram content or a loaded transcript.
-      if (state.elements.length > 0 || state.connections.length > 0 || state.transcript !== null) {
+      if (state.elements.length > 0 || state.connections.length > 0 || state.transcript !== null || state.notes.length > 0) {
         const data: AutoSaveData = {
           elements: state.elements,
           connections: state.connections,
           transcript: state.transcript,
           styleConfig: state.styleConfig,
           diagramName: state.diagramName,
+          notes: state.notes,
           timestamp: Date.now(),
         };
 

@@ -26,7 +26,7 @@ import { useCloudStore } from './store/cloudStore';
 // drop the user onto the canvas as-is, or send them to the Workspace gallery).
 function hasWork(): boolean {
   const d = useDiagramStore.getState();
-  return d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null;
+  return d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null || d.notes.length > 0;
 }
 
 function App() {
@@ -126,7 +126,8 @@ function App() {
       saved &&
       (saved.elements.length > 0 ||
         saved.connections.length > 0 ||
-        saved.transcript != null) // Loose equality: older autosave entries (pre-Task-3) lack `transcript`, so saved.transcript may be undefined rather than null.
+        saved.transcript != null || // Loose equality: older autosave entries (pre-Task-3) lack `transcript`, so saved.transcript may be undefined rather than null.
+        (saved.notes?.length ?? 0) > 0)
     ) {
       setRecoveryData({ timestamp: saved.timestamp });
     }
@@ -152,7 +153,7 @@ function App() {
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
     if (saved) {
-      loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig);
+      loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig, saved.notes);
       useCloudStore.getState().clearCloudTarget();
       // Recovered work must be immediately visible — otherwise it loads
       // invisibly behind the Workspace gallery and a stray card click can
@@ -288,7 +289,7 @@ function App() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig);
+          loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes);
           useCloudStore.getState().clearCloudTarget();
         }
       } catch (err) {

@@ -25,6 +25,7 @@ describe('buildDiagramFile', () => {
       connections: [],
       styleConfig: {} as never,
       transcript: null,
+      notes: [],
     });
     expect(file).toEqual({
       version: SAVE_SCHEMA_VERSION,
@@ -33,6 +34,7 @@ describe('buildDiagramFile', () => {
       connections: [],
       styleConfig: {},
       transcript: null,
+      notes: [],
     });
   });
 });

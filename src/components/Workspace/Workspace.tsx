@@ -8,7 +8,7 @@ import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { importDrawingFile } from '../../utils/drawingImporter';
-import type { Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
 import { PeoplePage } from './PeoplePage';
@@ -90,7 +90,7 @@ export function Workspace() {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
             useDiagramStore.getState().loadDiagram(
-              data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig,
+              data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes,
             );
             useCloudStore.getState().clearCloudTarget();
             useCloudStore.getState().setView('canvas');
@@ -127,6 +127,7 @@ export function Workspace() {
         d.title,
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
+        (snap.notes ?? []) as AnalyticNote[],
       );
       useCloudStore.getState().setCloudTarget(d.id, d.groupId, d.currentVersionId);
       useCloudStore.getState().setView('canvas');

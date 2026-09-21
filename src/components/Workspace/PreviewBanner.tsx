@@ -8,7 +8,7 @@ import { useToastStore } from '../../store/toastStore';
 import { saveToLibrary } from '../../hooks/librarySave';
 import { theme } from '../../utils/theme';
 import type { CloudDiagram } from '../../api/types';
-import type { Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
 
 function formatPreviewDate(iso: string): string {
   return new Date(iso + 'Z').toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
@@ -56,6 +56,7 @@ export function PreviewBanner() {
         snap.name,
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
+        (snap.notes ?? []) as AnalyticNote[],
       );
       // setCloudTarget sets status back to 'saved' in one step — cleanest
       // way to land back on the editable head. preview is cleared last so

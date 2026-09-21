@@ -60,4 +60,18 @@ describe('startDirtyTracking', () => {
     expect(useCloudStore.getState().status).toBe('saved');
     useCloudStore.setState({ preview: null });
   });
+
+  it('marks saved → dirty when a note is added', () => {
+    stop = startDirtyTracking();
+    useDiagramStore.getState().addNote({ text: 'memo' });
+    expect(useCloudStore.getState().status).toBe('dirty');
+  });
+
+  it('does not increment getEditTick when the notes panel is toggled', () => {
+    stop = startDirtyTracking();
+    const before = getEditTick();
+    useDiagramStore.getState().setNotesPanelOpen(true);
+    expect(getEditTick()).toBe(before);
+    useDiagramStore.getState().setNotesPanelOpen(false);
+  });
 });

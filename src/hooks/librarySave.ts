@@ -25,6 +25,7 @@ export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<voi
       connections: d.connections,
       styleConfig: d.styleConfig,
       transcript: d.transcript,
+      notes: d.notes,
     });
     return;
   }

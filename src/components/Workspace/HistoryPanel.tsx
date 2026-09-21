@@ -10,7 +10,7 @@ import { saveToLibrary } from '../../hooks/librarySave';
 import { theme } from '../../utils/theme';
 import { relativeTime } from '../../utils/relativeTime';
 import type { DiagramVersionListItem, DiagramVersion } from '../../api/types';
-import type { Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
 
 /** Right-side panel (mirrors TranscriptPanel's conventions) listing a
  *  diagram's saved versions. Clicking a row loads that version read-only
@@ -72,6 +72,7 @@ export function HistoryPanel() {
         snap.name,
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
+        (snap.notes ?? []) as AnalyticNote[],
       );
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));
@@ -91,7 +92,7 @@ export function HistoryPanel() {
 
     const status = useCloudStore.getState().status;
     const d = useDiagramStore.getState();
-    const hasContent = d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null;
+    const hasContent = d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null || d.notes.length > 0;
     const needsSaveFirst =
       status === 'dirty' || status === 'offline' || (status === 'notInLibrary' && hasContent);
 

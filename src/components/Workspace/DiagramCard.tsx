@@ -13,7 +13,7 @@ import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { saveDiagramJson } from '../../utils/saveDiagram';
 import { relativeTime } from '../../utils/relativeTime';
-import type { Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
 
 interface DiagramCardProps {
   item: DiagramListItem;
@@ -114,6 +114,7 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
         connections: snap.connections as Connection[],
         styleConfig: snap.styleConfig as StyleConfig,
         transcript: (snap.transcript ?? null) as Transcript | null,
+        notes: (snap.notes ?? []) as AnalyticNote[],
       });
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));

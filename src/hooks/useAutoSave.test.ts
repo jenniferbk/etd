@@ -43,4 +43,18 @@ describe('autosave persistence contract', () => {
     clearAutoSave();
     expect(getAutoSavedData()).toBeNull();
   });
+
+  it('round-trips notes through getAutoSavedData', () => {
+    const notes = [{ id: 'note-1', text: 'memo', createdAt: '2026-09-21T10:00:00.000Z' }];
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ elements: [], connections: [], transcript: null, notes, timestamp: 1 }),
+    );
+    expect(getAutoSavedData()?.notes).toEqual(notes);
+  });
+
+  it('leaves notes undefined for legacy entries (loadDiagram defaults to [])', () => {
+    localStorage.setItem(KEY, JSON.stringify({ elements: [], connections: [], transcript: null, timestamp: 1 }));
+    expect(getAutoSavedData()?.notes).toBeUndefined();
+  });
 });

@@ -34,6 +34,7 @@ export function startDirtyTracking(): () => void {
       state.connections !== prev.connections ||
       state.styleConfig !== prev.styleConfig ||
       state.transcript !== prev.transcript ||
+      state.notes !== prev.notes ||
       state.diagramName !== prev.diagramName
     ) {
       editTick += 1;

@@ -179,6 +179,7 @@ export function CanvasHeader() {
       connections: d.connections,
       styleConfig: d.styleConfig,
       transcript: d.transcript,
+      notes: d.notes,
     });
   };
 
@@ -207,7 +208,7 @@ export function CanvasHeader() {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
             useDiagramStore.getState().loadDiagram(
-              data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig,
+              data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes,
             );
             useCloudStore.getState().clearCloudTarget();
           } else {

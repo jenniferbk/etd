@@ -34,6 +34,7 @@ export interface SavedDiagramFile {
   connections: unknown[];
   styleConfig?: unknown;
   transcript?: unknown;
+  notes?: unknown[];
 }
 
 export interface CloudDiagram {
