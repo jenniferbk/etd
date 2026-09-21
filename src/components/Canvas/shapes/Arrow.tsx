@@ -3,7 +3,7 @@ import { Circle, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor, ArgumentElement } from '../../../types';
 import { isArrowAttachment, isArgumentElement } from '../../../types';
-import { computePolylineFor } from '../../../utils/connectionPath';
+import { computePolylineFor, counterclaimSlash, getConnectionPathPoints } from '../../../utils/connectionPath';
 import { useDiagramStore } from '../../../store';
 import {
   getEffectiveWaypoints,
@@ -16,7 +16,6 @@ import {
   pointerToAnchorT,
   offsetAlongLine,
 } from '../../../utils/orthogonalRouting';
-import { getConnectionPathPoints } from '../../../utils/connectionPath';
 
 const MIN_SEGMENT_PX = 4;
 const SNAP_THRESHOLD_PX = 6;
@@ -93,6 +92,7 @@ interface ArrowProps {
   onSelect: (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => void;
   onArrowClick?: (connectionId: string, position: number, point: { x: number; y: number }) => void;
   onHover?: (connectionId: string | null) => void;
+  onContextMenu?: (e: Konva.KonvaEventObject<PointerEvent>) => void;
 }
 
 // Resolve a connection to its rendered polyline points plus optional rendering
@@ -111,6 +111,7 @@ export function ConnectionArrow({
   onSelect,
   onArrowClick,
   onHover,
+  onContextMenu,
 }: ArrowProps) {
   const isAttachment = isArrowAttachment(connection.to);
 
@@ -381,6 +382,8 @@ export function ConnectionArrow({
   const { points: pathPoints } = pathResult;
   const attachmentStyle = pathResult.attachmentStyle ?? 'normal';
   const segments = getSegments(pathPoints);
+  const isCounterclaim = connection.type === 'counterclaim';
+  const slash = isCounterclaim ? counterclaimSlash(pathPoints) : null;
 
   const getStartWaypoints = (): Position[] => {
     const fromEl = elements.find((el) => el.id === connection.from);
@@ -604,6 +607,7 @@ export function ConnectionArrow({
           dash={attachmentStyle === 'warning' ? [4, 4] : undefined}
           opacity={attachmentStyle === 'warning' ? 0.6 : 1}
           onClick={handleArrowClick}
+          onContextMenu={onContextMenu}
           onTap={handleArrowClick}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
@@ -618,6 +622,7 @@ export function ConnectionArrow({
               stroke={strokeColor}
               strokeWidth={strokeWidth}
               onClick={handleArrowClick}
+              onContextMenu={onContextMenu}
               onTap={handleArrowClick}
               onMouseDown={(e) => handleSegmentDragStart(idx, e)}
               onTouchStart={(e) => handleSegmentDragStart(idx, e)}
@@ -760,7 +765,7 @@ export function ConnectionArrow({
       )}
 
       {/* Arrow head at the end */}
-      {!isAttachment && (
+      {!isAttachment && !isCounterclaim && (
         <Line
           points={[
             endX - arrowLength * Math.cos(arrowAngle - Math.PI / 6),
@@ -774,6 +779,18 @@ export function ConnectionArrow({
           strokeWidth={strokeWidth}
           fill={strokeColor}
           closed
+        />
+      )}
+
+      {/* Counterclaim marker — short slash across the polyline midpoint.
+          Same geometry as svgExport via counterclaimSlash. */}
+      {slash && (
+        <Line
+          points={slash}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
+          lineCap="round"
+          listening={false}
         />
       )}
 
