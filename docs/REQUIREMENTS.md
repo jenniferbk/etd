@@ -372,6 +372,8 @@ These are NOT required for initial release but noted for potential future develo
 6. **Cloud Storage** - Save/sync to Google Drive, Dropbox
 7. **Version History** - Track changes over time
 8. **Presentation Mode** - Step-through animation of argument construction
+9. **Desktop App** - Locally installed editor (macOS/Windows) that runs fully offline and can optionally connect to a group library server (team request, 2026-09-21)
+10. **Custom File Extension** - Save diagrams under an ETD-specific extension registered to the desktop app, so double-clicking a file opens it in the editor (team request, 2026-09-21)
 
 ---
 
