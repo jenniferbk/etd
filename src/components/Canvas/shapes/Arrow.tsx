@@ -19,6 +19,7 @@ import {
 
 const MIN_SEGMENT_PX = 4;
 const SNAP_THRESHOLD_PX = 6;
+const DRAG_THRESHOLD_PX = 3;
 
 // Collect snap candidate coordinates from all other connections' segments
 // matching the dragged segment's orientation. Pure helper — operates only on
@@ -126,6 +127,7 @@ export function ConnectionArrow({
     waypointIndexA: number | null;
     waypointIndexB: number | null;
     stage: Konva.Stage;
+    moved: boolean;
   } | null>(null);
 
   const updateConnectionWaypoints = useDiagramStore((s) => s.updateConnectionWaypoints);
@@ -173,6 +175,9 @@ export function ConnectionArrow({
 
       const dx = pointer.x - drag.startPointer.x;
       const dy = pointer.y - drag.startPointer.y;
+
+      if (!drag.moved && Math.abs(dx) + Math.abs(dy) < DRAG_THRESHOLD_PX) return;
+      drag.moved = true;
 
       const newWaypoints = drag.startWaypoints.map((wp) => ({ ...wp }));
 
@@ -235,7 +240,7 @@ export function ConnectionArrow({
 
     handlerRefs.current.up = () => {
       const drag = dragRef.current;
-      if (drag && dragOverride) {
+      if (drag && drag.moved && dragOverride) {
         updateConnectionWaypoints(connection.id, dragOverride);
       }
       dragRef.current = null;
@@ -253,7 +258,7 @@ export function ConnectionArrow({
     // commit the drag and tear down listeners — same logic as handleWindowUp.
     handlerRefs.current.blur = () => {
       const drag = dragRef.current;
-      if (drag && dragOverride) {
+      if (drag && drag.moved && dragOverride) {
         updateConnectionWaypoints(connection.id, dragOverride);
       }
       dragRef.current = null;
@@ -383,7 +388,7 @@ export function ConnectionArrow({
   const attachmentStyle = pathResult.attachmentStyle ?? 'normal';
   const segments = getSegments(pathPoints);
   const isCounterclaim = connection.type === 'counterclaim';
-  const slash = isCounterclaim ? counterclaimSlash(pathPoints) : null;
+  const slash = isCounterclaim && attachmentStyle !== 'warning' ? counterclaimSlash(pathPoints) : null;
 
   const getStartWaypoints = (): Position[] => {
     const fromEl = elements.find((el) => el.id === connection.from);
@@ -398,6 +403,7 @@ export function ConnectionArrow({
     e: Konva.KonvaEventObject<MouseEvent | TouchEvent>,
   ) => {
     if (connectModeActive || isAttachment) return;
+    if ('button' in e.evt && e.evt.button !== 0) return;
     e.cancelBubble = true;
 
     const stage = e.target.getStage();
@@ -420,6 +426,7 @@ export function ConnectionArrow({
       waypointIndexA,
       waypointIndexB,
       stage,
+      moved: false,
     };
 
     setDragOverride(startWaypoints);
