@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from 'react';
 import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
-import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor } from '../../types';
+import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
@@ -19,6 +19,11 @@ const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
 const SUPPORT_CONTRIBUTOR_TYPES: { value: SupportContributor; label: string }[] = [
   { value: 'teacher', label: 'Teacher' },
   { value: 'student', label: 'Student' },
+];
+
+const CONNECTION_TYPES: { value: ConnectionType; label: string }[] = [
+  { value: 'support', label: 'Support' },
+  { value: 'counterclaim', label: 'Counterclaim' },
 ];
 
 export function PropertiesPanel() {
@@ -44,6 +49,7 @@ export function PropertiesPanel() {
 
   const connections = useDiagramStore((s) => s.connections);
   const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);
+  const setConnectionType = useDiagramStore((s) => s.setConnectionType);
 
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
@@ -145,6 +151,39 @@ export function PropertiesPanel() {
         }}
       >
         <div className="flex items-center gap-4 h-full">
+          <div
+            role="radiogroup"
+            aria-label="Connection type"
+            className="flex rounded-md overflow-hidden border"
+            style={{ borderColor: theme.input.border }}
+            onClick={(e) => {
+              const target = (e.target as HTMLElement).closest('button[data-connection-type]');
+              if (target) {
+                setConnectionType(selectedConnection.id, target.getAttribute('data-connection-type') as ConnectionType);
+              }
+            }}
+          >
+            {CONNECTION_TYPES.map(({ value, label }) => {
+              const active = selectedConnection.type === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  data-connection-type={value}
+                  className="px-3 py-1.5 text-sm transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                  style={{
+                    backgroundColor: active ? theme.sidebar.accent : theme.input.bg,
+                    color: active ? theme.sidebar.accentText : theme.input.text,
+                    outlineColor: theme.focus.ring,
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
           <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
             Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
           </span>
