@@ -11,7 +11,8 @@ function claim(id: string, x: number): ArgumentElement {
   };
 }
 
-const slashCount = (svg: string) => (svg.match(/stroke-linecap="round"/g) ?? []).length;
+const slashCount = (svg: string) =>
+  (svg.match(/<line x1="[-\d.]+" y1="[-\d.]+" x2="[-\d.]+" y2="[-\d.]+" stroke="#333333" stroke-width="2" stroke-linecap="round"\/>/g) ?? []).length;
 
 describe('exportToSvg connections', () => {
   const els = [claim('1', 0), claim('2', 400)];
@@ -28,7 +29,6 @@ describe('exportToSvg connections', () => {
     const svg = exportToSvg(els, conns, createCurrentDefaults());
     expect(svg).not.toContain('marker-end=');
     expect(slashCount(svg)).toBe(1);
-    expect(svg).toMatch(/<line x1="[-\d.]+" y1="[-\d.]+" x2="[-\d.]+" y2="[-\d.]+" stroke="#333333" stroke-width="2" stroke-linecap="round"\/>/);
   });
 
   it('a counterclaim attached to another line also gets the slash', () => {

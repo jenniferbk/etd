@@ -152,7 +152,7 @@ export function PropertiesPanel() {
       >
         <div className="flex items-center gap-4 h-full">
           <div
-            role="radiogroup"
+            role="group"
             aria-label="Connection type"
             className="flex rounded-md overflow-hidden border"
             style={{ borderColor: theme.input.border }}
@@ -170,8 +170,7 @@ export function PropertiesPanel() {
                 <button
                   key={value}
                   type="button"
-                  role="radio"
-                  aria-checked={active}
+                  aria-pressed={active}
                   data-connection-type={value}
                   className="px-3 py-1.5 text-sm transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={{

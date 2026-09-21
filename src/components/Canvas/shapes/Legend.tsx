@@ -2,6 +2,7 @@ import { Group, Rect, Text, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { DiagramElement, ArgumentElement, TeacherSupportElement, SupportElement, Connection } from '../../../types';
 import { COLORS, getTeacherSupportColors, getSupportColors } from '../../../utils/colors';
+import { counterclaimSlash } from '../../../utils/connectionPath';
 
 interface LegendProps {
   elements: DiagramElement[];
@@ -255,10 +256,7 @@ export function Legend({ elements, connections, position, onDragEnd }: LegendPro
                   strokeWidth={2}
                 />
                 <Line
-                  points={[
-                    padding + swatchWidth / 2 - 3, swatchHeight / 2 + 5,
-                    padding + swatchWidth / 2 + 3, swatchHeight / 2 - 5,
-                  ]}
+                  points={counterclaimSlash([padding, swatchHeight / 2, padding + swatchWidth, swatchHeight / 2]) ?? []}
                   stroke={item.color}
                   strokeWidth={2}
                   lineCap="round"
