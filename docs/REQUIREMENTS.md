@@ -100,6 +100,7 @@ Each element contains:
 | Arrow Type | Style | Color | Use |
 |------------|-------|-------|-----|
 | Standard Support | Solid line, filled arrowhead | Black | Data→Claim, Warrant→Claim, etc. |
+| Counterclaim | Solid line, **no** arrowhead, short slash (/) at the midpoint | Black | Two claims that counter each other (symmetric; does not change either claim's derived role) |
 
 ### 3.2 Connection Rules
 - Arrows originate from: Data, Warrant, Backing, Claim (when serving as data)
