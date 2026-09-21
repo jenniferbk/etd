@@ -11,7 +11,7 @@ import {
 } from './orthogonalRouting';
 import { computeExportBounds } from './exportBounds';
 import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
-import { computePolylineFor } from './connectionPath';
+import { computePolylineFor, counterclaimSlash } from './connectionPath';
 import { saveFile } from './saveFile';
 
 interface SvgExportOptions {
@@ -415,16 +415,24 @@ function renderConnectionSvg(
   }
   const pointsAttr = offsetPoints.join(' ');
 
+  const isCounterclaim = conn.type === 'counterclaim';
+  const slash = isCounterclaim ? counterclaimSlash(points) : null;
+  const slashSvg = slash
+    ? `<line x1="${slash[0] + offsetX}" y1="${slash[1] + offsetY}" x2="${slash[2] + offsetX}" y2="${slash[3] + offsetY}" stroke="#333333" stroke-width="2" stroke-linecap="round"/>`
+    : '';
+
   // Warrant-attachment connections render no arrowhead (matches Arrow.tsx).
   // Warning-state attachments render dashed and faint to signal "no valid attachment".
   if (isArrowAttachment(conn.to)) {
     if (attachmentStyle === 'warning') {
       return `<polyline points="${pointsAttr}" stroke="#A0A0A0" stroke-width="1" stroke-dasharray="4,4" opacity="0.6" fill="none"/>`;
     }
-    return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"/>`;
+    return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"/>${slashSvg}`;
   }
 
-  return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none" marker-end="url(#arrowhead)"/>`;
+  // Counterclaims are symmetric: no arrowhead, slash at the midpoint.
+  const markerEnd = isCounterclaim ? '' : ' marker-end="url(#arrowhead)"';
+  return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"${markerEnd}/>${slashSvg}`;
 }
 
 
