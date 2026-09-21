@@ -1170,6 +1170,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           {legendConfig.visible && (
             <Legend
               elements={elements}
+              connections={connections}
               position={legendConfig.position}
               onDragEnd={moveLegend}
             />

@@ -1,10 +1,11 @@
 import { Group, Rect, Text, Line } from 'react-konva';
 import type Konva from 'konva';
-import type { DiagramElement, ArgumentElement, TeacherSupportElement, SupportElement } from '../../../types';
+import type { DiagramElement, ArgumentElement, TeacherSupportElement, SupportElement, Connection } from '../../../types';
 import { COLORS, getTeacherSupportColors, getSupportColors } from '../../../utils/colors';
 
 interface LegendProps {
   elements: DiagramElement[];
+  connections: Connection[];
   position: { x: number; y: number };
   onDragEnd: (position: { x: number; y: number }) => void;
 }
@@ -16,9 +17,10 @@ interface LegendItem {
   isDashed?: boolean;
   isCloud?: boolean;
   isEllipse?: boolean;
+  isLine?: boolean;
 }
 
-export function Legend({ elements, position, onDragEnd }: LegendProps) {
+export function Legend({ elements, connections, position, onDragEnd }: LegendProps) {
   // Analyze elements to determine which legend items to show
   const legendItems: LegendItem[] = [];
 
@@ -152,6 +154,15 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
     });
   }
 
+  // Connection marks
+  if (connections.some((c) => c.type === 'counterclaim')) {
+    legendItems.push({
+      label: 'Counterclaim',
+      color: '#000000',
+      isLine: true,
+    });
+  }
+
   // Don't render if no items
   if (legendItems.length === 0) {
     return null;
@@ -233,6 +244,24 @@ export function Legend({ elements, position, onDragEnd }: LegendProps) {
                   stroke={item.color}
                   strokeWidth={1.5}
                   tension={0.5}
+                />
+              </>
+            ) : item.isLine ? (
+              // Line with a midpoint slash for counterclaim connections
+              <>
+                <Line
+                  points={[padding, swatchHeight / 2, padding + swatchWidth, swatchHeight / 2]}
+                  stroke={item.color}
+                  strokeWidth={2}
+                />
+                <Line
+                  points={[
+                    padding + swatchWidth / 2 - 3, swatchHeight / 2 + 5,
+                    padding + swatchWidth / 2 + 3, swatchHeight / 2 - 5,
+                  ]}
+                  stroke={item.color}
+                  strokeWidth={2}
+                  lineCap="round"
                 />
               </>
             ) : (
