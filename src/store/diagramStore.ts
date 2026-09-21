@@ -659,7 +659,7 @@ export const useDiagramStore = create<DiagramState>()(
           selectedIds: [],
           diagramName: name || 'Untitled Diagram',
           transcript: transcript ?? null,
-          notes: notes ?? [],
+          notes: Array.isArray(notes) ? notes : [],
           // v1.2 files have no styleConfig — apply the FROZEN migration defaults.
           // v1.3/v1.4 files have the old `otherSubtypes` shape; normalize moves it
           // into `subtypes.other` and seeds empty action/question buckets.

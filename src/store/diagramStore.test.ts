@@ -300,6 +300,13 @@ describe('analytic notes', () => {
     expect(useDiagramStore.getState().notes).toEqual(loaded);
   });
 
+  it('loadDiagram ignores a non-array notes value from a hand-edited file', () => {
+    useDiagramStore.getState().loadDiagram([], [], 'Untitled', null, undefined, 'junk' as unknown as AnalyticNote[]);
+    expect(useDiagramStore.getState().notes).toEqual([]);
+    useDiagramStore.getState().loadDiagram([], [], 'Untitled', null, undefined, {} as unknown as AnalyticNote[]);
+    expect(useDiagramStore.getState().notes).toEqual([]);
+  });
+
   it('setNotesPanelOpen toggles the panel flag', () => {
     useDiagramStore.getState().setNotesPanelOpen(true);
     expect(useDiagramStore.getState().notesPanelOpen).toBe(true);

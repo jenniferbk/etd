@@ -333,6 +333,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
             />
             <IconButton
               onClick={() => setNotesPanelOpen(!notesPanelOpen)}
+              disabled={preview !== null}
               icon={StickyNote}
               tooltip="Notes"
               shortcut="N"

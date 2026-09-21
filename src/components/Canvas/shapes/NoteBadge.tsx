@@ -19,7 +19,23 @@ export function NoteBadge({ x, y, count, onClick }: NoteBadgeProps) {
   };
   const width = count > 1 ? 18 : 14;
   return (
-    <Group x={x} y={y} name={NOTE_BADGE_NAME} onClick={handle} onTap={handle}>
+    <Group
+      x={x}
+      y={y}
+      name={NOTE_BADGE_NAME}
+      onClick={handle}
+      onTap={handle}
+      onDblClick={handle}
+      onDblTap={handle}
+      onMouseEnter={(e) => {
+        const stage = e.target.getStage();
+        if (stage) stage.container().style.cursor = 'pointer';
+      }}
+      onMouseLeave={(e) => {
+        const stage = e.target.getStage();
+        if (stage) stage.container().style.cursor = 'default';
+      }}
+    >
       <Rect
         width={width}
         height={14}

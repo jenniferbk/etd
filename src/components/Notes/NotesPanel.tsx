@@ -39,8 +39,10 @@ export function NotesPanel() {
     () => [...notes].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [notes],
   );
-  const onSelection = selection ? sorted.filter((n) => n.anchor?.id === selection.id) : [];
-  const others = selection ? sorted.filter((n) => n.anchor?.id !== selection.id) : sorted;
+  const isOnSelection = (n: AnalyticNote) =>
+    !!selection && n.anchor?.kind === selection.kind && n.anchor.id === selection.id;
+  const onSelection = selection ? sorted.filter(isOnSelection) : [];
+  const others = selection ? sorted.filter((n) => !isOnSelection(n)) : sorted;
 
   const handleAdd = (text: string, anchor: NoteAnchor | undefined) => {
     addNote({ text, anchor, author: displayName ?? undefined });
@@ -91,7 +93,11 @@ export function NotesPanel() {
         <h2 className="font-semibold text-sm uppercase tracking-wider" style={{ color: theme.sidebar.text }}>
           Notes
           {notes.length > 0 && (
-            <span className="ml-2 font-normal" style={{ color: theme.sidebar.textSecondary }}>
+            <span
+              className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums"
+              style={{ backgroundColor: theme.sidebar.surfaceActive, color: theme.sidebar.textSecondary }}
+              aria-label={`${notes.length} notes`}
+            >
               {notes.length}
             </span>
           )}
