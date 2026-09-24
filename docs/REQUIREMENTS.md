@@ -377,8 +377,9 @@ These are NOT required for initial release but noted for potential future develo
 8. **Presentation Mode** - Step-through animation of argument construction
 9. **Desktop App** - Locally installed editor (macOS/Windows) that runs fully offline and can optionally connect to a group library server (team request, 2026-09-21)
 10. **Custom File Extension** - Save diagrams under an ETD-specific extension registered to the desktop app, so double-clicking a file opens it in the editor (team request, 2026-09-21)
-11. **Resizable Embedded Images** - Images embedded in elements are fixed-size today (`imageSettings.scale` caps at 1.0); allow resizing them (team request, 2026-09-21; design pending)
+11. **Resizable Embedded Images** - ~~Images embedded in elements are fixed-size today~~ **Shipped 2026-09-24:** the Scale slider goes to 300% and the element widens to fit (team request, 2026-09-21)
 12. **Straighter Auto-Routing** - Auto-routed connectors sometimes carry an unnecessary jog (a small `_|-` turn); eliminate these algorithmically where possible, with a click-to-straighten fallback (team request, 2026-09-21; example pictures to follow; design pending)
+13. **Workspace Management** - As the shared library grows: folders to organize diagrams; Finder-style display modes (thumbnail grid as today, plus a details/list view with sortable columns such as title, last edited, editor, versions); and search across diagram titles (team request, 2026-09-24; not scheduled; design pending)
 
 ---
 
