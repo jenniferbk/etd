@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export type LibrarySaveStatus = 'saved' | 'dirty' | 'saving' | 'notInLibrary' | 'offline';
 export type AppView = 'workspace' | 'canvas';
-export type WorkspaceTab = 'diagrams' | 'people';
+export type WorkspaceTab = 'diagrams' | 'people' | 'trash';
 
 /** Tracks which library diagram (if any) the canvas corresponds to, plus the
  *  signed-in app view and the save-status state machine shown in the canvas

@@ -136,6 +136,15 @@ describe('saveToLibrary', () => {
     expect(s.addToLibraryOpen).toBe(true);
   });
 
+  it('recovers from a 410 (moved to trash) the same way, with a trash-specific message', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ error: 'this diagram is in the trash' }, 410));
+    await saveToLibrary();
+    const s = useCloudStore.getState();
+    expect(s.diagramId).toBeNull();
+    expect(s.addToLibraryOpen).toBe(true);
+    expect(useToastStore.getState().toasts.some((t) => t.message.includes('moved this diagram to the trash'))).toBe(true);
+  });
+
   it('goes offline on network failure without a toast', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
     await saveToLibrary();

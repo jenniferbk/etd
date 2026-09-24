@@ -71,5 +71,19 @@ export function openDb(path: string): Db {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+// Additive, idempotent migrations for databases created by an older SCHEMA
+// (CREATE TABLE IF NOT EXISTS never alters an existing table).
+function migrate(db: Db): void {
+  const diagramCols = new Set(
+    (db.prepare('PRAGMA table_info(diagrams)').all() as { name: string }[]).map((c) => c.name),
+  );
+  // Trash: a non-null deleted_at means the diagram is in its group's trash.
+  if (!diagramCols.has('deleted_at')) db.exec('ALTER TABLE diagrams ADD COLUMN deleted_at TEXT');
+  if (!diagramCols.has('deleted_by')) {
+    db.exec('ALTER TABLE diagrams ADD COLUMN deleted_by INTEGER REFERENCES users(id)');
+  }
 }

@@ -14,6 +14,7 @@ interface DiagramRow {
   title: string;
   current_version_id: number;
   updated_at: string;
+  deleted_at: string | null;
 }
 
 export function diagramRoutes(db: Db): Router {
@@ -31,8 +32,11 @@ export function diagramRoutes(db: Db): Router {
     return versionId;
   }
 
+  // Trashed diagrams answer 410 on every route except the trash routes,
+  // which pass allowTrashed.
   function getDiagramForMember(
     req: import('express').Request, res: import('express').Response,
+    { allowTrashed = false }: { allowTrashed?: boolean } = {},
   ): DiagramRow | null {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -46,6 +50,10 @@ export function diagramRoutes(db: Db): Router {
     }
     if (getRole(db, req.user!.id, row.group_id) === null) {
       res.status(403).json({ error: 'not a member of this diagram\'s group' });
+      return null;
+    }
+    if (row.deleted_at !== null && !allowTrashed) {
+      res.status(410).json({ error: 'this diagram is in the trash' });
       return null;
     }
     return row;
@@ -93,7 +101,7 @@ export function diagramRoutes(db: Db): Router {
          FROM diagrams d
          JOIN diagram_versions cv ON cv.id = d.current_version_id
          JOIN users u ON u.id = cv.author_id
-         WHERE d.group_id = ?
+         WHERE d.group_id = ? AND d.deleted_at IS NULL
          ORDER BY d.updated_at DESC, d.id DESC`,
       )
       .all(groupId);
@@ -195,6 +203,23 @@ export function diagramRoutes(db: Db): Router {
     res.json({ ok: true });
   });
 
+  function requireMemberOfGroup(
+    req: import('express').Request, res: import('express').Response,
+  ): number | null {
+    const groupId = Number(req.params.id);
+    if (!Number.isInteger(groupId)) {
+      res.status(400).json({ error: 'invalid group id' });
+      return null;
+    }
+    if (getRole(db, req.user!.id, groupId) === null) {
+      res.status(403).json({ error: 'not a member of this group' });
+      return null;
+    }
+    return groupId;
+  }
+
+  // Delete = move to the group's trash. Versions and comments are kept so
+  // the diagram can be restored intact.
   router.delete('/diagrams/:id', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;
@@ -202,6 +227,54 @@ export function diagramRoutes(db: Db): Router {
     const isGroupAdmin = getRole(db, req.user!.id, row.group_id) === 'admin';
     if (!isCreator && !isGroupAdmin && !req.user!.isSiteAdmin) {
       res.status(403).json({ error: 'only the creator or a group admin can delete a diagram' });
+      return;
+    }
+    db.prepare(`UPDATE diagrams SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?`).run(
+      req.user!.id, row.id,
+    );
+    res.status(204).end();
+  });
+
+  router.get('/groups/:id/trash', (req, res) => {
+    const groupId = requireMemberOfGroup(req, res);
+    if (groupId === null) return;
+    const rows = db
+      .prepare(
+        `SELECT d.id, d.title, d.deleted_at AS deletedAt, u.display_name AS deletedBy,
+                (SELECT COUNT(*) FROM diagram_versions v WHERE v.diagram_id = d.id) AS versionCount
+         FROM diagrams d
+         LEFT JOIN users u ON u.id = d.deleted_by
+         WHERE d.group_id = ? AND d.deleted_at IS NOT NULL
+         ORDER BY d.deleted_at DESC, d.id DESC`,
+      )
+      .all(groupId);
+    res.json(rows);
+  });
+
+  // Any group member may restore — restoring can't lose data.
+  router.post('/diagrams/:id/restore', (req, res) => {
+    const row = getDiagramForMember(req, res, { allowTrashed: true });
+    if (!row) return;
+    if (row.deleted_at === null) {
+      res.status(409).json({ error: 'this diagram is not in the trash' });
+      return;
+    }
+    db.prepare('UPDATE diagrams SET deleted_at = NULL, deleted_by = NULL WHERE id = ?').run(row.id);
+    res.json({ ok: true });
+  });
+
+  // Permanent erase: group admins and site admins only, and only for a
+  // diagram already in the trash.
+  router.delete('/diagrams/:id/permanent', (req, res) => {
+    const row = getDiagramForMember(req, res, { allowTrashed: true });
+    if (!row) return;
+    const isGroupAdmin = getRole(db, req.user!.id, row.group_id) === 'admin';
+    if (!isGroupAdmin && !req.user!.isSiteAdmin) {
+      res.status(403).json({ error: 'only a group admin can permanently delete a diagram' });
+      return;
+    }
+    if (row.deleted_at === null) {
+      res.status(409).json({ error: 'move this diagram to the trash first' });
       return;
     }
     db.transaction(() => {

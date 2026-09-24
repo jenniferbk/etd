@@ -13,6 +13,7 @@ import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript 
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
 import { PeoplePage } from './PeoplePage';
+import { TrashPage } from './TrashPage';
 
 /** Card-gallery home view — the landing page for a signed-in user, before
  *  they've opened any particular diagram onto the canvas. App renders this
@@ -51,10 +52,12 @@ export function Workspace() {
     }
   }, [effectiveGroupId]);
 
-  // Fetch on mount and whenever the effective group changes.
+  // Fetch on mount, whenever the effective group changes, and on returning
+  // to the Diagrams tab (a restore from Trash must show up without a reload).
   useEffect(() => {
+    if (workspaceTab !== 'diagrams') return;
     void (async () => { await refresh(); })();
-  }, [refresh]);
+  }, [refresh, workspaceTab]);
 
   const handleNewDiagram = () => {
     useDiagramStore.getState().clearDiagram();
@@ -157,6 +160,8 @@ export function Workspace() {
 
       {workspaceTab === 'people' ? (
         effectiveGroupId !== null && <PeoplePage groupId={effectiveGroupId} groupName={selectedGroup?.name ?? ''} />
+      ) : workspaceTab === 'trash' ? (
+        effectiveGroupId !== null && <TrashPage groupId={effectiveGroupId} />
       ) : (
         <div className="max-w-5xl w-full mx-auto px-6 py-8 flex-1">
           <div className="flex items-center gap-3 mb-8">

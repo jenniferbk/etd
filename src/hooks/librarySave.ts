@@ -78,10 +78,17 @@ export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<voi
       }
       return;
     }
-    if (err instanceof ApiError && err.status === 404) {
+    if (err instanceof ApiError && (err.status === 404 || err.status === 410)) {
+      // 410 = someone moved it to the trash while it was open here. Either
+      // way the local edits are kept and offered as a new library diagram.
       const c = useCloudStore.getState();
       c.clearCloudTarget();
-      useToastStore.getState().addToast('info', 'That diagram was removed from the library — save it as new.');
+      useToastStore.getState().addToast(
+        'info',
+        err.status === 410
+          ? 'Someone moved this diagram to the trash — save your work as a new diagram, or restore the original from the Trash tab.'
+          : 'That diagram was removed from the library — save it as new.',
+      );
       c.setAddToLibraryOpen(true);
       return;
     }

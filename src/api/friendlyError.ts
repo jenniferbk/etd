@@ -12,6 +12,10 @@ const MESSAGE_MAP: Record<string, string> = {
     "That email and password don't match — try again, or ask your group admin to reset your password.",
   'only the creator or a group admin can delete a diagram':
     'Only the person who created this diagram or a group admin can delete it.',
+  'this diagram is in the trash':
+    'This diagram was moved to the trash. Restore it from the Trash tab to keep working on it.',
+  'only a group admin can permanently delete a diagram':
+    'Only a group admin can permanently delete a diagram.',
 };
 
 export function friendlyError(

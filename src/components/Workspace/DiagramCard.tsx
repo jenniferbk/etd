@@ -123,9 +123,9 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
 
   const handleDelete = async () => {
     const ok = await confirmAsync({
-      title: 'Delete diagram',
-      message: `Delete "${item.title}" from the shared library? All of its versions will be removed.`,
-      confirmLabel: 'Delete',
+      title: 'Move to trash',
+      message: `Move "${item.title}" to the trash? Anyone in the group can restore it from the Trash tab.`,
+      confirmLabel: 'Move to trash',
       variant: 'destructive',
     });
     if (!ok) return;
@@ -136,6 +136,7 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
       // endpoint doesn't expose which user created each diagram, so we can't
       // hide the option client-side ahead of time.
       if (useCloudStore.getState().diagramId === item.id) useCloudStore.getState().clearCloudTarget();
+      useToastStore.getState().addToast('info', `Moved "${item.title}" to the trash.`);
       onChanged();
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));
@@ -237,7 +238,7 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
                 <MenuItem
                   ref={(el) => { itemRefs.current[2] = el; }}
                   icon={Trash2}
-                  label="Delete"
+                  label="Move to trash"
                   variant="danger"
                   onClick={() => run(() => { void handleDelete(); })}
                 />

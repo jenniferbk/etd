@@ -85,7 +85,7 @@ describe('diagrams', () => {
     expect((await request(app).put(`/api/diagrams/${id}`).set(auth(memberToken)).send({ snapshot: SNAP })).status).toBe(200);
     expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(memberToken))).status).toBe(403);
     expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(204);
-    expect((await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(404);
+    expect((await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(410);
   });
 
   it('PATCH renames without creating a version row', async () => {
@@ -171,5 +171,92 @@ describe('diagrams', () => {
     await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
     const res = await request(app).put(`/api/diagrams/${created.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP });
     expect(res.status).toBe(200);
+  });
+
+  describe('trash', () => {
+    async function setup() {
+      const server = await makeTestServer();
+      const memberToken = await registerMember(server.app, server.adminToken, 'peer@uga.edu');
+      const created = await request(server.app)
+        .post('/api/diagrams').set(auth(server.adminToken)).send({ groupId: 1, title: 'Oops', snapshot: SNAP });
+      return { ...server, memberToken, id: created.body.id as number };
+    }
+
+    it('delete moves a diagram to the trash instead of erasing it', async () => {
+      const { app, db, adminToken, id } = await setup();
+      await request(app).put(`/api/diagrams/${id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+      expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(204);
+
+      const list = await request(app).get('/api/groups/1/diagrams').set(auth(adminToken));
+      expect(list.body).toHaveLength(0);
+
+      const trash = await request(app).get('/api/groups/1/trash').set(auth(adminToken));
+      expect(trash.status).toBe(200);
+      expect(trash.body).toHaveLength(1);
+      expect(trash.body[0]).toMatchObject({ id, title: 'Oops', versionCount: 2 });
+      expect(trash.body[0].deletedBy).toBeTypeOf('string');
+      expect(trash.body[0].deletedAt).toBeTypeOf('string');
+
+      // versions are retained
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM diagram_versions WHERE diagram_id = ?').get(id) as { n: number };
+      expect(n).toBe(2);
+    });
+
+    it('trashed diagrams cannot be opened, saved, or renamed', async () => {
+      const { app, adminToken, id } = await setup();
+      await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken));
+      const opened = await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken));
+      expect(opened.status).toBe(410);
+      expect(opened.body.error).toBe('this diagram is in the trash');
+      expect((await request(app).put(`/api/diagrams/${id}`).set(auth(adminToken)).send({ snapshot: SNAP })).status).toBe(410);
+      expect((await request(app).patch(`/api/diagrams/${id}`).set(auth(adminToken)).send({ title: 'x' })).status).toBe(410);
+      expect((await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(410);
+    });
+
+    it('any group member can restore, with history intact', async () => {
+      const { app, adminToken, memberToken, id } = await setup();
+      await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken));
+      expect((await request(app).post(`/api/diagrams/${id}/restore`).set(auth(memberToken))).status).toBe(200);
+
+      const list = await request(app).get('/api/groups/1/diagrams').set(auth(memberToken));
+      expect(list.body).toHaveLength(1);
+      expect(list.body[0]).toMatchObject({ id, title: 'Oops', versionCount: 1 });
+      expect((await request(app).get('/api/groups/1/trash').set(auth(memberToken))).body).toHaveLength(0);
+      expect((await request(app).get(`/api/diagrams/${id}`).set(auth(memberToken))).status).toBe(200);
+    });
+
+    it('restoring a diagram that is not in the trash is rejected', async () => {
+      const { app, adminToken, id } = await setup();
+      expect((await request(app).post(`/api/diagrams/${id}/restore`).set(auth(adminToken))).status).toBe(409);
+    });
+
+    it('only group/site admins can delete forever, and only from the trash', async () => {
+      const { app, db, adminToken, memberToken, id } = await setup();
+      // not in trash yet
+      expect((await request(app).delete(`/api/diagrams/${id}/permanent`).set(auth(adminToken))).status).toBe(409);
+      await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken));
+      expect((await request(app).delete(`/api/diagrams/${id}/permanent`).set(auth(memberToken))).status).toBe(403);
+      expect((await request(app).delete(`/api/diagrams/${id}/permanent`).set(auth(adminToken))).status).toBe(204);
+
+      expect((await request(app).get('/api/groups/1/trash').set(auth(adminToken))).body).toHaveLength(0);
+      const { n } = db.prepare('SELECT COUNT(*) AS n FROM diagram_versions WHERE diagram_id = ?').get(id) as { n: number };
+      expect(n).toBe(0);
+      expect((await request(app).get(`/api/diagrams/${id}`).set(auth(adminToken))).status).toBe(404);
+    });
+
+    it('non-members cannot see or touch another group\'s trash', async () => {
+      const { app, adminToken, id } = await setup();
+      await request(app).delete(`/api/diagrams/${id}`).set(auth(adminToken));
+      const g2 = await request(app).post('/api/groups').set(auth(adminToken)).send({ name: 'Other' });
+      const inv = await request(app).post('/api/invites').set(auth(adminToken)).send({ groupId: g2.body.id });
+      const reg = await request(app).post('/api/auth/register').send({
+        inviteToken: inv.body.token, email: 'out@uga.edu', password: 'longenough',
+        displayName: 'Out', acceptedPolicy: true,
+      });
+      const outsider = reg.body.token as string;
+      expect((await request(app).get('/api/groups/1/trash').set(auth(outsider))).status).toBe(403);
+      expect((await request(app).post(`/api/diagrams/${id}/restore`).set(auth(outsider))).status).toBe(403);
+      expect((await request(app).delete(`/api/diagrams/${id}/permanent`).set(auth(outsider))).status).toBe(403);
+    });
   });
 });

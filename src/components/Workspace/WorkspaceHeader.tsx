@@ -18,10 +18,11 @@ interface WorkspaceHeaderProps {
 const NAV_TABS: { tab: WorkspaceTab; label: string }[] = [
   { tab: 'diagrams', label: 'Diagrams' },
   { tab: 'people', label: 'People' },
+  { tab: 'trash', label: 'Trash' },
 ];
 
 /** "<group name> Workspace" heading + group switcher (only when the user
- *  belongs to more than one group) + Diagrams/People nav + the account chip,
+ *  belongs to more than one group) + Diagrams/People/Trash nav + the account chip,
  *  right-aligned. Site admins additionally see a "New group" affordance next
  *  to the switcher, opening NewGroupDialog. */
 export function WorkspaceHeader({ groupName, groups, selectedGroupId, onSelectGroup }: WorkspaceHeaderProps) {

@@ -26,6 +26,16 @@ export interface DiagramListItem {
   versionCount: number;
 }
 
+/** One row of a group's trash (GET /api/groups/:id/trash). */
+export interface TrashListItem {
+  id: number;
+  title: string;
+  deletedAt: string;
+  /** Null only if the deleting user's row is gone. */
+  deletedBy: string | null;
+  versionCount: number;
+}
+
 /** Exactly the shape saveDiagramJson writes to local .json files. */
 export interface SavedDiagramFile {
   version: string;
