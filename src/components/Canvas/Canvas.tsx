@@ -184,6 +184,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     });
 
     transformerRef.current.nodes(selectedNodes);
+    // Re-measure: setting the same nodes doesn't refresh the box when a
+    // selected element's size changed from outside a drag (e.g. image scale).
+    transformerRef.current.forceUpdate();
     transformerRef.current.getLayer()?.batchDraw();
   }, [selectedIds, elements]);
 

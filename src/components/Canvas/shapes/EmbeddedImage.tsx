@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Image as KonvaImage, Group, Rect } from 'react-konva';
 import type Konva from 'konva';
 import type { CropArea } from '../../../types';
@@ -49,19 +49,40 @@ export function EmbeddedImage({
   };
 
   const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [baseDimensions, setBaseDimensions] = useState({ width: 0, height: 0 });
   const [croppedCanvas, setCroppedCanvas] = useState<HTMLCanvasElement | null>(null);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
 
-  // Calculate actual dimensions based on scale
+  // Base dimensions (at 100% scale): fit the (cropped) source into the box.
+  const baseDimensions = useMemo(() => {
+    if (!image) return { width: 0, height: 0 };
+    const sourceWidth = cropArea ? cropArea.width * image.width : image.width;
+    const sourceHeight = cropArea ? cropArea.height * image.height : image.height;
+    const ratio = sourceWidth / sourceHeight;
+
+    let width = maxWidth;
+    let height = width / ratio;
+
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * ratio;
+    }
+    return { width, height };
+  }, [image, cropArea, maxWidth, maxHeight]);
+
+  // Calculate actual dimensions based on scale. Above 100% the caller grows
+  // maxHeight instead (see utils/imageLayout), so only shrinking applies here.
+  const renderScale = Math.min(scale, 1);
   const dimensions = {
-    width: baseDimensions.width * scale,
-    height: baseDimensions.height * scale,
+    width: baseDimensions.width * renderScale,
+    height: baseDimensions.height * renderScale,
   };
 
   // Track image drag for repositioning
   const imageDragStartRef = useRef<{ startOffsetX: number; startOffsetY: number; startMouseX: number; startMouseY: number } | null>(null);
 
+  // Load (and crop) the image only when the source or crop changes. Sizing
+  // is derived synchronously above so a box resize doesn't wait on a reload
+  // (which left the selection transformer measuring the stale size).
   useEffect(() => {
     const img = new window.Image();
     img.onload = () => {
@@ -80,26 +101,13 @@ export function EmbeddedImage({
           ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
           setCroppedCanvas(canvas);
         }
+      } else {
+        setCroppedCanvas(null);
       }
-
-      // Calculate base dimensions (at 100% scale)
-      const sourceWidth = cropArea ? cropArea.width * img.width : img.width;
-      const sourceHeight = cropArea ? cropArea.height * img.height : img.height;
-      const ratio = sourceWidth / sourceHeight;
-
-      let width = maxWidth;
-      let height = width / ratio;
-
-      if (height > maxHeight) {
-        height = maxHeight;
-        width = height * ratio;
-      }
-
-      setBaseDimensions({ width, height });
       setImage(img);
     };
     img.src = imageData;
-  }, [imageData, maxWidth, maxHeight, cropArea]);
+  }, [imageData, cropArea]);
 
   // Handle image drag start for repositioning
   const handleImageDragStart = useCallback((e: Konva.KonvaEventObject<DragEvent>) => {

@@ -60,7 +60,7 @@ export interface CropArea {
 export interface ImageSettings {
   displayWidth?: number;   // User-resized width (px) - deprecated, use scale
   displayHeight?: number;  // User-resized height (px) - deprecated, use scale
-  scale?: number;          // Proportional scale (0.1 to 1.0, default 1.0)
+  scale?: number;          // Proportional scale (0.2 to 3.0, default 1.0; see utils/imageLayout)
   offsetX?: number;        // X offset within element (px from default position)
   offsetY?: number;        // Y offset within element (px from default position)
   cropArea?: CropArea;     // Non-destructive crop region

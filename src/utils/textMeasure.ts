@@ -2,6 +2,8 @@
  * Text measurement utilities for auto-sizing elements
  */
 
+import { IMAGE_BASE_HEIGHT } from './imageLayout';
+
 interface MeasureOptions {
   fontSize: number;
   fontFamily?: string;
@@ -108,7 +110,6 @@ const LABEL_HEIGHT = 20;
 const LABEL_FONT_SIZE = 14;
 const CONTENT_FONT_SIZE = 12;
 const ATTRIBUTION_HEIGHT = 16;
-const IMAGE_BASE_HEIGHT = 100;
 const MIN_WIDTH = 120;
 const MIN_HEIGHT = 60;
 const MAX_WIDTH = 400;

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType } from '../../types';
@@ -6,6 +6,7 @@ import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBox
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
 import { useImagePaste } from '../../hooks/useImagePaste';
+import { requiredWidthForImage } from '../../utils/imageLayout';
 
 // Contributor type options
 const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
@@ -26,8 +27,11 @@ const CONNECTION_TYPES: { value: ConnectionType; label: string }[] = [
   { value: 'counterclaim', label: 'Counterclaim' },
 ];
 
+// Matches the width Palette gives new (non-implicit) argument elements.
+const DEFAULT_ARGUMENT_WIDTH = 180;
+
 export function PropertiesPanel() {
-  const { elements, selectedIds, updateElement, setElementImage, setElementImageSettings, changeSupportType, convertToArgument, convertToSupport, duplicateElements, removeElement } = useDiagramStore();
+  const { elements, selectedIds, updateElement, resizeElement, setElementImage, setElementImageSettings, changeSupportType, convertToArgument, convertToSupport, duplicateElements, removeElement } = useDiagramStore();
   const styleConfig = useDiagramStore((s) => s.styleConfig);
 
   const ARGUMENT_TYPES = (
@@ -88,14 +92,59 @@ export function PropertiesPanel() {
     [selectedElement, setElementImageSettings]
   );
 
-  // Handle image scale change
+  // Aspect ratio (w/h) of the selected element's image after crop — needed to
+  // widen the element when the image is scaled above 100%.
+  const selectedImage = selectedElement?.image ?? null;
+  const selectedCrop = selectedElement?.imageSettings?.cropArea;
+  const [measuredAspect, setMeasuredAspect] = useState<{
+    image: string;
+    crop: CropArea | undefined;
+    aspect: number;
+  } | null>(null);
+  const imageAspect =
+    measuredAspect && measuredAspect.image === selectedImage && measuredAspect.crop === selectedCrop
+      ? measuredAspect.aspect
+      : null;
+  useEffect(() => {
+    if (!selectedImage) return;
+    let cancelled = false;
+    const img = new window.Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const w = selectedCrop ? selectedCrop.width * img.width : img.width;
+      const h = selectedCrop ? selectedCrop.height * img.height : img.height;
+      if (h > 0) setMeasuredAspect({ image: selectedImage, crop: selectedCrop, aspect: w / h });
+    };
+    img.src = selectedImage;
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedImage, selectedCrop]);
+
+  // Handle image scale change. Above 100% the element widens to fit the
+  // image (it never narrows automatically — the user may have sized it).
   const handleScaleChange = useCallback(
     (scale: number) => {
-      if (selectedElement) {
-        setElementImageSettings(selectedElement.id, { scale });
+      if (!selectedElement) return;
+      // 12 = the larger of ArgumentShape's paddings (cloud); 2px slack on rects is harmless.
+      const neededWidth = imageAspect ? requiredWidthForImage(imageAspect, scale, 12) : null;
+      const oldScale = selectedElement.imageSettings?.scale ?? 1;
+      const autoWidenedWidth = imageAspect ? requiredWidthForImage(imageAspect, oldScale, 12) : null;
+      let nextWidth = selectedElement.size.width;
+      if (neededWidth && neededWidth > nextWidth) {
+        nextWidth = neededWidth;
+      } else if (scale < oldScale && autoWidenedWidth === selectedElement.size.width) {
+        // Still at the width we auto-widened to (user hasn't resized) → shrink
+        // back with the image, down to the default argument width.
+        nextWidth = Math.max(DEFAULT_ARGUMENT_WIDTH, neededWidth ?? 0);
       }
+      if (nextWidth !== selectedElement.size.width) {
+        resizeElement(selectedElement.id, { width: nextWidth, height: selectedElement.size.height });
+      }
+      // Scale update re-runs auto height against the (possibly new) width.
+      setElementImageSettings(selectedElement.id, { scale });
     },
-    [selectedElement, setElementImageSettings]
+    [selectedElement, imageAspect, resizeElement, setElementImageSettings]
   );
 
   // Handle image paste - must be before early return for hooks rules

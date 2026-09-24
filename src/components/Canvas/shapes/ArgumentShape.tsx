@@ -4,6 +4,7 @@ import { generateCloudPath } from '../../../utils/cloudPath';
 import type Konva from 'konva';
 import type { ArgumentElement } from '../../../types';
 import { EmbeddedImage } from './EmbeddedImage';
+import { imageAreaHeight } from '../../../utils/imageLayout';
 import { NoteBadge } from './NoteBadge';
 import { useDiagramStore } from '../../../store';
 import { resolveArgumentStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
@@ -98,6 +99,7 @@ export function ArgumentShape({
   // to keep text off the bumps.
   const padding = isCloud ? 12 : 10;
   const labelHeight = 20;
+  const imageArea = imageAreaHeight(imageSettings?.scale ?? 1);
 
   // Attached qualifier: small auto-sized box centered on the parent polyline.
   // Display text is content (the actual qualifier text like "probably") falling
@@ -202,7 +204,7 @@ export function ArgumentShape({
           x={padding}
           y={padding + labelHeight}
           width={size.width - padding * 2}
-          height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 100 : 0)}
+          height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? imageArea : 0)}
           text={content}
           fontSize={12}
           fill="#000000"
@@ -213,9 +215,9 @@ export function ArgumentShape({
           <EmbeddedImage
             imageData={image}
             x={padding}
-            y={size.height - 110 - (attributionText ? 16 : 0)}
+            y={size.height - imageArea - 10 - (attributionText ? 16 : 0)}
             maxWidth={size.width - padding * 2}
-            maxHeight={100}
+            maxHeight={imageArea}
             scale={imageSettings?.scale ?? 1}
             offsetX={imageSettings?.offsetX ?? 0}
             offsetY={imageSettings?.offsetY ?? 0}
@@ -345,7 +347,7 @@ export function ArgumentShape({
         x={padding}
         y={padding + labelHeight}
         width={size.width - padding * 2}
-        height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? 100 : 0)}
+        height={size.height - padding * 2 - labelHeight - (attributionText ? 12 : 0) - (image ? imageArea : 0)}
         text={content}
         fontSize={12}
         fill="#000000"
@@ -356,9 +358,9 @@ export function ArgumentShape({
         <EmbeddedImage
           imageData={image}
           x={padding}
-          y={size.height - 110 - (attributionText ? 16 : 0)}
+          y={size.height - imageArea - 10 - (attributionText ? 16 : 0)}
           maxWidth={size.width - padding * 2}
-          maxHeight={100}
+          maxHeight={imageArea}
           scale={imageSettings?.scale ?? 1}
           offsetX={imageSettings?.offsetX ?? 0}
           offsetY={imageSettings?.offsetY ?? 0}

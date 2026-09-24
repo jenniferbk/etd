@@ -4,6 +4,7 @@ import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { ImageCropModal } from '../ImageEditor/ImageCropModal';
 import type { CropArea } from '../../types';
+import { MIN_IMAGE_SCALE, MAX_IMAGE_SCALE } from '../../utils/imageLayout';
 
 interface ImageUploadProps {
   currentImage: string | null | undefined;
@@ -25,6 +26,7 @@ export function ImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showCropModal, setShowCropModal] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
+  const sliderFill = ((scale - MIN_IMAGE_SCALE) / (MAX_IMAGE_SCALE - MIN_IMAGE_SCALE)) * 100;
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,13 +155,13 @@ export function ImageUpload({
                 </div>
                 <input
                   type="range"
-                  min={20}
-                  max={100}
+                  min={MIN_IMAGE_SCALE * 100}
+                  max={MAX_IMAGE_SCALE * 100}
                   value={Math.round(scale * 100)}
                   onChange={(e) => onScaleChange(Number(e.target.value) / 100)}
                   className="w-full h-1.5 rounded-full appearance-none cursor-pointer"
                   style={{
-                    background: `linear-gradient(to right, ${theme.sidebar.accent} 0%, ${theme.sidebar.accent} ${(scale * 100 - 20) / 80 * 100}%, ${theme.sidebar.surface} ${(scale * 100 - 20) / 80 * 100}%, ${theme.sidebar.surface} 100%)`,
+                    background: `linear-gradient(to right, ${theme.sidebar.accent} 0%, ${theme.sidebar.accent} ${sliderFill}%, ${theme.sidebar.surface} ${sliderFill}%, ${theme.sidebar.surface} 100%)`,
                   }}
                 />
               </div>

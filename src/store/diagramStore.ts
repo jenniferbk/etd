@@ -11,6 +11,7 @@ import type { StyleConfig } from '../types/styleConfig';
 import { createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
+import { imageAreaHeight } from '../utils/imageLayout';
 
 interface LegendConfig {
   visible: boolean;
@@ -44,7 +45,7 @@ export function sweepOrphanedQualifiers(
   });
 }
 
-function getAutoSize(element: DiagramElement): Size {
+function calculatedHeight(element: DiagramElement): number {
   const label = isArgumentElement(element) || isInfoBoxElement(element)
     ? element.label
     : element.supportType;
@@ -64,8 +65,12 @@ function getAutoSize(element: DiagramElement): Size {
     currentWidth: element.size.width,
   });
 
+  return calculated.height;
+}
+
+function getAutoSize(element: DiagramElement): Size {
   // Force height to be at least the calculated height
-  const newHeight = Math.max(element.size.height, calculated.height);
+  const newHeight = Math.max(element.size.height, calculatedHeight(element));
 
   return {
     width: element.size.width,
@@ -325,9 +330,21 @@ export const useDiagramStore = create<DiagramState>()(
                 ...settings,
               },
             } as typeof el;
-            // Auto-resize when scale changes
+            // Auto-resize when scale changes. Growing uses the normal
+            // grow-only auto size; shrinking gives back exactly the image
+            // height the old scale reserved, so any extra space the user
+            // added by hand is kept.
             if ('scale' in settings) {
               const autoSize = getAutoSize(updated as DiagramElement);
+              const oldScale = el.imageSettings?.scale ?? 1;
+              const newScale = settings.scale ?? 1;
+              if (el.image && newScale < oldScale && oldScale > 1) {
+                // Only the height added above 100% is released; ≤100% keeps
+                // the legacy fixed 100px image box.
+                const released = imageAreaHeight(oldScale) - imageAreaHeight(newScale);
+                const minHeight = calculatedHeight(updated as DiagramElement);
+                autoSize.height = Math.max(minHeight, el.size.height - released);
+              }
               return { ...updated, size: autoSize };
             }
             return updated;

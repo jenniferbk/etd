@@ -1,4 +1,5 @@
 import type { DiagramElement, Connection, ArgumentElement, SupportElement, TeacherSupportElement, InfoBoxElement } from '../types';
+import { imageAreaHeight } from './imageLayout';
 import type { StyleConfig } from '../types';
 import { isArrowAttachment } from '../types';
 import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle } from './styleResolver';
@@ -150,9 +151,9 @@ function renderArgumentSvg(
   let imageElement = '';
   if (el.image) {
     const imgMaxWidth = width - padding * 2;
-    const imgMaxHeight = 100;
+    const imgMaxHeight = imageAreaHeight(el.imageSettings?.scale ?? 1);
     const imgX = x + padding;
-    const imgY = y + height - 110 - (el.attribution?.speaker || el.attribution?.timestamp ? 16 : 0);
+    const imgY = y + height - imgMaxHeight - 10 - (el.attribution?.speaker || el.attribution?.timestamp ? 16 : 0);
 
     // Apply crop if present
     if (el.imageSettings?.cropArea) {
