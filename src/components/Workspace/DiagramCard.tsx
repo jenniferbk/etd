@@ -4,7 +4,7 @@ import { IconButton } from '../Toolbar/IconButton';
 import { MenuItem } from '../Toolbar/MenuItem';
 import { useMenu } from '../Toolbar/useMenu';
 import { Modal } from '../ui/Modal';
-import { api } from '../../api/client';
+import { api, apiBlob } from '../../api/client';
 import { friendlyError } from '../../api/friendlyError';
 import type { CloudDiagram, DiagramListItem } from '../../api/types';
 import { useCloudStore } from '../../store/cloudStore';
@@ -22,13 +22,38 @@ interface DiagramCardProps {
   onChanged: () => void;
 }
 
-const MENU_ITEM_COUNT = 3; // Rename, Download a copy, Delete
+const MENU_ITEM_COUNT = 3; // Rename, Download a copy, Move to trash
+
+/** Object URL for the card's thumbnail (fetched with the session token, so a
+ *  plain <img src> to the API won't do). Refetches when the diagram is saved
+ *  again (updatedAt changes); null while loading or when there is none. */
+function useThumbnailUrl(item: DiagramListItem): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!item.hasThumbnail) return;
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    void apiBlob(`/api/diagrams/${item.id}/thumbnail`)
+      .then((blob) => {
+        if (cancelled || !blob) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(() => { /* no thumbnail → placeholder */ });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [item.id, item.hasThumbnail, item.updatedAt]);
+  return item.hasThumbnail ? url : null;
+}
 
 export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
   const { isOpen, toggle, close, menuRef, triggerRef } = useMenu();
   const activeIndexRef = useRef(0);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
+  const thumbnailUrl = useThumbnailUrl(item);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameTitle, setRenameTitle] = useState(item.title);
   const [renameBusy, setRenameBusy] = useState(false);
@@ -173,7 +198,14 @@ export function DiagramCard({ item, onOpen, onChanged }: DiagramCardProps) {
         onMouseEnter={(e) => { e.currentTarget.style.boxShadow = theme.shadow.md; }}
         onMouseLeave={(e) => { e.currentTarget.style.boxShadow = theme.shadow.sm; }}
       >
-        <div className="h-16 rounded-lg mb-3" style={{ backgroundColor: theme.sidebar.hover }} />
+        <div
+          className="h-32 rounded-lg mb-3 overflow-hidden flex items-center justify-center"
+          style={{ backgroundColor: thumbnailUrl ? '#ffffff' : theme.sidebar.hover }}
+        >
+          {thumbnailUrl && (
+            <img src={thumbnailUrl} alt="" className="max-w-full max-h-full object-contain" draggable={false} />
+          )}
+        </div>
 
         <div className="flex items-start justify-between gap-2">
           <h3 className="text-sm font-semibold truncate flex-1 min-w-0" style={{ color: theme.sidebar.text }}>

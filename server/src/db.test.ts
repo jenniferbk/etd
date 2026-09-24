@@ -26,7 +26,7 @@ describe('openDb', () => {
     ).toThrow();
   });
 
-  it('adds trash columns to a database created before the trash existed', () => {
+  it('adds trash and thumbnail columns to a database created before they existed', () => {
     const dir = mkdtempSync(join(tmpdir(), 'etd-db-'));
     const path = join(dir, 'old.db');
     const old = new Database(path);
@@ -42,6 +42,8 @@ describe('openDb', () => {
     const cols = (db.prepare('PRAGMA table_info(diagrams)').all() as { name: string }[]).map((c) => c.name);
     expect(cols).toContain('deleted_at');
     expect(cols).toContain('deleted_by');
+    expect(cols).toContain('thumbnail');
+    expect(cols).toContain('thumbnail_mime');
     const row = db.prepare('SELECT title, deleted_at FROM diagrams').get() as { title: string; deleted_at: string | null };
     expect(row).toEqual({ title: 'Existing', deleted_at: null });
     db.close();

@@ -41,6 +41,16 @@ export class ApiError extends Error {
   }
 }
 
+/** GET a binary resource (e.g. a thumbnail) with the session token. Returns
+ *  null for any non-OK response. */
+export async function apiBlob(path: string): Promise<Blob | null> {
+  const token = getToken();
+  const res = await fetch(`${getServerUrl()}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return res.ok ? res.blob() : null;
+}
+
 export async function api<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';

@@ -86,4 +86,7 @@ function migrate(db: Db): void {
   if (!diagramCols.has('deleted_by')) {
     db.exec('ALTER TABLE diagrams ADD COLUMN deleted_by INTEGER REFERENCES users(id)');
   }
+  // Workspace card thumbnail: the latest one sent with a save (not versioned).
+  if (!diagramCols.has('thumbnail')) db.exec('ALTER TABLE diagrams ADD COLUMN thumbnail BLOB');
+  if (!diagramCols.has('thumbnail_mime')) db.exec('ALTER TABLE diagrams ADD COLUMN thumbnail_mime TEXT');
 }

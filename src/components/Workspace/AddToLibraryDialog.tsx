@@ -8,6 +8,7 @@ import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { buildCloudSnapshot } from '../../utils/buildCloudSnapshot';
+import { captureThumbnail } from '../../utils/thumbnail';
 
 export const ADD_TO_LIBRARY_REMINDER =
   'Reminder: only de-identified data may be saved to the shared library.';
@@ -62,7 +63,7 @@ export function AddToLibraryDialog() {
       const snapshot = buildCloudSnapshot(title);
       const res = await api<{ id: number; currentVersionId: number }>('/api/diagrams', {
         method: 'POST',
-        body: { groupId, title, snapshot },
+        body: { groupId, title, snapshot, thumbnail: captureThumbnail() },
       });
       useDiagramStore.getState().setDiagramName(title);
       useCloudStore.getState().setCloudTarget(res.id, groupId, res.currentVersionId);

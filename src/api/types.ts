@@ -24,6 +24,8 @@ export interface DiagramListItem {
   updatedAt: string;
   lastEditor: string;
   versionCount: number;
+  /** Absent from servers that predate thumbnails. */
+  hasThumbnail?: boolean;
 }
 
 /** One row of a group's trash (GET /api/groups/:id/trash). */

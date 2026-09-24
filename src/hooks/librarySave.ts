@@ -7,6 +7,7 @@ import { useToastStore } from '../store/toastStore';
 import { buildCloudSnapshot } from '../utils/buildCloudSnapshot';
 import { saveDiagramJson } from '../utils/saveDiagram';
 import { getEditTick } from './dirtyTracking';
+import { captureThumbnail } from '../utils/thumbnail';
 
 /** The single Save entry point. Signed out it behaves exactly like the old
  *  local save; signed in it targets the team library.
@@ -56,7 +57,7 @@ export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<voi
     const baseVersionId = opts.force ? undefined : (useCloudStore.getState().baseVersionId ?? undefined);
     const res = await api<{ currentVersionId: number }>(`/api/diagrams/${cloud.diagramId}`, {
       method: 'PUT',
-      body: { snapshot, title, baseVersionId },
+      body: { snapshot, title, baseVersionId, thumbnail: captureThumbnail() },
     });
 
     if (staleContext()) return;

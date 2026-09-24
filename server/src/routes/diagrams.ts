@@ -7,6 +7,21 @@ import type { Db } from '../db.js';
 
 const snapshotSchema = z.record(z.string(), z.unknown());
 
+const MAX_THUMBNAIL_BYTES = 512 * 1024;
+const THUMBNAIL_RE = /^data:(image\/(?:png|jpeg));base64,([A-Za-z0-9+/=]+)$/;
+
+/** Decode a thumbnail data URL sent with a save. Anything malformed or too
+ *  big yields null and is silently skipped — a thumbnail must never make a
+ *  save fail. */
+function parseThumbnail(value: unknown): { mime: string; bytes: Buffer } | null {
+  if (typeof value !== 'string') return null;
+  const m = THUMBNAIL_RE.exec(value);
+  if (!m) return null;
+  const bytes = Buffer.from(m[2], 'base64');
+  if (bytes.length === 0 || bytes.length > MAX_THUMBNAIL_BYTES) return null;
+  return { mime: m[1], bytes };
+}
+
 interface DiagramRow {
   id: number;
   group_id: number;
@@ -32,6 +47,14 @@ export function diagramRoutes(db: Db): Router {
     return versionId;
   }
 
+  function storeThumbnail(diagramId: number, value: unknown): void {
+    const thumb = parseThumbnail(value);
+    if (!thumb) return;
+    db.prepare('UPDATE diagrams SET thumbnail = ?, thumbnail_mime = ? WHERE id = ?').run(
+      thumb.bytes, thumb.mime, diagramId,
+    );
+  }
+
   // Trashed diagrams answer 410 on every route except the trash routes,
   // which pass allowTrashed.
   function getDiagramForMember(
@@ -43,7 +66,13 @@ export function diagramRoutes(db: Db): Router {
       res.status(400).json({ error: 'invalid diagram id' });
       return null;
     }
-    const row = db.prepare('SELECT * FROM diagrams WHERE id = ?').get(id) as DiagramRow | undefined;
+    // Explicit columns: skip the thumbnail blob on every request.
+    const row = db
+      .prepare(
+        `SELECT id, group_id, creator_id, title, current_version_id, updated_at, deleted_at
+         FROM diagrams WHERE id = ?`,
+      )
+      .get(id) as DiagramRow | undefined;
     if (!row) {
       res.status(404).json({ error: 'diagram not found' });
       return null;
@@ -61,7 +90,10 @@ export function diagramRoutes(db: Db): Router {
 
   router.post('/diagrams', (req, res) => {
     const parsed = z
-      .object({ groupId: z.number().int(), title: z.string().trim().min(1), snapshot: snapshotSchema })
+      .object({
+        groupId: z.number().int(), title: z.string().trim().min(1), snapshot: snapshotSchema,
+        thumbnail: z.unknown().optional(),
+      })
       .safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid request' });
@@ -80,6 +112,7 @@ export function diagramRoutes(db: Db): Router {
         .run(groupId, req.user!.id, title);
       id = Number(d.lastInsertRowid);
       currentVersionId = addVersion(id, req.user!.id, snapshot);
+      storeThumbnail(id, parsed.data.thumbnail);
     })();
     res.json({ id, currentVersionId });
   });
@@ -97,15 +130,28 @@ export function diagramRoutes(db: Db): Router {
     const rows = db
       .prepare(
         `SELECT d.id, d.title, d.updated_at AS updatedAt, u.display_name AS lastEditor,
-                (SELECT COUNT(*) FROM diagram_versions v WHERE v.diagram_id = d.id) AS versionCount
+                (SELECT COUNT(*) FROM diagram_versions v WHERE v.diagram_id = d.id) AS versionCount,
+                d.thumbnail IS NOT NULL AS hasThumbnail
          FROM diagrams d
          JOIN diagram_versions cv ON cv.id = d.current_version_id
          JOIN users u ON u.id = cv.author_id
          WHERE d.group_id = ? AND d.deleted_at IS NULL
          ORDER BY d.updated_at DESC, d.id DESC`,
       )
-      .all(groupId);
-    res.json(rows);
+      .all(groupId) as { hasThumbnail: number }[];
+    res.json(rows.map((r) => ({ ...r, hasThumbnail: r.hasThumbnail === 1 })));
+  });
+
+  router.get('/diagrams/:id/thumbnail', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const t = db.prepare('SELECT thumbnail, thumbnail_mime FROM diagrams WHERE id = ?').get(row.id) as
+      { thumbnail: Buffer | null; thumbnail_mime: string | null };
+    if (!t.thumbnail || !t.thumbnail_mime) {
+      res.status(404).json({ error: 'no thumbnail yet' });
+      return;
+    }
+    res.set('Cache-Control', 'private, no-cache').type(t.thumbnail_mime).send(t.thumbnail);
   });
 
   router.get('/diagrams/:id', (req, res) => {
@@ -165,7 +211,10 @@ export function diagramRoutes(db: Db): Router {
     const row = getDiagramForMember(req, res);
     if (!row) return;
     const parsed = z
-      .object({ snapshot: snapshotSchema, title: z.string().trim().min(1).optional(), baseVersionId: z.number().int().optional() })
+      .object({
+        snapshot: snapshotSchema, title: z.string().trim().min(1).optional(),
+        baseVersionId: z.number().int().optional(), thumbnail: z.unknown().optional(),
+      })
       .safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'invalid request' });
@@ -181,6 +230,7 @@ export function diagramRoutes(db: Db): Router {
     let currentVersionId = 0;
     db.transaction(() => {
       currentVersionId = addVersion(row.id, req.user!.id, parsed.data.snapshot);
+      storeThumbnail(row.id, parsed.data.thumbnail);
       if (parsed.data.title) {
         db.prepare('UPDATE diagrams SET title = ? WHERE id = ?').run(parsed.data.title, row.id);
       }

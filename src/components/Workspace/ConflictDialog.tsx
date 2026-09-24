@@ -8,6 +8,7 @@ import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { buildCloudSnapshot } from '../../utils/buildCloudSnapshot';
 import { saveToLibrary } from '../../hooks/librarySave';
+import { captureThumbnail } from '../../utils/thumbnail';
 
 /** Shown when a save 409s (cloudStore.conflict set) because a teammate saved
  *  a newer version first. Self-contained: reads its open flag from
@@ -60,7 +61,7 @@ export function ConflictDialog() {
       const snapshot = buildCloudSnapshot(copyTitle);
       const res = await api<{ id: number; currentVersionId: number }>('/api/diagrams', {
         method: 'POST',
-        body: { groupId: cloud.groupId, title: copyTitle, snapshot },
+        body: { groupId: cloud.groupId, title: copyTitle, snapshot, thumbnail: captureThumbnail() },
       });
       useDiagramStore.getState().setDiagramName(copyTitle);
       // groupId is guaranteed non-null here: a conflict can only exist once

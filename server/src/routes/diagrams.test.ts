@@ -259,4 +259,69 @@ describe('diagrams', () => {
       expect((await request(app).delete(`/api/diagrams/${id}/permanent`).set(auth(outsider))).status).toBe(403);
     });
   });
+
+  describe('thumbnails', () => {
+    // 1×1 PNG
+    const PNG_B64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+    const PNG_URL = `data:image/png;base64,${PNG_B64}`;
+
+    it('stores a thumbnail sent with a save and serves it back as an image', async () => {
+      const { app, adminToken } = await makeTestServer();
+      const created = await request(app)
+        .post('/api/diagrams').set(auth(adminToken))
+        .send({ groupId: 1, title: 'T', snapshot: SNAP, thumbnail: PNG_URL });
+      const id = created.body.id;
+
+      const list = await request(app).get('/api/groups/1/diagrams').set(auth(adminToken));
+      expect(list.body[0].hasThumbnail).toBe(true);
+
+      const img = await request(app).get(`/api/diagrams/${id}/thumbnail`).set(auth(adminToken));
+      expect(img.status).toBe(200);
+      expect(img.headers['content-type']).toBe('image/png');
+      expect(Buffer.from(img.body).toString('base64')).toBe(PNG_B64);
+    });
+
+    it('a later save replaces the thumbnail; a save without one keeps the old one', async () => {
+      const { app, adminToken } = await makeTestServer();
+      const created = await request(app)
+        .post('/api/diagrams').set(auth(adminToken)).send({ groupId: 1, title: 'T', snapshot: SNAP });
+      const id = created.body.id;
+      expect((await request(app).get('/api/groups/1/diagrams').set(auth(adminToken))).body[0].hasThumbnail).toBe(false);
+      expect((await request(app).get(`/api/diagrams/${id}/thumbnail`).set(auth(adminToken))).status).toBe(404);
+
+      const jpeg = `data:image/jpeg;base64,${PNG_B64}`;
+      await request(app).put(`/api/diagrams/${id}`).set(auth(adminToken)).send({ snapshot: SNAP, thumbnail: jpeg });
+      await request(app).put(`/api/diagrams/${id}`).set(auth(adminToken)).send({ snapshot: SNAP });
+      const img = await request(app).get(`/api/diagrams/${id}/thumbnail`).set(auth(adminToken));
+      expect(img.status).toBe(200);
+      expect(img.headers['content-type']).toBe('image/jpeg');
+    });
+
+    it('ignores a malformed or oversized thumbnail without failing the save', async () => {
+      const { app, adminToken } = await makeTestServer();
+      const bad = await request(app)
+        .post('/api/diagrams').set(auth(adminToken))
+        .send({ groupId: 1, title: 'T', snapshot: SNAP, thumbnail: 'data:text/html;base64,PHNjcmlwdD4=' });
+      expect(bad.status).toBe(200);
+      const huge = `data:image/png;base64,${'A'.repeat(2_000_000)}`;
+      const big = await request(app)
+        .put(`/api/diagrams/${bad.body.id}`).set(auth(adminToken)).send({ snapshot: SNAP, thumbnail: huge });
+      expect(big.status).toBe(200);
+      expect((await request(app).get('/api/groups/1/diagrams').set(auth(adminToken))).body[0].hasThumbnail).toBe(false);
+    });
+
+    it('non-members cannot fetch a thumbnail', async () => {
+      const { app, adminToken } = await makeTestServer();
+      const created = await request(app)
+        .post('/api/diagrams').set(auth(adminToken))
+        .send({ groupId: 1, title: 'T', snapshot: SNAP, thumbnail: PNG_URL });
+      const g2 = await request(app).post('/api/groups').set(auth(adminToken)).send({ name: 'Other' });
+      const inv = await request(app).post('/api/invites').set(auth(adminToken)).send({ groupId: g2.body.id });
+      const reg = await request(app).post('/api/auth/register').send({
+        inviteToken: inv.body.token, email: 'out@uga.edu', password: 'longenough',
+        displayName: 'Out', acceptedPolicy: true,
+      });
+      expect((await request(app).get(`/api/diagrams/${created.body.id}/thumbnail`).set(auth(reg.body.token))).status).toBe(403);
+    });
+  });
 });
