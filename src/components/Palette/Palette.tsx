@@ -13,6 +13,7 @@ import type {
 } from '../../types';
 import { COLORS, getSupportColors } from '../../utils/colors';
 import { theme } from '../../utils/theme';
+import { computeSpawnPosition, randomJitter } from '../../utils/spawnPosition';
 
 
 const CONTRIBUTOR_TYPES: { type: ContributorType; label: string; color: string }[] = [
@@ -79,6 +80,17 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     if (!exists) setSelectedQuestionSubtype(QUESTION_SUBTYPES[0]?.id ?? '');
   }, [QUESTION_SUBTYPES, selectedQuestionSubtype]);
 
+  // Center of the visible canvas, with a little jitter so repeated clicks
+  // don't stack elements exactly on top of each other.
+  const spawnAt = (size: { width: number; height: number }) => {
+    const { zoom, panX, panY, viewportSize } = useDiagramStore.getState();
+    return computeSpawnPosition(
+      { zoom, panX, panY, viewportWidth: viewportSize.width, viewportHeight: viewportSize.height },
+      size,
+      randomJitter(80),
+    );
+  };
+
   const generateId = () => `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   const toggleSection = (section: keyof typeof expandedSections) => {
@@ -95,6 +107,9 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     const count = countElementsOfType(argumentType) + 1;
     const label = `${argumentType.charAt(0).toUpperCase() + argumentType.slice(1)} ${count}`;
 
+    const size = selectedContributor === 'implicit'
+      ? { width: 140, height: 60 }
+      : { width: 180, height: 80 };
     const newElement: ArgumentElement = {
       id: generateId(),
       type: 'argument',
@@ -102,10 +117,8 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
       contributor: selectedContributor,
       label,
       content: '',
-      position: { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 },
-      size: selectedContributor === 'implicit'
-        ? { width: 140, height: 60 }
-        : { width: 180, height: 80 },
+      position: spawnAt(size),
+      size,
     };
 
     addElement(newElement);
@@ -116,6 +129,9 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
       supportType === 'other'    ? (selectedOtherSubtype    || undefined) :
       supportType === 'question' ? (selectedQuestionSubtype || undefined) :
       undefined;
+    const size = supportType === 'action'
+      ? { width: 140, height: 60 }
+      : { width: 160, height: 50 };
     const newElement: SupportElement = {
       id: generateId(),
       type: 'support',
@@ -123,10 +139,8 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
       supportType,
       subtype,
       content: '',
-      position: { x: 150 + Math.random() * 200, y: 150 + Math.random() * 200 },
-      size: supportType === 'action'
-        ? { width: 140, height: 60 }
-        : { width: 160, height: 50 },
+      position: spawnAt(size),
+      size,
     };
 
     addElement(newElement);
@@ -143,7 +157,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
       type: 'infoBox',
       label: `Info ${count}`,
       content: '',
-      position: { x: 200 + Math.random() * 200, y: 200 + Math.random() * 200 },
+      position: spawnAt({ width: 200, height: 100 }),
       size: { width: 200, height: 100 },
     };
 

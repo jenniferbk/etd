@@ -85,6 +85,10 @@ interface DiagramState {
   zoom: number;
   panX: number;
   panY: number;
+  // On-screen size of the canvas container (px). Not diagram data — set by
+  // Canvas's ResizeObserver so non-canvas UI (e.g. Palette) can place new
+  // elements in the visible area.
+  viewportSize: { width: number; height: number };
 
   // Selection
   selectedIds: string[];
@@ -138,6 +142,7 @@ interface DiagramState {
   // Actions - Canvas
   setZoom: (zoom: number) => void;
   setPan: (x: number, y: number) => void;
+  setViewportSize: (width: number, height: number) => void;
   fitToView: () => void;
 
   // Actions - Legend
@@ -181,6 +186,7 @@ export const useDiagramStore = create<DiagramState>()(
       zoom: 1,
       panX: 0,
       panY: 0,
+      viewportSize: { width: 800, height: 600 },
       selectedIds: [],
       legendConfig: {
         visible: false,
@@ -544,6 +550,8 @@ export const useDiagramStore = create<DiagramState>()(
       setZoom: (zoom) => set({ zoom: Math.max(0.25, Math.min(4, zoom)) }),
 
       setPan: (panX, panY) => set({ panX, panY }),
+
+      setViewportSize: (width, height) => set({ viewportSize: { width, height } }),
 
       fitToView: () => {
         const state = get();

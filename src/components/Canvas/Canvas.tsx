@@ -162,6 +162,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     if (!el) return;
     const updateSize = () => {
       setStageSize({ width: el.offsetWidth, height: el.offsetHeight });
+      useDiagramStore.getState().setViewportSize(el.offsetWidth, el.offsetHeight);
     };
     updateSize();
     const ro = new ResizeObserver(updateSize);
