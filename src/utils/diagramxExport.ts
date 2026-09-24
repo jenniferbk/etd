@@ -27,6 +27,7 @@ import {
 } from '../types';
 import { getContributorColor, getSupportColors } from './colors';
 import { saveFile } from './saveFile';
+import { generateUuid } from './uuid';
 
 // Shape symbolIds. Rectangle is a UUID from the GraphicStyle pack; textbox / oval /
 // hexagon are DiagramMix short-string built-ins that render alongside GraphicStyle.
@@ -250,7 +251,7 @@ function buildPathData(points: Position[]): string {
 }
 
 function buildStickySpots(): Array<Record<string, unknown>> {
-  const base = crypto.randomUUID().toUpperCase();
+  const base = generateUuid().toUpperCase();
   const mk = (suffix: number, rel: [number, number]) => ({
     id: `${base}_${suffix}`,
     isUserDefined: false,
@@ -452,7 +453,7 @@ export function hasCounterclaims(connections: Connection[]): boolean {
 function normalizeId(etdId: string, cache: Map<string, string>): string {
   const existing = cache.get(etdId);
   if (existing) return existing;
-  const uuid = crypto.randomUUID().toUpperCase();
+  const uuid = generateUuid().toUpperCase();
   cache.set(etdId, uuid);
   return uuid;
 }
@@ -542,8 +543,8 @@ export function exportToDiagramx(
   }
 
   const layerItemIDs = [...symbolUuids, ...connectorUuids].map((id) => ({ uuid: id }));
-  const activeLayerId = crypto.randomUUID().toUpperCase();
-  const tabId = crypto.randomUUID().toUpperCase();
+  const activeLayerId = generateUuid().toUpperCase();
+  const tabId = generateUuid().toUpperCase();
 
   const doc = {
     activeTabIndex: 0,

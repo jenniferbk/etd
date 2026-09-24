@@ -8,6 +8,7 @@
 import { Buffer } from 'buffer';
 import bplist from 'bplist-parser';
 import type { DiagramElement, ArgumentElement, InfoBoxElement, Connection, ContributorType, ConnectionTarget } from '../types';
+import { generateUuid } from './uuid';
 
 // Make Buffer available globally for bplist-parser
 if (typeof window !== 'undefined') {
@@ -575,7 +576,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
         }
 
         parsedElements.push({
-          id: crypto.randomUUID(),
+          id: generateUuid(),
           index: i,
           text,
           styleInfo,
@@ -617,7 +618,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
         if (text && text.trim()) {
           infoBoxCount++;
           infoBoxElements.push({
-            id: crypto.randomUUID(),
+            id: generateUuid(),
             type: 'infoBox',
             label: `Info ${infoBoxCount}`,
             position,
@@ -737,7 +738,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
       if (!seenConnections.has(key) && !seenConnections.has(reverseKey)) {
         seenConnections.add(key);
         connections.push({
-          id: crypto.randomUUID(),
+          id: generateUuid(),
           from: fromElem,
           to: toElem,
           type: 'support',
@@ -780,7 +781,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
             if (!seenConnections.has(key) && !seenConnections.has(reverseKey)) {
               seenConnections.add(key);
               connections.push({
-                id: crypto.randomUUID(),
+                id: generateUuid(),
                 from: fromElem,
                 to: toElem,
                 type: 'support',
@@ -808,7 +809,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
 
     if (sourceElem && targetElem) {
       // Create main connection
-      const mainConnId = crypto.randomUUID();
+      const mainConnId = generateUuid();
       const key = `${sourceElem}->${targetElem}`;
       const reverseKey = `${targetElem}->${sourceElem}`;
 
@@ -860,7 +861,7 @@ export async function importDrawingFile(file: File): Promise<ImportResult> {
             if (!seenConnections.has(warrantConnKey)) {
               seenConnections.add(warrantConnKey);
               connections.push({
-                id: crypto.randomUUID(),
+                id: generateUuid(),
                 from: warrantElem,
                 to: {
                   connectionId: mainConnId,

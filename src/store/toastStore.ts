@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { generateUuid } from '../utils/uuid';
 
 export type ToastVariant = 'info' | 'warning' | 'error';
 
@@ -20,18 +21,11 @@ interface ToastState {
 const INFO_AUTODISMISS_MS = 5000;
 const MAX_PERSISTENT = 4;
 
-function makeId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `t_${Math.random().toString(36).slice(2)}_${Date.now()}`;
-}
-
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
 
   addToast: (variant, message) => {
-    const id = makeId();
+    const id = generateUuid();
     const next: Toast = { id, variant, message, createdAt: Date.now() };
 
     set((state) => {

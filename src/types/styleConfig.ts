@@ -12,7 +12,7 @@ export interface TypeStyle {
 
 export interface Subtype {
   id: string;     // stable. v1.2 default ids are slugs ("displays" etc.).
-                  // ALL new subtypes use crypto.randomUUID() — never slug-from-label.
+                  // ALL new subtypes use generateUuid() (utils/uuid) — never slug-from-label.
   label: string;  // display label, e.g. "Displays"
 }
 

@@ -3,6 +3,7 @@
 
 import type { Transcript, TranscriptLine, TranscriptObjectType } from '../types/transcript';
 import type { ContributorType, ArgumentType, SupportType } from '../types/elements';
+import { generateUuid } from './uuid';
 
 const CONTRIBUTOR_VALUES: ContributorType[] = ['given', 'student', 'teacher', 'joint', 'implicit'];
 const ARGUMENT_VALUES: ArgumentType[] = ['data', 'claim', 'warrant', 'backing', 'qualifier', 'rebuttal'];
@@ -44,8 +45,7 @@ function inferContributor(speaker: string): ContributorType {
 }
 
 function generateTranscriptId(): string {
-  // crypto.randomUUID is available in all modern browsers and in Node 19+.
-  return crypto.randomUUID();
+  return generateUuid();
 }
 
 export function parseTranscript(text: string, filename: string): Transcript {

@@ -5,6 +5,7 @@ import { useDiagramStore } from '../../store';
 import { isSupportElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { createCurrentDefaults } from '../../utils/styleConfigDefaults';
+import { generateUuid } from '../../utils/uuid';
 
 interface SubtypeListEditorProps {
   supportType: SupportType;
@@ -27,10 +28,7 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
   };
 
   const handleAdd = () => {
-    const id =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `subtype-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const id = generateUuid();
     updateSubtypes([...list, { id, label: 'New subtype' }]);
   };
 
