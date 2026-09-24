@@ -12,6 +12,7 @@ import { createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConf
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
 import { imageAreaHeight } from '../utils/imageLayout';
+import { DEFAULT_DIAGRAM_NAME } from '../utils/saveDiagram';
 
 interface LegendConfig {
   visible: boolean;
@@ -185,7 +186,7 @@ interface DiagramState {
 export const useDiagramStore = create<DiagramState>()(
   temporal(
     (set, get) => ({
-      diagramName: 'Untitled Diagram',
+      diagramName: DEFAULT_DIAGRAM_NAME,
       elements: [],
       connections: [],
       zoom: 1,
@@ -682,7 +683,7 @@ export const useDiagramStore = create<DiagramState>()(
           elements: sizedElements,
           connections,
           selectedIds: [],
-          diagramName: name || 'Untitled Diagram',
+          diagramName: name || DEFAULT_DIAGRAM_NAME,
           transcript: transcript ?? null,
           notes: Array.isArray(notes) ? notes : [],
           // v1.2 files have no styleConfig — apply the FROZEN migration defaults.
@@ -695,7 +696,7 @@ export const useDiagramStore = create<DiagramState>()(
 
       clearDiagram: () =>
         set((state) => ({
-          diagramName: 'Untitled Diagram',
+          diagramName: DEFAULT_DIAGRAM_NAME,
           elements: [],
           connections: [],
           selectedIds: [],

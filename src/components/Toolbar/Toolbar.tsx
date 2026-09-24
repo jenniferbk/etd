@@ -22,7 +22,7 @@ import { useAuthStore } from '../../api/authStore';
 import { saveToLibrary } from '../../hooks/librarySave';
 import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
-import { toFilename } from '../../utils/saveDiagram';
+import { toFilename, nameForLoadedFile } from '../../utils/saveDiagram';
 import { saveFile, dataUrlToBlob } from '../../utils/saveFile';
 import { AboutModal } from './AboutModal';
 import { exportToSvg, downloadSvg } from '../../utils/svgExport';
@@ -115,7 +115,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
-            loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes);
+            loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes);
             useCloudStore.getState().clearCloudTarget();
           } else {
             addToast('error', 'Invalid diagram file format');

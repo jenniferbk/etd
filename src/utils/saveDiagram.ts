@@ -6,6 +6,17 @@ import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript 
 import { SAVE_SCHEMA_VERSION } from './schema';
 import { saveFile } from './saveFile';
 
+export const DEFAULT_DIAGRAM_NAME = 'Untitled Diagram';
+
+// Title to use when opening a saved .json file. Files saved before a title
+// was typed carry the default name even when the user renamed the file in
+// the save dialog — in that case the filename is the title they meant.
+export function nameForLoadedFile(storedName: unknown, fileName: string): string {
+  const stored = typeof storedName === 'string' ? storedName.trim() : '';
+  if (stored && stored !== DEFAULT_DIAGRAM_NAME) return stored;
+  return fileName.replace(/\.json$/i, '').trim() || DEFAULT_DIAGRAM_NAME;
+}
+
 // Slugify a diagram name into a safe filename stem (no extension).
 export function toFilename(name: string): string {
   return (

@@ -8,6 +8,7 @@ import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { theme } from '../../utils/theme';
 import { importDrawingFile } from '../../utils/drawingImporter';
+import { nameForLoadedFile } from '../../utils/saveDiagram';
 import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
@@ -90,7 +91,7 @@ export function Workspace() {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
             useDiagramStore.getState().loadDiagram(
-              data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes,
+              data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes,
             );
             useCloudStore.getState().clearCloudTarget();
             useCloudStore.getState().setView('canvas');

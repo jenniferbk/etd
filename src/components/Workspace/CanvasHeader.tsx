@@ -6,7 +6,7 @@ import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { friendlyError } from '../../api/friendlyError';
 import { theme } from '../../utils/theme';
-import { saveDiagramJson } from '../../utils/saveDiagram';
+import { saveDiagramJson, nameForLoadedFile } from '../../utils/saveDiagram';
 import { saveToLibrary } from '../../hooks/librarySave';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { Modal } from '../ui/Modal';
@@ -208,7 +208,7 @@ export function CanvasHeader() {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
             useDiagramStore.getState().loadDiagram(
-              data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes,
+              data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes,
             );
             useCloudStore.getState().clearCloudTarget();
           } else {

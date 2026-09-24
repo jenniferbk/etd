@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toFilename, buildDiagramFile } from './saveDiagram';
+import { toFilename, buildDiagramFile, nameForLoadedFile } from './saveDiagram';
 import { SAVE_SCHEMA_VERSION } from './schema';
 
 describe('toFilename', () => {
@@ -36,5 +36,24 @@ describe('buildDiagramFile', () => {
       transcript: null,
       notes: [],
     });
+  });
+});
+
+describe('nameForLoadedFile', () => {
+  it('keeps a real stored title', () => {
+    expect(nameForLoadedFile('Cora_Y2_D2_trapezoid', 'cora-y2-d2_trapezoid.json')).toBe('Cora_Y2_D2_trapezoid');
+  });
+
+  it('falls back to the filename when the stored title is the default', () => {
+    expect(nameForLoadedFile('Untitled Diagram', 'Y2_4M_Harper_Day2_triangle.json')).toBe('Y2_4M_Harper_Day2_triangle');
+  });
+
+  it('falls back to the filename when the title is missing or blank', () => {
+    expect(nameForLoadedFile(undefined, 'Daisy.JSON')).toBe('Daisy');
+    expect(nameForLoadedFile('   ', 'Daisy.json')).toBe('Daisy');
+  });
+
+  it('uses the default when neither is usable', () => {
+    expect(nameForLoadedFile(undefined, '.json')).toBe('Untitled Diagram');
   });
 });

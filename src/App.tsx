@@ -11,6 +11,7 @@ import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSav
 import { useDirtyTracking } from './hooks/dirtyTracking';
 import { saveToLibrary } from './hooks/librarySave';
 import { parseTranscript } from './utils/transcriptParser';
+import { nameForLoadedFile } from './utils/saveDiagram';
 import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptPanel';
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
@@ -292,7 +293,7 @@ function App() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections, data.name, data.transcript ?? null, data.styleConfig, data.notes);
+          loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes);
           useCloudStore.getState().clearCloudTarget();
         }
       } catch (err) {
