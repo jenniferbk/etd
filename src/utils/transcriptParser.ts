@@ -18,6 +18,11 @@ const SUPPORT_VALUES: SupportType[] = ['action', 'question', 'other'];
 const LINE_RE =
   /^\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s+([^[:]+?)\s*(?:\[([^|\]]*)\|([^|\]]*)\])?\s*:\s*(.+?)\s*$/;
 
+// Any non-blank line that isn't an utterance is a visual annotation, e.g.
+//   [Teacher points to the graph]   or   55:12 (Student 2 draws a circle)
+// An optional leading timestamp is captured; the rest is kept verbatim as text.
+const ANNOTATION_TIMESTAMP_RE = /^\s*(\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?)\s+(.+?)\s*$/;
+
 function normalizeContributor(raw: string | undefined): ContributorType | null {
   if (!raw) return null;
   const lower = raw.trim().toLowerCase();
@@ -53,6 +58,9 @@ export function parseTranscript(text: string, filename: string): Transcript {
   const lines: TranscriptLine[] = [];
   const parseWarnings: string[] = [];
   let index = 0;
+  // Annotations inherit timestamp/speaker from the line before them.
+  let prevTimestamp = '';
+  let prevSpeaker = '';
 
   rawLines.forEach((raw, lineNumber) => {
     const trimmed = raw.trim();
@@ -60,12 +68,25 @@ export function parseTranscript(text: string, filename: string): Transcript {
 
     const match = raw.match(LINE_RE);
     if (!match) {
-      parseWarnings.push(`Line ${lineNumber + 1} skipped: did not match transcript grammar.`);
+      const tsMatch = raw.match(ANNOTATION_TIMESTAMP_RE);
+      const timestamp = tsMatch ? tsMatch[1] : prevTimestamp;
+      prevTimestamp = timestamp;
+      lines.push({
+        index: index++,
+        timestamp,
+        speaker: prevSpeaker,
+        text: tsMatch ? tsMatch[2] : trimmed,
+        contributor: inferContributor(prevSpeaker),
+        objectType: 'action',
+        annotation: true,
+      });
       return;
     }
 
     const [, timestamp, speakerRaw, contribRaw, typeRaw, textRaw] = match;
     const speaker = speakerRaw.trim();
+    prevTimestamp = timestamp;
+    prevSpeaker = speaker;
 
     // Tag values: if present but invalid, warn and treat as missing.
     const tagWasPresent = contribRaw !== undefined || typeRaw !== undefined;

@@ -222,7 +222,7 @@ export function TranscriptPanel({ onClose }: TranscriptPanelProps) {
               style={{ color: theme.sidebar.muted }}
             >
               {transcript.lines.length} line{transcript.lines.length === 1 ? '' : 's'}
-              {transcript.parseWarnings.length > 0 && ` · ${transcript.parseWarnings.length} skipped`}
+              {transcript.parseWarnings.length > 0 && ` · ${transcript.parseWarnings.length} warning${transcript.parseWarnings.length === 1 ? '' : 's'}`}
             </span>
           </div>
         )}

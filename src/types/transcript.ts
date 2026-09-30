@@ -13,11 +13,12 @@ export interface TranscriptLine {
   objectType: TranscriptObjectType | null;
   subtype?: SupportSubtype;   // only meaningful when objectType === 'other'
   dismissed?: boolean;        // explicit "reviewed and not argument-relevant" judgment
+  annotation?: boolean;       // visual annotation (non-utterance line); timestamp/speaker inherited
 }
 
 export interface Transcript {
   id: string;                 // uuid, stable across save/load
   filename: string;           // display only
   lines: TranscriptLine[];
-  parseWarnings: string[];    // human-readable: "Line 12 skipped: could not parse timestamp"
+  parseWarnings: string[];    // human-readable: "Line 12: unrecognized contributor \"x\"; treated as unset."
 }

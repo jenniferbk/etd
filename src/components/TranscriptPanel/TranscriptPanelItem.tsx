@@ -188,6 +188,15 @@ export function TranscriptPanelItem({
             {line.timestamp}{' '}
             <span style={{ color: theme.sidebar.textSecondary }}>{line.speaker}</span>
           </div>
+          {line.annotation && (
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
+              style={{ color: theme.sidebar.muted }}
+              title="Visual annotation — timestamp and speaker taken from the line above"
+            >
+              visual
+            </span>
+          )}
         </div>
         {used && (
           <span
