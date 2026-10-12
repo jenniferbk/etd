@@ -43,6 +43,8 @@ diagram_versions gains `auto` (1 for autosaves) and `saved_at` (last write). Add
 - Auto-generated labels such as "Info N" are numbered per tab, so two people adding info boxes at once can get the same number.
 - The transcript syncs as one unit; two people changing transcript state at the same moment keep only the later change.
 - One server process holds the rooms. That matches the single COMS Mac deployment.
+- The server remembers each tab's last applied batch in memory. If the server restarts while a tab's batch is confirmed but not yet echoed, that one batch can be resent once.
+- Any whole-document replacement in a tab (open a file, recover an autosave, image import, clear) detaches that tab from the session first, so the new content is never sent to the shared diagram.
 
 ## Verification (2026-10-12)
 
