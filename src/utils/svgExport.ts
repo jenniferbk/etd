@@ -245,11 +245,19 @@ function renderSupportSvg(el: SupportElement, x: number, y: number, width: numbe
     shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>`;
   }
 
+  // Inside an ellipse the corners are outside the shape, so center the text.
+  const isEllipse = style.borderShape === 'ellipse';
+  const textX = isEllipse ? x + width / 2 : x + 8;
+  const anchorAttr = isEllipse ? ' text-anchor="middle"' : '';
+  const headerY = isEllipse ? y + height * 0.12 + 10 : y + 18;
+  const contentY = isEllipse
+    ? y + height * (headerText ? 0.55 : 0.5)
+    : y + (headerText ? 32 : 20);
   const headerEl = headerText
-    ? `<text x="${x + 8}" y="${y + 18}" class="label" font-size="10" fill="${style.borderColor}">${escapeXml(headerText)}</text>`
+    ? `<text x="${textX}" y="${headerY}" class="label" font-size="10" fill="${style.borderColor}"${anchorAttr}>${escapeXml(headerText)}</text>`
     : '';
   const contentEl = el.content
-    ? `<text x="${x + 8}" y="${y + (headerText ? 32 : 20)}" class="content" font-size="11" fill="#000000">${escapeXml(el.content)}</text>`
+    ? `<text x="${textX}" y="${contentY}" class="content" font-size="11" fill="#000000"${anchorAttr}>${escapeXml(el.content)}</text>`
     : '';
   const orphanMarker = isOrphan
     ? `<text x="${x + width - 16}" y="${y + 14}" fill="#CC0000" font-size="14">&#9888;</text>`

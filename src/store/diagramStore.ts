@@ -8,7 +8,7 @@ import type {
   AnalyticNote, NoteAnchor,
 } from '../types';
 import type { StyleConfig } from '../types/styleConfig';
-import { createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
+import { applySubtypeStyleMigration, createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
 import { calculateElementSize } from '../utils/textMeasure';
 import { imageAreaHeight } from '../utils/imageLayout';
@@ -690,7 +690,11 @@ export const useDiagramStore = create<DiagramState>()(
           // v1.3/v1.4 files have the old `otherSubtypes` shape; normalize moves it
           // into `subtypes.other` and seeds empty action/question buckets.
           // v1.5+ files pass through unchanged.
-          styleConfig: styleConfig ? normalizeStyleConfig(styleConfig) : createV1_2_MigrationDefaults(),
+          // Every file then gets the v1.8 subtype-style migration (Displays →
+          // white ellipse) unless it already carries a subtype style.
+          styleConfig: applySubtypeStyleMigration(
+            styleConfig ? normalizeStyleConfig(styleConfig) : createV1_2_MigrationDefaults(),
+          ),
         });
       },
 

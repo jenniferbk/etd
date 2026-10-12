@@ -49,6 +49,10 @@ export function resolveSupportStyle(
   config: StyleConfig,
 ): ResolvedStyle {
   const typeStyle = config.supportTypes[el.supportType];
+  // A subtype may override shape and fill (e.g. Displays → white ellipse).
+  const subtypeStyle = el.subtype
+    ? config.subtypes[el.supportType]?.find((s) => s.id === el.subtype)?.style
+    : undefined;
   // Border color stays contributor-derived (existing getSupportColors logic).
   // We discard the .fill it returns; per-type config now owns background.
   const { border } = getSupportColors(el.supportType, el.contributor);
@@ -62,8 +66,8 @@ export function resolveSupportStyle(
   return {
     borderColor: border,
     borderStyle,
-    borderShape: typeStyle.borderShape,
-    backgroundColor: typeStyle.backgroundColor,
+    borderShape: subtypeStyle?.borderShape ?? typeStyle.borderShape,
+    backgroundColor: subtypeStyle?.backgroundColor ?? typeStyle.backgroundColor,
     borderWidth: 2,
   };
 }

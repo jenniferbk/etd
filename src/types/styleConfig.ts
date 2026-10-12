@@ -10,10 +10,19 @@ export interface TypeStyle {
   backgroundColor: string;  // hex, e.g. "#FFFFFF"
 }
 
+// Per-subtype visual override. Fields left out fall back to the parent
+// support type's TypeStyle. An empty object means "no override".
+export interface SubtypeStyle {
+  borderShape?: BorderShape;
+  backgroundColor?: string;
+}
+
 export interface Subtype {
   id: string;     // stable. v1.2 default ids are slugs ("displays" etc.).
                   // ALL new subtypes use generateUuid() (utils/uuid) — never slug-from-label.
   label: string;  // display label, e.g. "Displays"
+  // v1.8+. Absent on files saved before v1.8; see applySubtypeStyleMigration.
+  style?: SubtypeStyle;
 }
 
 // Deprecated alias — kept so existing imports keep compiling during the transition.

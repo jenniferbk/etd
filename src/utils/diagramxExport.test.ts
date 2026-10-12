@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { exportToDiagramx, hasCounterclaims } from './diagramxExport';
-import type { ArgumentElement, Connection } from '../types';
+import type { ArgumentElement, Connection, SupportElement } from '../types';
+import { createCurrentDefaults } from './styleConfigDefaults';
 
 function claim(id: string, x: number): ArgumentElement {
   return {
@@ -47,5 +48,26 @@ describe('hasCounterclaims', () => {
       { id: 'a', from: '1', to: '2', type: 'support' },
       { id: 'b', from: '2', to: '1', type: 'counterclaim' },
     ])).toBe(true);
+  });
+});
+
+describe('exportToDiagramx support fills', () => {
+  type SymbolItem = { symbol: { _0: { fill?: { opacity: number } } } };
+  function fills(json: string) {
+    const doc = JSON.parse(json) as { tabs: { model: { items: unknown[] } }[] };
+    return doc.tabs[0].model.items
+      .filter((it): it is SymbolItem => typeof it === 'object' && it !== null && 'symbol' in it)
+      .map((it) => it.symbol._0.fill?.opacity);
+  }
+  const support = (id: string, subtype: string): SupportElement => ({
+    id, type: 'support', contributor: 'teacher', supportType: 'other', subtype,
+    content: 'x', position: { x: 0, y: 0 }, size: { width: 160, height: 60 },
+  });
+
+  it('Displays exports unfilled (white); other subtypes keep the yellow fill', () => {
+    const json = exportToDiagramx(
+      [support('a', 'displays'), support('b', 'suggests')], [], 'd', createCurrentDefaults(),
+    );
+    expect(fills(json)).toEqual([0, 1]);
   });
 });

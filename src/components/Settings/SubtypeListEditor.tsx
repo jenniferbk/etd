@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { GripVertical, Trash2, Plus } from 'lucide-react';
-import type { StyleConfig, Subtype, SupportType } from '../../types';
+import type { BorderShape, StyleConfig, Subtype, SubtypeStyle, SupportType } from '../../types';
 import { useDiagramStore } from '../../store';
 import { isSupportElement } from '../../types';
 import { theme } from '../../utils/theme';
@@ -34,6 +34,10 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
 
   const handleRename = (id: string, label: string) => {
     updateSubtypes(list.map((s) => (s.id === id ? { ...s, label } : s)));
+  };
+
+  const handleStyleChange = (id: string, style: SubtypeStyle) => {
+    updateSubtypes(list.map((s) => (s.id === id ? { ...s, style } : s)));
   };
 
   const countUsesForId = (id: string) =>
@@ -88,6 +92,7 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
       <div className="text-xs" style={{ color: theme.sidebar.muted }}>
         Subtypes appear in the palette dropdown and the transcript-line object-type selector.
         Renaming a subtype updates every element that uses it. Deleting one orphans those elements.
+        A subtype can override the {typeLabel.toLowerCase()} shape and fill; "Type default" uses the {typeLabel} style.
       </div>
 
       <div className="space-y-1">
@@ -97,7 +102,9 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
             subtype={s}
             index={idx}
             useCount={countUsesForId(s.id)}
+            typeFill={config.supportTypes[supportType].backgroundColor}
             onRename={handleRename}
+            onStyleChange={handleStyleChange}
             onRemove={handleRemove}
             onReorder={handleReorder}
           />
@@ -119,19 +126,34 @@ interface SubtypeRowProps {
   subtype: Subtype;
   index: number;
   useCount: number;
+  typeFill: string;
   onRename: (id: string, label: string) => void;
+  onStyleChange: (id: string, style: SubtypeStyle) => void;
   onRemove: (id: string) => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
 }
 
-function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }: SubtypeRowProps) {
+const SHAPE_OPTIONS: { value: '' | BorderShape; label: string }[] = [
+  { value: '', label: 'Type default' },
+  { value: 'rectangle', label: 'Rectangle' },
+  { value: 'rounded', label: 'Rounded rectangle' },
+  { value: 'ellipse', label: 'Ellipse' },
+];
+
+function SubtypeRow({ subtype, index, useCount, typeFill, onRename, onStyleChange, onRemove, onReorder }: SubtypeRowProps) {
   // Initial label comes from props. External changes (e.g. undo) are handled by
   // the `key={id:label}` on the parent — forcing a remount with fresh state.
   const [labelDraft, setLabelDraft] = useState(subtype.label);
+  const style = subtype.style ?? {};
+  const fieldStyle = {
+    backgroundColor: theme.sidebar.bg,
+    color: theme.sidebar.text,
+    border: `1px solid ${theme.sidebar.border}`,
+  };
 
   return (
     <div
-      className="flex items-center gap-2 px-2 py-1.5 rounded"
+      className="px-2 py-1.5 rounded space-y-1.5"
       style={{ backgroundColor: theme.sidebar.surface }}
       draggable
       onDragStart={(e) => {
@@ -149,6 +171,7 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
         if (Number.isFinite(from) && from !== index) onReorder(from, index);
       }}
     >
+      <div className="flex items-center gap-2">
       <GripVertical size={14} style={{ color: theme.sidebar.muted, cursor: 'grab' }} />
       <input
         type="text"
@@ -179,6 +202,51 @@ function SubtypeRow({ subtype, index, useCount, onRename, onRemove, onReorder }:
       >
         <Trash2 size={14} style={{ color: theme.sidebar.muted }} />
       </button>
+      </div>
+      <div className="flex items-center gap-2 pl-6 text-xs" style={{ color: theme.sidebar.muted }}>
+        <label className="flex items-center gap-1">
+          Shape
+          <select
+            value={style.borderShape ?? ''}
+            onChange={(e) => {
+              const v = e.target.value as '' | BorderShape;
+              const { borderShape: _drop, ...rest } = style;
+              void _drop;
+              onStyleChange(subtype.id, v === '' ? rest : { ...rest, borderShape: v });
+            }}
+            aria-label={`Shape for subtype ${subtype.label}`}
+            className="px-1 py-0.5 rounded"
+            style={fieldStyle}
+          >
+            {SHAPE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-1">
+          Fill
+          <input
+            type="color"
+            value={style.backgroundColor ?? typeFill}
+            onChange={(e) => onStyleChange(subtype.id, { ...style, backgroundColor: e.target.value.toUpperCase() })}
+            aria-label={`Fill color for subtype ${subtype.label}`}
+            className="w-6 h-6 rounded cursor-pointer"
+            style={{ backgroundColor: 'transparent' }}
+          />
+        </label>
+        {style.backgroundColor !== undefined && (
+          <button
+            onClick={() => {
+              const { backgroundColor: _drop, ...rest } = style;
+              void _drop;
+              onStyleChange(subtype.id, rest);
+            }}
+            className="underline"
+          >
+            Use type fill
+          </button>
+        )}
+      </div>
     </div>
   );
 }

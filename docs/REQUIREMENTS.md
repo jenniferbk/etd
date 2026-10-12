@@ -60,6 +60,9 @@ Teacher actions that support (but are not part of) the argument structure:
 | Teacher Action (general) | Ellipse | Solid (2px) | Red (#CC0000) | White |
 | Question (coded) | Rounded Rectangle | Solid (2px) | Aqua (#00CED1) | Light aqua (#E0FFFF) |
 | Other Support (coded) | Rounded Rectangle | Solid (2px) | Gold (#DAA520) | Light yellow (#FFFACD) |
+| Other Support: Displays | Ellipse | Solid (2px) | Contributor color | White (#FFFFFF) |
+
+Each subtype can override its type's shape and fill in Settings. "Displays" defaults to a white ellipse (2026-10-12); diagrams saved before then are migrated on load.
 
 **Other Support Subtypes** (displayed as label within element):
 - Displays

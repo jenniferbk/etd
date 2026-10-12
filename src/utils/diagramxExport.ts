@@ -126,7 +126,7 @@ interface ElementStyle {
   symbolId: string;
 }
 
-function getElementStyle(element: DiagramElement): ElementStyle {
+function getElementStyle(element: DiagramElement, styleConfig?: StyleConfig): ElementStyle {
   if (isInfoBoxElement(element)) {
     return {
       colorSchemeId: 0,
@@ -159,9 +159,15 @@ function getElementStyle(element: DiagramElement): ElementStyle {
       ? element.contributor
       : 'teacher';
     const colors = getSupportColors(element.supportType, contributor);
+    // A subtype fill override (e.g. Displays → white) wins over the type fill.
+    // White exports as "no fill", matching how actions are emitted.
+    const subtypeFill = element.subtype
+      ? styleConfig?.subtypes[element.supportType]?.find((s) => s.id === element.subtype)?.style?.backgroundColor
+      : undefined;
+    const fill = subtypeFill ?? (element.supportType === 'action' ? null : colors.fill);
     return {
       colorSchemeId: contributorToColorSchemeId(contributor),
-      fillColor: element.supportType === 'action' ? null : hexToRgba(colors.fill),
+      fillColor: fill === null || fill.toUpperCase() === '#FFFFFF' ? null : hexToRgba(fill),
       lineType: 'solid',
       stroke: hexToRgba(colors.border),
       symbolId: OVAL_SYMBOL_ID,
@@ -299,8 +305,8 @@ function buildTextStyle(color: Rgba, fontName: string): Record<string, unknown> 
   };
 }
 
-function buildSymbolItem(element: DiagramElement, uuid: string): Record<string, unknown> {
-  const style = getElementStyle(element);
+function buildSymbolItem(element: DiagramElement, uuid: string, styleConfig?: StyleConfig): Record<string, unknown> {
+  const style = getElementStyle(element, styleConfig);
   const text = getElementText(element);
   const isTextbox = style.symbolId === TEXTBOX_SYMBOL_ID;
   const isHexagon = style.symbolId === HEXAGON_SYMBOL_ID;
@@ -463,11 +469,9 @@ export function exportToDiagramx(
   elements: DiagramElement[],
   connections: Connection[],
   diagramName: string,
-  // styleConfig is accepted for forward-compatibility (renamed type labels).
-  // At Level A, all element text comes from el.label / el.content — no
-  // type-derived strings are emitted — so the body does not use it yet.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  _styleConfig?: StyleConfig,
+  // styleConfig supplies subtype fill overrides (e.g. Displays → white).
+  // Element text still comes only from el.label / el.content.
+  styleConfig?: StyleConfig,
 ): string {
   const elementsById = new Map(elements.map((e) => [e.id, e]));
   const idMap = new Map<string, string>();
@@ -489,7 +493,7 @@ export function exportToDiagramx(
   for (const el of elements) {
     const uuid = normalizeId(el.id, idMap);
     symbolUuids.push(uuid);
-    symbolItems.push(buildSymbolItem(el, uuid));
+    symbolItems.push(buildSymbolItem(el, uuid, styleConfig));
   }
 
   const connectorUuids: string[] = [];

@@ -40,6 +40,7 @@ export function SupportShape({
   const styleConfig = useDiagramStore((s) => s.styleConfig);
   const style = resolveSupportStyle(element, styleConfig);
   const dashArray = dashArrayForBorderStyle(style.borderStyle);
+  const isEllipse = style.borderShape === 'ellipse';
 
   if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
     console.log('[etd-style] SupportShape', {
@@ -143,8 +144,8 @@ export function SupportShape({
       onContextMenu={onContextMenu}
     >
       {shapeNode}
-      {/* Contributor indicator */}
-      {style.borderShape === 'ellipse' && (
+      {/* Contributor indicator (ellipses without a header; the header already says [T]/[S]) */}
+      {isEllipse && headerLabel === '' && (
         <Text
           x={4}
           y={4}
@@ -157,13 +158,14 @@ export function SupportShape({
       {/* Header label (empty for action) */}
       {headerLabel !== '' && (
         <Text
-          x={padding}
-          y={padding}
-          width={size.width - padding * 2}
+          x={isEllipse ? padding * 2 : padding}
+          y={isEllipse ? size.height * 0.12 : padding}
+          width={isEllipse ? size.width - padding * 4 : size.width - padding * 2}
           text={headerLabel}
           fontSize={10}
           fontStyle="bold"
           fill={style.borderColor}
+          align={isEllipse ? 'center' : 'left'}
         />
       )}
       {/* Orphan warning marker */}
@@ -179,14 +181,14 @@ export function SupportShape({
       {/* Content */}
       <Text
         x={style.borderShape === 'ellipse' ? padding * 2 : padding}
-        y={style.borderShape === 'ellipse'
-          ? size.height * 0.15
+        y={isEllipse
+          ? size.height * (headerLabel !== '' ? 0.25 : 0.15)
           : headerLabel !== '' ? padding + 14 : padding}
         width={style.borderShape === 'ellipse'
           ? size.width - padding * 4
           : size.width - padding * 2}
-        height={style.borderShape === 'ellipse'
-          ? (attributionText ? size.height * 0.55 : size.height * 0.7)
+        height={isEllipse
+          ? size.height * ((attributionText ? 0.55 : 0.7) - (headerLabel !== '' ? 0.1 : 0))
           : size.height - padding * 2 - (headerLabel !== '' ? 14 : 0) - (attributionText ? 12 : 0)}
         text={content}
         fontSize={11}

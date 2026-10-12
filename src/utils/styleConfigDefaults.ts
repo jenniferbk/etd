@@ -1,4 +1,31 @@
-import type { StyleConfig, Subtype } from '../types/styleConfig';
+import type { StyleConfig, Subtype, SubtypeStyle } from '../types/styleConfig';
+
+// "Displays" (an Other-support subtype) renders like a teacher action: an
+// ellipse with a white fill, not the Other type's yellow rounded rectangle.
+export const DISPLAYS_DEFAULT_STYLE: SubtypeStyle = {
+  borderShape: 'ellipse',
+  backgroundColor: '#FFFFFF',
+};
+
+// Load-time migration for files saved before subtype styles existed (< v1.8).
+// A `displays` subtype with no `style` key gets the new default. Idempotent:
+// once `style` is present (even `{}`, meaning the user cleared the override)
+// it is left alone. Returns the input object when nothing changes.
+export function applySubtypeStyleMigration(config: StyleConfig): StyleConfig {
+  const other = config.subtypes.other;
+  if (!other.some((s) => s.id === 'displays' && s.style === undefined)) return config;
+  return {
+    ...config,
+    subtypes: {
+      ...config.subtypes,
+      other: other.map((s) =>
+        s.id === 'displays' && s.style === undefined
+          ? { ...s, style: { ...DISPLAYS_DEFAULT_STYLE } }
+          : s,
+      ),
+    },
+  };
+}
 
 // Normalize a loaded styleConfig into the current in-memory shape.
 //
@@ -86,7 +113,7 @@ export function createCurrentDefaults(): StyleConfig {
       action:   [],
       question: [],
       other: [
-        { id: 'displays',   label: 'Displays' },
+        { id: 'displays',   label: 'Displays', style: { ...DISPLAYS_DEFAULT_STYLE } },
         { id: 'suggests',   label: 'Suggests' },
         { id: 'summarizes', label: 'Summarizes' },
         { id: 'restates',   label: 'Restates' },
