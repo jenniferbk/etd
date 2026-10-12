@@ -383,6 +383,7 @@ These are NOT required for initial release but noted for potential future develo
 11. **Resizable Embedded Images** - ~~Images embedded in elements are fixed-size today~~ **Shipped 2026-09-24:** the Scale slider goes to 300% and the element widens to fit (team request, 2026-09-21)
 12. **Straighter Auto-Routing** - Auto-routed connectors sometimes carry an unnecessary jog (a small `_|-` turn); eliminate these algorithmically where possible, with a click-to-straighten fallback (team request, 2026-09-21; example pictures to follow; design pending)
 13. **Workspace Management** - As the shared library grows: folders to organize diagrams; Finder-style display modes (thumbnail grid as today, plus a details/list view with sortable columns such as title, last edited, editor, versions); and search across diagram titles (team request, 2026-09-24; not scheduled; design pending)
+14. **Live Collaboration** - Real-time multi-user editing with continuous autosave, presence avatars, and teammate selection outlines for library diagrams (requested and built 2026-10-12; see docs/superpowers/specs/2026-10-12-live-collaboration-design.md)
 
 ---
 
