@@ -62,8 +62,11 @@ export interface CloudDiagram {
 export interface DiagramVersionListItem {
   id: number;
   author: string;
+  /** When the version's content was last written. */
   createdAt: string;
   isCurrent: boolean;
+  /** True for versions written by live autosave; absent from older servers. */
+  auto?: boolean;
 }
 
 /** A single version's full content (GET /api/diagrams/:id/versions/:versionId). */

@@ -5,7 +5,7 @@
 import Konva from 'konva';
 import { useDiagramStore } from '../store';
 import { computeExportBounds } from './exportBounds';
-import { NOTE_BADGE_SELECTOR, withIdentityView, withNodesHidden } from './exportHideNodes';
+import { CANVAS_ONLY_SELECTOR, withIdentityView, withNodesHidden } from './exportHideNodes';
 
 // Cards show ~300px wide; 2× that stays sharp on retina screens.
 const MAX_WIDTH = 640;
@@ -22,7 +22,7 @@ export function captureThumbnail(): string | undefined {
 
     const rendered = withIdentityView(stage, () =>
       // The selection Transformer and note badges are editing UI, not diagram.
-      withNodesHidden(stage, `Transformer, ${NOTE_BADGE_SELECTOR}`, () =>
+      withNodesHidden(stage, `Transformer, ${CANVAS_ONLY_SELECTOR}`, () =>
         stage.toCanvas({ ...bounds, pixelRatio: ratio }),
       ),
     );

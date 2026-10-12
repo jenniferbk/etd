@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import { ArgumentShape } from './shapes/ArgumentShape';
+import { PresenceOutlines } from './shapes/PresenceOutlines';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
@@ -1171,6 +1172,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
             }
             return null;
           })}
+
+          {/* Teammates' selections (live collaboration) */}
+          <PresenceOutlines elements={elements} />
 
           {/* Transformer for resizing selected elements */}
           <Transformer

@@ -4,6 +4,8 @@ import { requireAuth } from '../auth.js';
 import { getRole } from '../access.js';
 import { packSnapshot, unpackSnapshot } from '../snapshots.js';
 import type { Db } from '../db.js';
+import type { LiveRooms } from '../live.js';
+import { opSchema } from '../liveOps.js';
 
 const snapshotSchema = z.record(z.string(), z.unknown());
 
@@ -32,7 +34,9 @@ interface DiagramRow {
   deleted_at: string | null;
 }
 
-export function diagramRoutes(db: Db): Router {
+const MAX_OPS_PER_BATCH = 5000;
+
+export function diagramRoutes(db: Db, live: LiveRooms): Router {
   const router = Router();
   router.use(requireAuth(db));
 
@@ -157,16 +161,22 @@ export function diagramRoutes(db: Db): Router {
   router.get('/diagrams/:id', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;
-    const version = db
-      .prepare('SELECT snapshot_gz FROM diagram_versions WHERE id = ?')
-      .get(row.current_version_id) as { snapshot_gz: Buffer };
+    // While someone has it open, the live document is newer than the last autosave.
+    const open = live.liveDoc(row.id);
+    const snapshot = open
+      ? open.doc
+      : unpackSnapshot(
+          (db.prepare('SELECT snapshot_gz FROM diagram_versions WHERE id = ?').get(row.current_version_id) as {
+            snapshot_gz: Buffer;
+          }).snapshot_gz,
+        );
     res.json({
       id: row.id,
       groupId: row.group_id,
       title: row.title,
-      currentVersionId: row.current_version_id,
+      currentVersionId: open ? open.currentVersionId : row.current_version_id,
       updatedAt: row.updated_at,
-      snapshot: unpackSnapshot(version.snapshot_gz),
+      snapshot,
     });
   });
 
@@ -175,12 +185,12 @@ export function diagramRoutes(db: Db): Router {
     if (!row) return;
     const versions = db
       .prepare(
-        `SELECT v.id, u.display_name AS author, v.created_at AS createdAt
+        `SELECT v.id, u.display_name AS author, COALESCE(v.saved_at, v.created_at) AS createdAt, v.auto
          FROM diagram_versions v JOIN users u ON u.id = v.author_id
          WHERE v.diagram_id = ? ORDER BY v.id DESC`,
       )
-      .all(row.id) as { id: number; author: string; createdAt: string }[];
-    res.json(versions.map((v) => ({ ...v, isCurrent: v.id === row.current_version_id })));
+      .all(row.id) as { id: number; author: string; createdAt: string; auto: number }[];
+    res.json(versions.map((v) => ({ ...v, auto: v.auto === 1, isCurrent: v.id === row.current_version_id })));
   });
 
   router.get('/diagrams/:id/versions/:versionId', (req, res) => {
@@ -193,7 +203,7 @@ export function diagramRoutes(db: Db): Router {
     }
     const v = db
       .prepare(
-        `SELECT v.id, v.snapshot_gz, v.created_at AS createdAt, u.display_name AS author
+        `SELECT v.id, v.snapshot_gz, COALESCE(v.saved_at, v.created_at) AS createdAt, u.display_name AS author
          FROM diagram_versions v JOIN users u ON u.id = v.author_id
          WHERE v.id = ? AND v.diagram_id = ?`,
       )
@@ -220,6 +230,18 @@ export function diagramRoutes(db: Db): Router {
       res.status(400).json({ error: 'invalid request' });
       return;
     }
+    // While the diagram is open for live editing, its in-memory document can
+    // be ahead of the database, so a version check against the database is
+    // not enough. A non-forced full save is a conflict; a forced one replaces
+    // the live document for everyone.
+    const liveRoom = live.get(row.id);
+    if (liveRoom && liveRoom.clients.size > 0 && parsed.data.baseVersionId !== undefined) {
+      res.status(409).json({
+        error: 'this diagram is open for live editing — reload to join the session',
+        currentVersionId: liveRoom.currentVersionId,
+      });
+      return;
+    }
     if (parsed.data.baseVersionId !== undefined && parsed.data.baseVersionId !== row.current_version_id) {
       res.status(409).json({
         error: 'someone else saved this diagram while you were editing',
@@ -235,7 +257,72 @@ export function diagramRoutes(db: Db): Router {
         db.prepare('UPDATE diagrams SET title = ? WHERE id = ?').run(parsed.data.title, row.id);
       }
     })();
+    live.replaced(row.id, parsed.data.snapshot, currentVersionId);
     res.json({ currentVersionId });
+  });
+
+  // ---- Live collaboration -------------------------------------------------
+  const clientIdSchema = z.string().min(8).max(100);
+
+  // Server-Sent Events stream: 'hello' (the document), then 'ops', 'presence',
+  // 'persisted', 'reset', and 'gone' events.
+  router.get('/diagrams/:id/live', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const clientId = clientIdSchema.safeParse(req.query.clientId);
+    if (!clientId.success) {
+      res.status(400).json({ error: 'clientId required' });
+      return;
+    }
+    live.subscribe(row.id, clientId.data, req.user!, res);
+  });
+
+  router.post('/diagrams/:id/live/ops', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const parsed = z
+      .object({
+        clientId: clientIdSchema,
+        batchId: z.string().min(1).max(200),
+        ops: z.array(opSchema).min(1).max(MAX_OPS_PER_BATCH),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid edit batch' });
+      return;
+    }
+    const seq = live.apply(row.id, parsed.data.clientId, parsed.data.batchId, parsed.data.ops, req.user!);
+    res.json({ seq });
+  });
+
+  router.post('/diagrams/:id/live/presence', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const parsed = z
+      .object({ clientId: clientIdSchema, selectedIds: z.array(z.string()).max(1000) })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid presence update' });
+      return;
+    }
+    live.setSelection(row.id, parsed.data.clientId, parsed.data.selectedIds);
+    res.status(204).end();
+  });
+
+  // Save (⌘S) during a live session: write the live document as a new,
+  // named-in-history version right now.
+  router.post('/diagrams/:id/checkpoint', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const versionId = live.checkpoint(row.id, req.user!.id);
+    res.json({ currentVersionId: versionId ?? row.current_version_id });
+  });
+
+  router.put('/diagrams/:id/thumbnail', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    storeThumbnail(row.id, (req.body as { thumbnail?: unknown } | undefined)?.thumbnail);
+    res.status(204).end();
   });
 
   // Title-only rename: no version row (renames are metadata, not content).
@@ -250,6 +337,7 @@ export function diagramRoutes(db: Db): Router {
     db.prepare(`UPDATE diagrams SET title = ?, updated_at = datetime('now') WHERE id = ?`).run(
       parsed.data.title, row.id,
     );
+    live.renamed(row.id, parsed.data.title);
     res.json({ ok: true });
   });
 
@@ -279,6 +367,7 @@ export function diagramRoutes(db: Db): Router {
       res.status(403).json({ error: 'only the creator or a group admin can delete a diagram' });
       return;
     }
+    live.close(row.id, 'trashed');
     db.prepare(`UPDATE diagrams SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?`).run(
       req.user!.id, row.id,
     );

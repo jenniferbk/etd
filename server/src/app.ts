@@ -7,9 +7,13 @@ import { groupRoutes } from './routes/groups.js';
 import { resetRoutes } from './routes/resets.js';
 import { diagramRoutes } from './routes/diagrams.js';
 import type { Db } from './db.js';
+import { LiveRooms, type LiveOptions } from './live.js';
 
-export function createApp(db: Db, opts: { staticDir?: string } = {}): express.Express {
+export function createApp(db: Db, opts: { staticDir?: string; live?: LiveOptions } = {}): express.Express {
   const app = express();
+  // Real-time collaboration rooms; exposed on app.locals for graceful shutdown.
+  const live = new LiveRooms(db, opts.live);
+  app.locals.live = live;
   // Documented deployments (Cloudflare Tunnel, Tailscale Funnel — see
   // server/README.md Section 5) put exactly one local proxy in front of this
   // process, which sets X-Forwarded-For. Without this, Express's default
@@ -30,7 +34,7 @@ export function createApp(db: Db, opts: { staticDir?: string } = {}): express.Ex
   // router-wide on the shared /api mount — any router with unauthenticated /api routes
   // must be mounted before any router that applies requireAuth router-wide.
   app.use('/api', resetRoutes(db));
-  app.use('/api', diagramRoutes(db));
+  app.use('/api', diagramRoutes(db, live));
   app.use('/api', groupRoutes(db));
 
   // Catch-all so unknown /api routes return JSON, not Express's HTML 404 —

@@ -8,6 +8,7 @@ import { buildCloudSnapshot } from '../utils/buildCloudSnapshot';
 import { saveDiagramJson } from '../utils/saveDiagram';
 import { getEditTick } from './dirtyTracking';
 import { captureThumbnail } from '../utils/thumbnail';
+import { getLiveSession } from '../live/liveSession';
 
 /** The single Save entry point. Signed out it behaves exactly like the old
  *  local save; signed in it targets the team library.
@@ -34,6 +35,24 @@ export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<voi
   const cloud = useCloudStore.getState();
   if (cloud.diagramId === null) {
     cloud.setAddToLibraryOpen(true);
+    return;
+  }
+
+  // Live session: edits already autosave continuously. Save writes a new
+  // version right now so this moment is easy to find in history.
+  const session = getLiveSession();
+  if (session && session.diagramId === cloud.diagramId) {
+    if (!session.isConnected) {
+      session.reconnectNow();
+      return;
+    }
+    try {
+      if (await session.checkpoint()) {
+        useToastStore.getState().addToast('info', 'Version saved — find it in History.');
+      }
+    } catch (err) {
+      useToastStore.getState().addToast('error', friendlyError(err));
+    }
     return;
   }
 

@@ -15,9 +15,10 @@ import { useMenu } from '../Toolbar/useMenu';
 import { AccountChip } from './AccountChip';
 import { OfflineBanner } from './OfflineBanner';
 import { PreviewBanner } from './PreviewBanner';
+import { PresenceAvatars } from './PresenceAvatars';
 
 const STATUS_TEXT: Record<LibrarySaveStatus, (group: string) => string> = {
-  saved: (g) => `Saved to ${g} ✓`,
+  saved: (g) => `All changes saved to ${g} ✓`,
   dirty: () => 'Unsaved changes — ⌘S to save',
   saving: () => 'Saving…',
   notInLibrary: () => 'Not in the library — Save adds it',
@@ -289,6 +290,7 @@ export function CanvasHeader() {
         </div>
 
         <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+          <PresenceAvatars />
           <button
             onClick={handleToggleHistory}
             disabled={diagramId === null}

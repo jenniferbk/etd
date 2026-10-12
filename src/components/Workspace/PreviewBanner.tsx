@@ -6,6 +6,7 @@ import { useCloudStore } from '../../store/cloudStore';
 import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { saveToLibrary } from '../../hooks/librarySave';
+import { getLiveSession } from '../../live/liveSession';
 import { theme } from '../../utils/theme';
 import type { CloudDiagram } from '../../api/types';
 import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
@@ -25,6 +26,21 @@ export function PreviewBanner() {
 
   const handleRestore = async () => {
     setBusy(true);
+    const session = getLiveSession();
+    if (session?.isConnected) {
+      // Live: the previewed content becomes everyone's document, and a new
+      // version marks the restore in history.
+      try {
+        if (await session.restorePreview()) {
+          useToastStore.getState().addToast('info', 'Restored — the previous version is still in history.');
+        }
+      } catch (err) {
+        useToastStore.getState().addToast('error', friendlyError(err));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
     try {
       // The canvas already holds the previewed snapshot — saveToLibrary PUTs
       // exactly that. baseVersionId still points at the real head, so a
@@ -41,6 +57,13 @@ export function PreviewBanner() {
   };
 
   const handleBackToCurrent = async () => {
+    const session = getLiveSession();
+    if (session) {
+      // Live: this tab's document kept receiving teammates' edits during the
+      // preview, so it is already current.
+      session.endPreview();
+      return;
+    }
     setBusy(true);
     try {
       const cloud = useCloudStore.getState();

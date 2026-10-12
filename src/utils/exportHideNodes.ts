@@ -6,6 +6,10 @@
 /** Konva node name for analytic-note badges; `stage.find(NOTE_BADGE_SELECTOR)` finds them all. */
 export const NOTE_BADGE_NAME = 'note-badge';
 export const NOTE_BADGE_SELECTOR = `.${NOTE_BADGE_NAME}`;
+/** Konva node name for teammates' live selection outlines. */
+export const PRESENCE_OUTLINE_NAME = 'presence-outline';
+/** Every canvas-only overlay that must never appear in an export. */
+export const CANVAS_ONLY_SELECTOR = `${NOTE_BADGE_SELECTOR}, .${PRESENCE_OUTLINE_NAME}`;
 
 export interface HideableNode {
   visible(): boolean;
@@ -42,7 +46,7 @@ export interface SnapshotStage extends HideableStage {
 }
 
 /** Snapshot a canvas-coordinate region of the stage as a data URL, with note
- *  badges hidden. toDataURL's x/y are in *screen* space (after the stage's
+ *  badges and teammates' selection outlines hidden. toDataURL's x/y are in *screen* space (after the stage's
  *  pan/zoom), so the view is reset to identity for the capture and restored
  *  after — otherwise a panned or zoomed canvas exports the wrong region. */
 export function snapshotStage(
@@ -51,7 +55,7 @@ export function snapshotStage(
   opts: { pixelRatio?: number; mimeType?: string; quality?: number } = {},
 ): string {
   return withIdentityView(stage, () =>
-    withNodesHidden(stage, NOTE_BADGE_SELECTOR, () => stage.toDataURL({ ...bounds, ...opts })),
+    withNodesHidden(stage, CANVAS_ONLY_SELECTOR, () => stage.toDataURL({ ...bounds, ...opts })),
   );
 }
 

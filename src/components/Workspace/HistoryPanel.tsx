@@ -188,7 +188,7 @@ export function HistoryPanel() {
               )}
             </div>
             <span className="text-xs" style={{ color: theme.sidebar.textSecondary }}>
-              {relativeTime(item.createdAt)}
+              {item.auto ? 'Autosaved · ' : ''}{relativeTime(item.createdAt)}
             </span>
           </button>
         ))}

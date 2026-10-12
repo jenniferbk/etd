@@ -89,4 +89,12 @@ function migrate(db: Db): void {
   // Workspace card thumbnail: the latest one sent with a save (not versioned).
   if (!diagramCols.has('thumbnail')) db.exec('ALTER TABLE diagrams ADD COLUMN thumbnail BLOB');
   if (!diagramCols.has('thumbnail_mime')) db.exec('ALTER TABLE diagrams ADD COLUMN thumbnail_mime TEXT');
+  // Live collaboration: autosaved versions (auto = 1) are updated in place
+  // within an editing window; saved_at is when a version's content was last
+  // written (created_at is when the window opened).
+  const versionCols = new Set(
+    (db.prepare('PRAGMA table_info(diagram_versions)').all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!versionCols.has('auto')) db.exec('ALTER TABLE diagram_versions ADD COLUMN auto INTEGER NOT NULL DEFAULT 0');
+  if (!versionCols.has('saved_at')) db.exec('ALTER TABLE diagram_versions ADD COLUMN saved_at TEXT');
 }

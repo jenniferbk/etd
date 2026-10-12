@@ -9,6 +9,7 @@ import { ImageLightbox } from './components/ImageEditor/ImageLightbox';
 import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 import { useDirtyTracking } from './hooks/dirtyTracking';
+import { useLiveSync } from './live/useLiveSync';
 import { saveToLibrary } from './hooks/librarySave';
 import { parseTranscript } from './utils/transcriptParser';
 import { nameForLoadedFile } from './utils/saveDiagram';
@@ -109,6 +110,7 @@ function App() {
   const preview = useCloudStore((s) => s.preview);
   const historyOpen = useCloudStore((s) => s.historyOpen);
   useDirtyTracking(user !== null && preview === null);
+  useLiveSync();
 
   // Defensive: preview is normally exited via "Back to current" (clears it
   // itself) since CanvasHeader's ← is disabled while previewing — but if the
