@@ -2,6 +2,8 @@ import { applyOps, diffDocs, type LiveDoc, type Op } from './ops';
 
 export interface Batch {
   batchId: string;
+  /** Increasing per client; the server skips numbers it already applied. */
+  batchNo: number;
   ops: Op[];
 }
 
@@ -48,7 +50,8 @@ export class SyncEngine {
   takeBatch(local: LiveDoc): Batch | null {
     const ops = this.unsent(local);
     if (ops.length === 0) return null;
-    const batch = { batchId: `${this.clientId}:${this.nextBatch++}`, ops };
+    const batchNo = this.nextBatch++;
+    const batch = { batchId: `${this.clientId}:${batchNo}`, batchNo, ops };
     this.inflight.push(batch);
     this.lastSent = local;
     return batch;
@@ -77,13 +80,35 @@ export class SyncEngine {
   }
 
   /**
-   * Start over from a fresh server document (reconnect, or the server
-   * replaced the document). Anything not yet echoed is folded back into
-   * "unsent" so the next takeBatch sends it again. Field sets and deletes
-   * are idempotent, so resending an edit the server already applied is safe.
+   * Drop a batch the server refused (malformed). Its edits are undone
+   * locally; later batches and unsent edits are kept. Returns the new local
+   * document.
    */
-  reset(doc: LiveDoc, local: LiveDoc): LiveDoc {
-    const pending = [...this.inflight.flatMap((b) => b.ops), ...this.unsent(local)];
+  discard(batchId: string, local: LiveDoc): LiveDoc {
+    const pendingLocal = this.unsent(local);
+    this.inflight = this.inflight.filter((b) => b.batchId !== batchId);
+    this.lastSent = this.inflight.reduce((d, b) => applyOps(d, b.ops), this.shadow);
+    return applyOps(this.lastSent, pendingLocal);
+  }
+
+  /** The server already applied this batch (a duplicate send); forget it. */
+  confirm(batchId: string): void {
+    const i = this.inflight.findIndex((b) => b.batchId === batchId);
+    if (i === -1) return;
+    this.shadow = applyOps(this.shadow, this.inflight[i].ops);
+    this.inflight.splice(i, 1);
+  }
+
+  /**
+   * Start over from a fresh server document (reconnect, or the server
+   * replaced the document). `lastAppliedBatchNo` is the highest batch of
+   * this client the server has applied; those batches are already in `doc`
+   * and are dropped, so a resend can never revert a teammate's later edit.
+   * Everything else not yet echoed is folded back into unsent work.
+   */
+  reset(doc: LiveDoc, local: LiveDoc, lastAppliedBatchNo = 0): LiveDoc {
+    const unconfirmed = this.inflight.filter((b) => b.batchNo > lastAppliedBatchNo);
+    const pending = [...unconfirmed.flatMap((b) => b.ops), ...this.unsent(local)];
     this.shadow = doc;
     this.lastSent = doc;
     this.inflight = [];

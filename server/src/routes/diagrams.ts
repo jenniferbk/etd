@@ -284,6 +284,7 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
       .object({
         clientId: clientIdSchema,
         batchId: z.string().min(1).max(200),
+        batchNo: z.number().int().positive().optional(),
         ops: z.array(opSchema).min(1).max(MAX_OPS_PER_BATCH),
       })
       .safeParse(req.body);
@@ -291,8 +292,9 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
       res.status(400).json({ error: 'invalid edit batch' });
       return;
     }
-    const seq = live.apply(row.id, parsed.data.clientId, parsed.data.batchId, parsed.data.ops, req.user!);
-    res.json({ seq });
+    const { clientId, batchId, batchNo, ops } = parsed.data;
+    const seq = live.apply(row.id, clientId, batchId, ops, req.user!, batchNo);
+    res.json(seq === null ? { duplicate: true } : { seq });
   });
 
   router.post('/diagrams/:id/live/presence', (req, res) => {

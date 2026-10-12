@@ -150,6 +150,10 @@ class Room {
 export class LiveRooms {
   readonly opts: Required<LiveOptions>;
   private rooms = new Map<number, Room>();
+  /** Highest batch number applied per "diagramId:clientId". Outlives rooms
+   *  (a lone editor's room closes when their connection drops), so a
+   *  reconnecting client never re-applies a batch. Lost on server restart. */
+  private appliedBatches = new Map<string, number>();
   private readonly db: Db;
   private heartbeat: NodeJS.Timeout | null = null;
 
@@ -197,6 +201,7 @@ export class LiveRooms {
       currentVersionId: room.currentVersionId,
       doc: room.doc,
       you: { clientId, color: client.color },
+      lastBatchNo: this.appliedBatches.get(`${diagramId}:${clientId}`) ?? 0,
     }, client);
     room.broadcastPresence();
     res.on('close', () => {
@@ -212,8 +217,20 @@ export class LiveRooms {
     });
   }
 
-  /** Apply ops to a diagram. Loads the room if nobody has it open. */
-  apply(diagramId: number, clientId: string, batchId: string, ops: Op[], user: SessionUser): number {
+  /** Apply ops to a diagram. Loads the room if nobody has it open. Returns
+   *  null for a batch number this client already had applied. */
+  apply(
+    diagramId: number, clientId: string, batchId: string, ops: Op[], user: SessionUser, batchNo?: number,
+  ): number | null {
+    const key = `${diagramId}:${clientId}`;
+    if (batchNo !== undefined) {
+      if (batchNo <= (this.appliedBatches.get(key) ?? 0)) return null;
+      this.appliedBatches.delete(key); // re-insert: Map order = recency for pruning
+      this.appliedBatches.set(key, batchNo);
+      if (this.appliedBatches.size > 10_000) {
+        this.appliedBatches.delete(this.appliedBatches.keys().next().value as string);
+      }
+    }
     const room = this.load(diagramId);
     const seq = room.apply(clientId, batchId, ops, user);
     if (room.clients.size === 0) {

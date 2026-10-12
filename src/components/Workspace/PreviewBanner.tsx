@@ -25,9 +25,15 @@ export function PreviewBanner() {
   if (!preview) return null;
 
   const handleRestore = async () => {
-    setBusy(true);
     const session = getLiveSession();
-    if (session?.isConnected) {
+    if (session && !session.isConnected) {
+      // Restore needs the server; a plain save would only queue a reconnect.
+      session.reconnectNow();
+      useToastStore.getState().addToast('info', 'You’re offline — Restore will work once you’re reconnected.');
+      return;
+    }
+    setBusy(true);
+    if (session) {
       // Live: the previewed content becomes everyone's document, and a new
       // version marks the restore in history.
       try {

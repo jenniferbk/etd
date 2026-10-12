@@ -13,6 +13,7 @@ import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupport
 import { calculateElementSize } from '../utils/textMeasure';
 import { imageAreaHeight } from '../utils/imageLayout';
 import { DEFAULT_DIAGRAM_NAME } from '../utils/saveDiagram';
+import { documentWillBeReplaced } from '../live/replaceGuard';
 
 interface LegendConfig {
   visible: boolean;
@@ -670,6 +671,7 @@ export const useDiagramStore = create<DiagramState>()(
       setDiagramName: (name) => set({ diagramName: name }),
 
       loadDiagram: (elements, connections, name, transcript, styleConfig, notes) => {
+        documentWillBeReplaced();
         // Orphan sweep: clear attachedTo on qualifiers whose connectionId is
         // no longer valid. Pure helper so it's testable without DOM.
         const sweptElements = sweepOrphanedQualifiers(elements, connections);
@@ -698,7 +700,8 @@ export const useDiagramStore = create<DiagramState>()(
         });
       },
 
-      clearDiagram: () =>
+      clearDiagram: () => {
+        documentWillBeReplaced();
         set((state) => ({
           diagramName: DEFAULT_DIAGRAM_NAME,
           elements: [],
@@ -711,7 +714,8 @@ export const useDiagramStore = create<DiagramState>()(
           transcript: state.transcript, // preserved intentionally
           styleConfig: createCurrentDefaults(),
           notes: [],
-        })),
+        }));
+      },
     }),
     {
       // Track elements, connections, and styleConfig for undo/redo

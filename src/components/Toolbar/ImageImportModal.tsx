@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import { useDiagramStore } from '../../store';
+import { useCloudStore } from '../../store/cloudStore';
 import { importImage, type ImportResult } from '../../utils/imageImport';
 import { theme } from '../../utils/theme';
 import { Modal } from '../ui/Modal';
@@ -82,6 +83,8 @@ export function ImageImportModal({ open, onClose }: Props) {
     const result = await importImage(file, { signal: abort.signal });
     if (result.kind === 'ok') {
       loadDiagram(result.diagram.elements, result.diagram.connections, result.diagram.name, null);
+      // An imported diagram is new work, not an edit of the open library diagram.
+      useCloudStore.getState().clearCloudTarget();
       onClose();
     } else if (result.kind === 'cancelled') {
       setState({ kind: 'picker' });

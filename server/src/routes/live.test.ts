@@ -196,6 +196,22 @@ describe('live collaboration', () => {
     expect(opened.body.snapshot.elements[0].content).toBe('kept');
   });
 
+  it('skips a batch number the client already had applied and reports it in hello', async () => {
+    const { open, post, app, adminToken, id } = await setup();
+    const send = (batchNo: number, x: number) =>
+      request(app).post(`/api/diagrams/${id}/live/ops`).set(auth(adminToken)).send({
+        clientId: 'client-A-0009', batchId: `A:${batchNo}`, batchNo,
+        ops: [{ t: 'patch', c: 'elements', id: 'a', fields: { position: { x, y: 0 } } }],
+      });
+    expect((await send(1, 10)).body.seq).toBeTypeOf('number');
+    await post('client-B-0009', 'B:1', [{ t: 'patch', c: 'elements', id: 'a', fields: { position: { x: 99, y: 0 } } }]);
+    expect((await send(1, 10)).body).toEqual({ duplicate: true });
+    const A = open('client-A-0009');
+    const hello = await A.next('hello');
+    expect(hello.lastBatchNo).toBe(1);
+    expect(hello.doc.elements[0].position).toEqual({ x: 99, y: 0 });
+  });
+
   it('rejects malformed batches', async () => {
     const { post } = await setup();
     expect((await post('client-A-0008', 'A:1', [{ t: 'set', k: 'constructor', value: 1 }])).status).toBe(400);

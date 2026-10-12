@@ -19,6 +19,7 @@ import { generateUuid } from '../utils/uuid';
 import type { LiveDoc, Op } from './ops';
 import { usePresenceStore, type PresenceMember } from './presenceStore';
 import { readEventStream } from './sse';
+import { setReplaceHandler } from './replaceGuard';
 import { applyDocToStore, docFromState, docFromStore } from './storeBridge';
 import { SyncEngine } from './syncEngine';
 
@@ -59,6 +60,11 @@ export class LiveSession {
   private persistedSeq = 0;
   private unsubs: (() => void)[] = [];
   private wake: (() => void) | null = null;
+  /** Set once this session stops following the store (leaving, or the
+   *  document was replaced by something that is not this diagram). */
+  private detached = false;
+  /** True while the session itself loads the document into the store. */
+  private ownLoad = false;
 
   constructor(diagramId: number) {
     this.diagramId = diagramId;
@@ -66,6 +72,14 @@ export class LiveSession {
 
   start(): void {
     setCurrent(this);
+    // Anything else replacing the whole document (open a file, recover an
+    // autosave, import from an image, clear) means the canvas is no longer
+    // this library diagram. Detach before the new content reaches the store,
+    // so it is never sent to teammates.
+    setReplaceHandler(() => {
+      if (this.ownLoad || useCloudStore.getState().preview !== null) return;
+      void this.stop();
+    });
     this.unsubs.push(
       useDiagramStore.subscribe((s, prev) => {
         if (s.selectedIds !== prev.selectedIds) this.schedulePresence();
@@ -84,16 +98,29 @@ export class LiveSession {
     void this.connectLoop();
   }
 
-  /** Leave the session: send what is left (best effort), then disconnect. */
+  /** Stop following the store, synchronously. After this, only edits made
+   *  before this moment can be sent. */
+  private detach(): void {
+    if (this.detached) return;
+    this.detached = true;
+    this.unsubs.forEach((u) => u());
+    this.unsubs = [];
+    setReplaceHandler(null);
+    if (current === this) setCurrent(null);
+  }
+
+  /** Leave the session: send edits made before leaving (best effort), then
+   *  disconnect. Detaches first, so nothing loaded afterwards is sent. */
   async stop(): Promise<void> {
-    if (this.stopped) return;
+    if (this.detached) return;
+    // Capture the thumbnail first: the canvas still shows this diagram here,
+    // even when stop() runs because other content is about to be loaded.
+    void this.sendThumbnail();
+    this.detach();
     await this.drain(3000);
     this.stopped = true;
-    if (current === this) setCurrent(null);
-    this.unsubs.forEach((u) => u());
     for (const t of [this.sendTimer, this.presenceTimer, this.stallTimer]) if (t) clearTimeout(t);
     if (this.thumbTimer) clearInterval(this.thumbTimer);
-    void this.sendThumbnail();
     this.streamCtrl?.abort();
     this.wake?.();
     usePresenceStore.getState().reset();
@@ -246,24 +273,29 @@ export class LiveSession {
       // from the diagrams table, which wins over a stale embedded name.
       const name = useDiagramStore.getState().diagramName;
       this.engine = new SyncEngine(this.clientId, doc);
-      this.loadIntoStore(doc, name);
+      this.ownLoad = true;
+      try {
+        this.loadIntoStore(doc, name);
+      } finally {
+        this.ownLoad = false;
+      }
       // loadDiagram normalizes (migrations, sizes, title); send that back.
       this.local = docFromStore();
       useDiagramStore.temporal.getState().clear();
     } else {
-      this.onReset(doc, data.currentVersionId as number, data.seq as number);
+      this.onReset(doc, data.currentVersionId as number, data.seq as number, (data.lastBatchNo as number | undefined) ?? 0);
     }
     this.setConnected(true, you.color);
     this.scheduleSend(0);
     this.schedulePresence();
   }
 
-  private onReset(doc: LiveDoc, currentVersionId: number, seq: number): void {
+  private onReset(doc: LiveDoc, currentVersionId: number, seq: number, lastBatchNo = 0): void {
     if (!this.engine || !this.local) return;
-    this.local = this.engine.reset(doc, this.local);
+    this.local = this.engine.reset(doc, this.local, lastBatchNo);
     this.persistedSeq = Math.max(this.persistedSeq, seq);
     useCloudStore.getState().setBaseVersionId(currentVersionId);
-    if (useCloudStore.getState().preview === null) applyDocToStore(this.local);
+    if (useCloudStore.getState().preview === null && !this.detached) applyDocToStore(this.local);
     this.scheduleSend(0);
     this.updateStatus();
   }
@@ -274,7 +306,7 @@ export class LiveSession {
     if (ev.clientId === this.clientId) this.lastEchoSeq = ev.seq;
     if (next) {
       this.local = next;
-      if (useCloudStore.getState().preview === null) applyDocToStore(next);
+      if (useCloudStore.getState().preview === null && !this.detached) applyDocToStore(next);
     }
     this.updateStatus();
   }
@@ -299,10 +331,12 @@ export class LiveSession {
     this.sending = true;
     this.updateStatus();
     try {
-      await api(`/api/diagrams/${this.diagramId}/live/ops`, {
+      const res = await api<{ seq?: number; duplicate?: boolean }>(`/api/diagrams/${this.diagramId}/live/ops`, {
         method: 'POST',
-        body: { clientId: this.clientId, batchId: batch.batchId, ops: batch.ops },
+        body: { clientId: this.clientId, batchId: batch.batchId, batchNo: batch.batchNo, ops: batch.ops },
       });
+      // Already applied earlier (no echo will come): count it as confirmed.
+      if (res?.duplicate) this.engine.confirm(batch.batchId);
     } catch (err) {
       if (err instanceof ApiError && [401, 403, 404, 410].includes(err.status)) {
         this.fatal(err.status);
@@ -310,15 +344,20 @@ export class LiveSession {
       }
       if (err instanceof ApiError && err.status === 400) {
         // The server refused the batch as malformed. Resending would fail the
-        // same way, so resync from the server's copy instead.
+        // same way forever, so drop just that batch and keep going.
+        this.local = this.engine.discard(batch.batchId, this.local);
+        if (useCloudStore.getState().preview === null && !this.detached) applyDocToStore(this.local);
         useToastStore.getState().addToast('error', 'An edit could not be synced and was undone. Please redo it.');
+        this.scheduleSend(0);
+        return;
       }
-      // Reconnecting resets from the server's document and resends whatever
-      // was not confirmed.
+      // Network trouble: reconnecting resets from the server's document and
+      // resends whatever the server has not applied.
       this.streamCtrl?.abort();
       return;
     } finally {
       this.sending = false;
+      this.updateStatus();
     }
     if (this.engine.unsent(this.local).length > 0) this.scheduleSend(0);
   }
@@ -351,7 +390,7 @@ export class LiveSession {
   }
 
   private async sendThumbnail(): Promise<void> {
-    if (!this.thumbDirty || useCloudStore.getState().preview !== null) return;
+    if (this.detached || !this.thumbDirty || useCloudStore.getState().preview !== null) return;
     const thumbnail = captureThumbnail();
     if (!thumbnail) return;
     this.thumbDirty = false;
@@ -365,7 +404,7 @@ export class LiveSession {
   // ---- helpers ------------------------------------------------------------
 
   private updateStatus(): void {
-    if (this.stopped) return;
+    if (this.stopped || this.detached) return;
     const cloud = useCloudStore.getState();
     if (cloud.diagramId !== this.diagramId) return;
     let status: 'saved' | 'saving' | 'offline';

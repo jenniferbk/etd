@@ -100,4 +100,35 @@ describe('SyncEngine', () => {
       { t: 'patch', c: 'elements', id: 'a', fields: { content: 'lost in flight' } },
     ]);
   });
+
+  it('reset drops batches the server already applied, so a resend cannot undo a teammate', () => {
+    const server = new FakeServer();
+    const A = new SyncEngine('A', base);
+    // A moves the box; the server applies it but the echo is lost.
+    const localA = patchEl(base, { position: { x: 50, y: 0 } });
+    const batch = A.takeBatch(localA)!;
+    server.apply('A', batch);
+    // B then moves it somewhere else.
+    server.doc = applyOps(server.doc, [{ t: 'patch', c: 'elements', id: 'a', fields: { position: { x: 300, y: 0 } } }]);
+    const rebuilt = A.reset(server.doc, localA, batch.batchNo);
+    expect(rebuilt.elements[0].position).toEqual({ x: 300, y: 0 });
+    expect(A.takeBatch(rebuilt)).toBeNull();
+  });
+
+  it('discard drops a refused batch but keeps later unsent edits', () => {
+    const A = new SyncEngine('A', base);
+    const bad = A.takeBatch(patchEl(base, { content: 'refused' }))!;
+    const later = patchEl(patchEl(base, { content: 'refused' }), { position: { x: 7, y: 7 } });
+    const rebuilt = A.discard(bad.batchId, later);
+    expect(rebuilt.elements[0]).toMatchObject({ content: 'hello', position: { x: 7, y: 7 } });
+    expect(A.inflight).toEqual([]);
+  });
+
+  it('confirm treats a duplicate-acknowledged batch as applied', () => {
+    const A = new SyncEngine('A', base);
+    const local = patchEl(base, { content: 'x' });
+    const b = A.takeBatch(local)!;
+    A.confirm(b.batchId);
+    expect(A.hasPending(local)).toBe(false);
+  });
 });
