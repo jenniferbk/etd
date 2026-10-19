@@ -314,3 +314,38 @@ describe('analytic notes', () => {
     expect(useDiagramStore.getState().notesPanelOpen).toBe(false);
   });
 });
+
+describe('straightenConnection', () => {
+  it('clears hand-placed routing when the boxes can be joined straight', () => {
+    const conn: Connection = {
+      id: 'c', from: 'a', to: 'b', type: 'support',
+      waypoints: [{ x: 250, y: 130 }, { x: 250, y: 133 }],
+      toAnchor: { edge: 'left', t: 0.2 },
+    };
+    useDiagramStore.setState({ elements: [arg('a', 0, 100), arg('b', 400, 103)], connections: [conn] });
+    expect(useDiagramStore.getState().straightenConnection('c')).toBe(true);
+    const after = useDiagramStore.getState().connections[0];
+    expect(after.waypoints).toBeUndefined();
+    expect(after.fromAnchor).toBeUndefined();
+    expect(after.toAnchor).toBeUndefined();
+    expect('waypoints' in after).toBe(false);
+  });
+
+  it('stores jog-free waypoints when the boxes do not line up', () => {
+    const conn: Connection = {
+      id: 'c', from: 'a', to: 'b', type: 'support',
+      waypoints: [{ x: 300, y: 30 }, { x: 300, y: 34 }, { x: 500, y: 34 }, { x: 500, y: 430 }],
+    };
+    useDiagramStore.setState({ elements: [arg('a', 0, 0), arg('b', 600, 400)], connections: [conn] });
+    expect(useDiagramStore.getState().straightenConnection('c')).toBe(true);
+    expect(useDiagramStore.getState().connections[0].waypoints).toEqual([{ x: 500, y: 30 }, { x: 500, y: 430 }]);
+  });
+
+  it('returns false and leaves state alone when there is nothing to straighten', () => {
+    const conn: Connection = { id: 'c', from: 'a', to: 'b', type: 'support' };
+    useDiagramStore.setState({ elements: [arg('a', 0, 100), arg('b', 400, 103)], connections: [conn] });
+    const before = useDiagramStore.getState().connections;
+    expect(useDiagramStore.getState().straightenConnection('c')).toBe(false);
+    expect(useDiagramStore.getState().connections).toBe(before);
+  });
+});

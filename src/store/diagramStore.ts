@@ -14,6 +14,7 @@ import { calculateElementSize } from '../utils/textMeasure';
 import { imageAreaHeight } from '../utils/imageLayout';
 import { DEFAULT_DIAGRAM_NAME } from '../utils/saveDiagram';
 import { documentWillBeReplaced } from '../live/replaceGuard';
+import { straightenRouting } from '../utils/orthogonalRouting';
 
 interface LegendConfig {
   visible: boolean;
@@ -139,6 +140,8 @@ interface DiagramState {
   updateConnectionWaypoints: (id: string, waypoints: Position[] | undefined) => void;
   updateConnectionAnchor: (id: string, end: 'from' | 'to', anchor: EdgeAnchor | undefined) => void;
   resetConnectionRouting: (id: string) => void;
+  /** Remove jogs from a connection's route. Returns false when there was nothing to change. */
+  straightenConnection: (id: string) => boolean;
   setConnectionType: (id: string, type: ConnectionType) => void;
 
   // Actions - Selection
@@ -549,6 +552,23 @@ export const useDiagramStore = create<DiagramState>()(
             return next;
           }),
         })),
+
+      straightenConnection: (id) => {
+        const { connections, elements } = get();
+        const conn = connections.find((c) => c.id === id);
+        if (!conn || typeof conn.to !== 'string') return false;
+        const fromEl = elements.find((e) => e.id === conn.from);
+        const toEl = elements.find((e) => e.id === conn.to);
+        if (!fromEl || !toEl) return false;
+        const result = straightenRouting(conn, fromEl, toEl);
+        if (result === null) return false;
+        if (result === 'auto') {
+          get().resetConnectionRouting(id);
+        } else {
+          get().updateConnectionWaypoints(id, result);
+        }
+        return true;
+      },
 
       setConnectionType: (id, type) =>
         set((state) => ({

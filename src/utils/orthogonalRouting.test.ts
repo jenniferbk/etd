@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAnchor, computeRule1Path, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT, offsetAlongLine, tForPointOnPolyline, hitTestPolyline } from './orthogonalRouting';
+import { resolveAnchor, computeRule1Path, computeStraightPath, straightenRouting, groupSiblingsByApproachSide, computeSharedTrunkX, computeEntryTValues, computeConnectionPath, determineFacingEdge, pointerToAnchorT, offsetAlongLine, tForPointOnPolyline, hitTestPolyline } from './orthogonalRouting';
 import type { DiagramElement, EdgeAnchor } from '../types';
 
 function box(x: number, y: number, w: number, h: number): DiagramElement {
@@ -416,5 +416,133 @@ describe('hitTestPolyline', () => {
   it('hits the second segment of an L-shape', () => {
     const points = [0, 0, 100, 0, 100, 100];
     expect(hitTestPolyline({ x: 100, y: 50 }, points, 12)).toBe(true);
+  });
+});
+
+describe('computeStraightPath (any element pair)', () => {
+  it('draws one horizontal line for claim → claim whose centers are a few px apart', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };   // center y 130
+    const b = { ...claimBox(400, 103, 100, 60), id: 'b' }; // center y 133
+    expect(computeStraightPath(a, b)).toEqual([100, 133, 400, 133]);
+  });
+
+  it('uses the source center when the target center is outside the overlap', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };   // y 100..160, center 130
+    const b = { ...claimBox(400, 120, 100, 200), id: 'b' }; // y 120..320, center 220
+    expect(computeStraightPath(a, b)).toEqual([100, 130, 400, 130]);
+  });
+
+  it('uses the overlap midpoint when neither center is inside the overlap', () => {
+    const a = { ...claimBox(0, 0, 100, 100), id: 'a' };    // y 0..100, center 50
+    const b = { ...claimBox(400, 80, 100, 100), id: 'b' }; // y 80..180, center 130
+    expect(computeStraightPath(a, b)).toEqual([100, 90, 400, 90]);
+  });
+
+  it('draws one vertical line when the boxes overlap horizontally', () => {
+    const a = { ...claimBox(100, 0, 100, 60), id: 'a' };   // center x 150
+    const b = { ...claimBox(104, 300, 100, 60), id: 'b' }; // center x 154
+    expect(computeStraightPath(a, b)).toEqual([154, 60, 154, 300]);
+  });
+
+  it('returns null when the overlap is a sliver', () => {
+    const a = { ...claimBox(0, 0, 100, 100), id: 'a' };
+    const b = { ...claimBox(400, 95, 100, 100), id: 'b' };  // 5px overlap
+    expect(computeStraightPath(a, b)).toBeNull();
+  });
+
+  it('returns null when the boxes do not overlap on either axis', () => {
+    const a = { ...claimBox(0, 0), id: 'a' };
+    const b = { ...claimBox(400, 300), id: 'b' };
+    expect(computeStraightPath(a, b)).toBeNull();
+  });
+
+  it('computeConnectionPath uses it for auto-routed non-data pairs (no Z jog)', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };
+    const b = { ...claimBox(400, 103, 100, 60), id: 'b' };
+    const conn = { id: 'x', from: 'a', to: 'b', type: 'support' as const };
+    expect(computeConnectionPath(conn, a, b, [])).toEqual([100, 133, 400, 133]);
+  });
+
+  it('computeConnectionPath leaves hand-placed waypoints alone', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };
+    const b = { ...claimBox(400, 103, 100, 60), id: 'b' };
+    const conn = {
+      id: 'x', from: 'a', to: 'b', type: 'support' as const,
+      waypoints: [{ x: 250, y: 130 }, { x: 250, y: 133 }],
+    };
+    expect(computeConnectionPath(conn, a, b, [])).toEqual([100, 130, 250, 130, 250, 133, 400, 133]);
+  });
+
+  it('a straight-eligible connection is not pulled into a Rule 2 shared trunk', () => {
+    const target = { ...claimBox(1000, 500, 200, 200), id: 't' };
+    const level = { ...claimBox(100, 590, 80, 60), id: 'level' }; // overlaps target vertically
+    const far = { ...claimBox(100, 100, 80, 60), id: 'far' };
+    const cLevel = { id: 'cl', from: 'level', to: 't', type: 'support' as const };
+    const cFar = { id: 'cf', from: 'far', to: 't', type: 'support' as const };
+    const p = computeConnectionPath(cLevel, level, target, [{ conn: cFar, fromEl: far }]);
+    expect(p).toEqual([180, 600, 1000, 600]);
+  });
+});
+
+describe('straightenRouting (Straighten action)', () => {
+  it('returns "auto" for a hand-placed line between boxes that can be joined straight', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };
+    const b = { ...claimBox(400, 103, 100, 60), id: 'b' };
+    const conn = {
+      id: 'x', from: 'a', to: 'b', type: 'support' as const,
+      waypoints: [{ x: 250, y: 130 }, { x: 250, y: 133 }],
+    };
+    expect(straightenRouting(conn, a, b)).toBe('auto');
+  });
+
+  it('returns "auto" for an anchored line that can be joined straight', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };
+    const b = { ...claimBox(400, 103, 100, 60), id: 'b' };
+    const conn = {
+      id: 'x', from: 'a', to: 'b', type: 'support' as const,
+      toAnchor: { edge: 'left' as const, t: 0.2 },
+    };
+    expect(straightenRouting(conn, a, b)).toBe('auto');
+  });
+
+  it('returns null for an auto-routed line that is already straight', () => {
+    const a = { ...claimBox(0, 100, 100, 60), id: 'a' };
+    const b = { ...claimBox(400, 103, 100, 60), id: 'b' };
+    const conn = { id: 'x', from: 'a', to: 'b', type: 'support' as const };
+    expect(straightenRouting(conn, a, b)).toBeNull();
+  });
+
+  it('removes a small jog from a hand-placed route between non-overlapping boxes', () => {
+    // a at y 0..60, b at y 400..460: right, a 4px step, right, down, then right into b.
+    const a = { ...claimBox(0, 0, 100, 60), id: 'a' };
+    const b = { ...claimBox(600, 400, 100, 60), id: 'b' };
+    const conn = {
+      id: 'x', from: 'a', to: 'b', type: 'support' as const,
+      waypoints: [
+        { x: 300, y: 30 }, { x: 300, y: 34 },  // 4px jog
+        { x: 500, y: 34 }, { x: 500, y: 430 },
+      ],
+    };
+    const result = straightenRouting(conn, a, b);
+    expect(result).not.toBe('auto');
+    expect(result).not.toBeNull();
+    const path = computeConnectionPath({ ...conn, waypoints: result as { x: number; y: number }[] }, a, b, []);
+    // Every segment is axis-aligned and none is a tiny jog.
+    for (let i = 0; i + 3 < path.length; i += 2) {
+      const dx = Math.abs(path[i + 2] - path[i]);
+      const dy = Math.abs(path[i + 3] - path[i + 1]);
+      expect(dx === 0 || dy === 0).toBe(true);
+      expect(dx + dy).toBeGreaterThanOrEqual(20);
+    }
+  });
+
+  it('keeps deliberate bends (larger than the jog threshold)', () => {
+    const a = { ...claimBox(0, 0, 100, 60), id: 'a' };
+    const b = { ...claimBox(600, 400, 100, 60), id: 'b' };
+    const conn = {
+      id: 'x', from: 'a', to: 'b', type: 'support' as const,
+      waypoints: [{ x: 300, y: 30 }, { x: 300, y: 430 }],
+    };
+    expect(straightenRouting(conn, a, b)).toBeNull();
   });
 });

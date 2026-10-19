@@ -120,6 +120,57 @@ export function computeRule1Path(
   return null;
 }
 
+// Boxes must share at least this much height (or width) before an auto-routed
+// line is drawn straight between them; below it the line would graze a corner.
+const MIN_STRAIGHT_OVERLAP = 10;  // px
+
+// Straight-line routing for any element pair: when the two boxes overlap
+// vertically (or horizontally) and sit fully to one side of each other, return
+// a single 2-point line through the overlap instead of a Z. Without this, two
+// boxes whose centers differ by a few px get a Z with a few-px jog in it.
+// The line runs at the target's center when that's inside the overlap (same as
+// Rule 1), else the source's center, else the middle of the overlap.
+export function computeStraightPath(
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): number[] | null {
+  const fromLeft = fromEl.position.x;
+  const fromRight = fromLeft + fromEl.size.width;
+  const fromTop = fromEl.position.y;
+  const fromBottom = fromTop + fromEl.size.height;
+
+  const toLeft = toEl.position.x;
+  const toRight = toLeft + toEl.size.width;
+  const toTop = toEl.position.y;
+  const toBottom = toTop + toEl.size.height;
+
+  const pick = (lo: number, hi: number, preferred: number, fallback: number) => {
+    if (preferred >= lo && preferred <= hi) return preferred;
+    if (fallback >= lo && fallback <= hi) return fallback;
+    return (lo + hi) / 2;
+  };
+
+  const yLo = Math.max(fromTop, toTop);
+  const yHi = Math.min(fromBottom, toBottom);
+  const targetToRight = toLeft >= fromRight;
+  const targetToLeft = toRight <= fromLeft;
+  if (yHi - yLo >= MIN_STRAIGHT_OVERLAP && (targetToRight || targetToLeft)) {
+    const y = pick(yLo, yHi, toTop + toEl.size.height / 2, fromTop + fromEl.size.height / 2);
+    return targetToRight ? [fromRight, y, toLeft, y] : [fromLeft, y, toRight, y];
+  }
+
+  const xLo = Math.max(fromLeft, toLeft);
+  const xHi = Math.min(fromRight, toRight);
+  const targetBelow = toTop >= fromBottom;
+  const targetAbove = toBottom <= fromTop;
+  if (xHi - xLo >= MIN_STRAIGHT_OVERLAP && (targetBelow || targetAbove)) {
+    const x = pick(xLo, xHi, toLeft + toEl.size.width / 2, fromLeft + fromEl.size.width / 2);
+    return targetBelow ? [x, fromBottom, x, toTop] : [x, fromTop, x, toBottom];
+  }
+
+  return null;
+}
+
 // Compute the default Z-elbow virtual waypoints for a connection that has no stored waypoints.
 // |dx| >= |dy| → vertical trunk (segments alternate H-V-H).
 // otherwise   → horizontal trunk (segments alternate V-H-V).
@@ -405,7 +456,7 @@ export function getSegments(points: number[]): Segment[] {
 
 // Top-level routing entry. Returns a flattened [x0,y0,x1,y1,...] polyline.
 // Applies the override hierarchy from the spec:
-//   stored waypoints  >  stored anchors  >  Rule 1  >  Rule 2  >  default Z
+//   stored waypoints  >  stored anchors  >  Rule 1  >  straight  >  Rule 2  >  default Z
 //
 // `siblings` is the set of OTHER connections also targeting `toEl`. Used by Rule 2.
 export function computeConnectionPath(
@@ -422,15 +473,15 @@ export function computeConnectionPath(
     return getOrthogonalPath(fromEl, toEl, anchoredZWaypoints(connection, fromEl, toEl));
   }
 
-  // Rule 1.
-  const rule1 = computeRule1Path(fromEl, toEl);
-  if (rule1) return rule1;
+  // Rule 1, then straight lines for any pair that can take one.
+  const straight = computeRule1Path(fromEl, toEl) ?? computeStraightPath(fromEl, toEl);
+  if (straight) return straight;
 
-  // Rule 2: only auto-routed siblings (no waypoints, no anchors, no Rule 1 match) count.
+  // Rule 2: only auto-routed siblings (no waypoints, no anchors, no straight match) count.
   const autoSiblings = siblings.filter((s) => {
     if (s.conn.waypoints && s.conn.waypoints.length > 0) return false;
     if (s.conn.fromAnchor || s.conn.toAnchor) return false;
-    if (computeRule1Path(s.fromEl, toEl)) return false;
+    if (computeRule1Path(s.fromEl, toEl) || computeStraightPath(s.fromEl, toEl)) return false;
     return true;
   });
 
@@ -707,4 +758,95 @@ export function hitTestPolyline(
     if (distSq <= tolSq) return true;
   }
   return false;
+}
+
+// Steps shorter than this in a hand-placed route count as jogs for Straighten.
+const JOG_PX = 20;
+
+export type StraightenResult = 'auto' | Position[] | null;
+
+// The Straighten action. Hand-placed routing never changes on its own; this is
+// what runs when someone asks for it.
+//   'auto'       clear waypoints and anchors; the boxes can be joined straight
+//   Position[]   new waypoints with the small jogs removed
+//   null         nothing to straighten
+export function straightenRouting(
+  conn: Connection,
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): StraightenResult {
+  const hasManual = (conn.waypoints?.length ?? 0) > 0 || !!conn.fromAnchor || !!conn.toAnchor;
+  if (computeRule1Path(fromEl, toEl) || computeStraightPath(fromEl, toEl)) {
+    return hasManual ? 'auto' : null;
+  }
+  if (!conn.waypoints || conn.waypoints.length < 2) return null;
+
+  let pts = toPositions(getOrthogonalPath(fromEl, toEl, conn.waypoints));
+  let changed = false;
+  // Interior segments only: the first and last touch the boxes.
+  for (let k = 1; k + 2 < pts.length; k++) {
+    const len = Math.abs(pts[k].x - pts[k + 1].x) + Math.abs(pts[k].y - pts[k + 1].y);
+    if (len === 0 || len >= JOG_PX) continue;
+    const next = collapseJog(pts, k, fromEl, toEl);
+    if (next) {
+      pts = next;
+      changed = true;
+      k = 0;
+    }
+  }
+  return changed ? pts.slice(1, -1) : null;
+}
+
+function toPositions(points: number[]): Position[] {
+  const out: Position[] = [];
+  for (let i = 0; i + 1 < points.length; i += 2) out.push({ x: points[i], y: points[i + 1] });
+  return out;
+}
+
+// Drop repeated points and points in the middle of a straight run.
+function simplifyPolyline(pts: Position[]): Position[] {
+  const out = [...pts];
+  let i = 1;
+  while (i < out.length - 1) {
+    const a = out[i - 1], b = out[i], c = out[i + 1];
+    if ((a.x === b.x && b.x === c.x) || (a.y === b.y && b.y === c.y)) {
+      out.splice(i, 1);
+      i = Math.max(1, i - 1);
+    } else {
+      i++;
+    }
+  }
+  return out;
+}
+
+// Remove the jog at segment k (pts[k] → pts[k+1]) by moving the run after it
+// onto the run before it, or the run before onto the run after. A candidate is
+// kept only if its waypoints render back to exactly the simplified route, which
+// rules out shapes the waypoint format can't hold and ends that leave a box.
+function collapseJog(
+  pts: Position[],
+  k: number,
+  fromEl: DiagramElement,
+  toEl: DiagramElement,
+): Position[] | null {
+  const axis: 'x' | 'y' = pts[k].x === pts[k + 1].x ? 'y' : 'x';
+  const candidates = [
+    { moved: [k + 1, k + 2], to: pts[k][axis] },
+    { moved: [k, k - 1], to: pts[k + 1][axis] },
+  ];
+  for (const { moved, to } of candidates) {
+    const shifted = pts.map((p, i) => (moved.includes(i) ? { ...p, [axis]: to } : p));
+    const simple = simplifyPolyline(shifted);
+    const waypoints = simple.slice(1, -1);
+    if (waypoints.length < 2) continue;
+    const rendered = getOrthogonalPath(fromEl, toEl, waypoints);
+    const expected = simple.flatMap((p) => [p.x, p.y]);
+    if (
+      rendered.length === expected.length &&
+      rendered.every((v, i) => Math.abs(v - expected[i]) < 1e-6)
+    ) {
+      return simple;
+    }
+  }
+  return null;
 }

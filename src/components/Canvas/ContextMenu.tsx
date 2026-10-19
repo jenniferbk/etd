@@ -8,6 +8,7 @@ import {
   ImagePlus,
   ArrowRightLeft,
   Slash,
+  MoveHorizontal,
 } from 'lucide-react';
 import { theme } from '../../utils/theme';
 import type {
@@ -36,6 +37,7 @@ interface ContextMenuProps {
   /** Present only when elementType === 'connection'. */
   connectionType?: ConnectionType;
   onToggleCounterclaim?: () => void;
+  onStraighten?: () => void;
 }
 
 export function ContextMenu({
@@ -54,6 +56,7 @@ export function ContextMenu({
   onAddImage,
   connectionType,
   onToggleCounterclaim,
+  onStraighten,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -149,6 +152,20 @@ export function ContextMenu({
         >
           <Slash size={16} />
           {connectionType === 'counterclaim' ? 'Mark as support' : 'Mark as counterclaim'}
+        </button>
+      )}
+
+      {/* Straighten (connections only) */}
+      {elementType === 'connection' && onStraighten && (
+        <button
+          onClick={() => {
+            onStraighten();
+            onClose();
+          }}
+          className={menuItemClass}
+        >
+          <MoveHorizontal size={16} />
+          Straighten
         </button>
       )}
 

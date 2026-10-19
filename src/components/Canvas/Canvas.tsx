@@ -133,6 +133,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     removeElement,
     removeConnection,
     setConnectionType,
+    straightenConnection,
     duplicateElements,
     bringToFront,
     sendToBack,
@@ -672,6 +673,13 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     if (!conn) return;
     setConnectionType(conn.id, conn.type === 'counterclaim' ? 'support' : 'counterclaim');
   }, [contextMenu.elementId, connections, setConnectionType]);
+
+  const handleContextMenuStraighten = useCallback(() => {
+    if (!contextMenu.elementId) return;
+    if (!straightenConnection(contextMenu.elementId)) {
+      useToastStore.getState().addToast('info', 'This line has no small jogs to straighten.');
+    }
+  }, [contextMenu.elementId, straightenConnection]);
 
   const handleContextMenuBringToFront = useCallback(() => {
     if (contextMenu.elementId) {
@@ -1231,6 +1239,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           onSendToBack={handleContextMenuSendToBack}
           connectionType={contextConnection?.type}
           onToggleCounterclaim={contextConnection ? handleContextMenuToggleCounterclaim : undefined}
+          onStraighten={contextConnection && typeof contextConnection.to === 'string' ? handleContextMenuStraighten : undefined}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
           onChangeSupportContributor={contextMenu.elementType === 'support' ? handleContextMenuChangeSupportContributor : undefined}
           onConvertToArgument={

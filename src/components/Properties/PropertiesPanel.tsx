@@ -7,6 +7,7 @@ import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
 import { useImagePaste } from '../../hooks/useImagePaste';
 import { requiredWidthForImage } from '../../utils/imageLayout';
+import { straightenRouting } from '../../utils/orthogonalRouting';
 
 // Contributor type options
 const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
@@ -53,6 +54,7 @@ export function PropertiesPanel() {
 
   const connections = useDiagramStore((s) => s.connections);
   const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);
+  const straightenConnection = useDiagramStore((s) => s.straightenConnection);
   const setConnectionType = useDiagramStore((s) => s.setConnectionType);
 
   // Get the first selected element
@@ -63,6 +65,13 @@ export function PropertiesPanel() {
   const selectedConnection = selectedIds.length === 1 && !selectedElement
     ? connections.find((c) => c.id === selectedIds[0])
     : null;
+
+  const canStraighten = useMemo(() => {
+    if (!selectedConnection || typeof selectedConnection.to !== 'string') return false;
+    const fromEl = elements.find((el) => el.id === selectedConnection.from);
+    const toEl = elements.find((el) => el.id === selectedConnection.to);
+    return !!fromEl && !!toEl && straightenRouting(selectedConnection, fromEl, toEl) !== null;
+  }, [selectedConnection, elements]);
 
   const isOrphanedSubtype = !!(
     selectedElement &&
@@ -236,6 +245,27 @@ export function PropertiesPanel() {
           <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
             Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
           </span>
+          <button
+            title="Remove small jogs from this line"
+            onClick={() => straightenConnection(selectedConnection.id)}
+            disabled={!canStraighten}
+            className="px-3 py-1.5 text-sm border rounded-md cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150"
+            style={{
+              borderColor: theme.input.border,
+              color: theme.input.text,
+              backgroundColor: theme.input.bg,
+            }}
+            onMouseEnter={(e) => {
+              if (!canStraighten) return;
+              e.currentTarget.style.backgroundColor = theme.input.bgHover;
+            }}
+            onMouseLeave={(e) => {
+              if (!canStraighten) return;
+              e.currentTarget.style.backgroundColor = theme.input.bg;
+            }}
+          >
+            Straighten
+          </button>
           <button
             onClick={() => resetConnectionRouting(selectedConnection.id)}
             disabled={!hasManualRouting}
