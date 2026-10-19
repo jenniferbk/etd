@@ -26,6 +26,18 @@ export interface DiagramListItem {
   versionCount: number;
   /** Absent from servers that predate thumbnails. */
   hasThumbnail?: boolean;
+  /** Null at the top level. Absent from servers that predate folders. */
+  folderId?: number | null;
+  createdAt?: string;
+  creator?: string;
+}
+
+/** One workspace folder (GET /api/groups/:id/folders). */
+export interface FolderListItem {
+  id: number;
+  name: string;
+  /** Diagrams in the folder, not counting the trash. */
+  diagramCount: number;
 }
 
 /** One row of a group's trash (GET /api/groups/:id/trash). */

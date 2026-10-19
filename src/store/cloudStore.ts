@@ -1,8 +1,34 @@
 import { create } from 'zustand';
+import { DEFAULT_SORT, type SortSpec } from '../components/Workspace/workspaceList';
 
 export type LibrarySaveStatus = 'saved' | 'dirty' | 'saving' | 'notInLibrary' | 'offline';
 export type AppView = 'workspace' | 'canvas';
 export type WorkspaceTab = 'diagrams' | 'people' | 'trash';
+export type WorkspaceViewMode = 'grid' | 'list';
+
+// Grid/list and sort are a per-browser convenience; storage can be missing
+// or throw (private windows, tests), so every access is guarded.
+const BROWSE_KEY = 'etd.workspaceBrowse';
+function loadBrowsePrefs(): { viewMode: WorkspaceViewMode; sort: SortSpec } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(BROWSE_KEY) ?? 'null') as
+      { viewMode?: unknown; sort?: { key?: unknown; dir?: unknown } } | null;
+    const viewMode = raw?.viewMode === 'list' ? 'list' : 'grid';
+    const key = raw?.sort?.key;
+    const dir = raw?.sort?.dir;
+    const keyOk = key === 'title' || key === 'updatedAt' || key === 'lastEditor' || key === 'versionCount';
+    const dirOk = dir === 'asc' || dir === 'desc';
+    const sort: SortSpec = keyOk && dirOk ? { key, dir } : DEFAULT_SORT;
+    return { viewMode, sort };
+  } catch {
+    return { viewMode: 'grid', sort: DEFAULT_SORT };
+  }
+}
+function saveBrowsePrefs(prefs: { viewMode: WorkspaceViewMode; sort: SortSpec }): void {
+  try {
+    localStorage.setItem(BROWSE_KEY, JSON.stringify(prefs));
+  } catch { /* not remembered; nothing else depends on it */ }
+}
 
 /** Tracks which library diagram (if any) the canvas corresponds to, plus the
  *  signed-in app view and the save-status state machine shown in the canvas
@@ -28,6 +54,14 @@ interface CloudState {
   /** Set while the canvas is showing a read-only past version instead of the
    *  live diagram. Null when viewing the current (editable) content. */
   preview: { versionId: number; createdAt: string } | null;
+  /** The workspace folder being browsed; null = top level. */
+  folderId: number | null;
+  viewMode: WorkspaceViewMode;
+  sort: SortSpec;
+  /** Where "Add to library" files a diagram started from inside a folder.
+   *  Survives clearCloudTarget (which "New diagram" calls) and is cleared once
+   *  the diagram is in the library. */
+  newDiagramFolder: { groupId: number; folderId: number } | null;
   setCloudTarget: (diagramId: number, groupId: number, baseVersionId?: number) => void;
   clearCloudTarget: () => void;
   setBaseVersionId: (id: number | null) => void;
@@ -38,9 +72,13 @@ interface CloudState {
   setWorkspaceTab: (tab: WorkspaceTab) => void;
   setHistoryOpen: (open: boolean) => void;
   setPreview: (preview: { versionId: number; createdAt: string } | null) => void;
+  setFolderId: (folderId: number | null) => void;
+  setViewMode: (viewMode: WorkspaceViewMode) => void;
+  setSort: (sort: SortSpec) => void;
+  setNewDiagramFolder: (target: { groupId: number; folderId: number } | null) => void;
 }
 
-export const useCloudStore = create<CloudState>((set) => ({
+export const useCloudStore = create<CloudState>((set, get) => ({
   diagramId: null,
   groupId: null,
   baseVersionId: null,
@@ -51,11 +89,15 @@ export const useCloudStore = create<CloudState>((set) => ({
   workspaceTab: 'diagrams',
   historyOpen: false,
   preview: null,
+  folderId: null,
+  ...loadBrowsePrefs(),
+  newDiagramFolder: null,
   setCloudTarget: (diagramId, groupId, baseVersionId) =>
     set({
       diagramId,
       groupId,
       status: 'saved',
+      newDiagramFolder: null,
       ...(baseVersionId !== undefined ? { baseVersionId } : {}),
     }),
   clearCloudTarget: () =>
@@ -76,4 +118,14 @@ export const useCloudStore = create<CloudState>((set) => ({
   setWorkspaceTab: (workspaceTab) => set({ workspaceTab }),
   setHistoryOpen: (historyOpen) => set({ historyOpen }),
   setPreview: (preview) => set({ preview }),
+  setFolderId: (folderId) => set({ folderId }),
+  setViewMode: (viewMode) => {
+    set({ viewMode });
+    saveBrowsePrefs({ viewMode, sort: get().sort });
+  },
+  setSort: (sort) => {
+    set({ sort });
+    saveBrowsePrefs({ viewMode: get().viewMode, sort });
+  },
+  setNewDiagramFolder: (newDiagramFolder) => set({ newDiagramFolder }),
 }));

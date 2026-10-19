@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowDown, ArrowUp, ChevronRight, FolderPlus, LayoutGrid, List, Pencil, Search, Trash2, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { friendlyError } from '../../api/friendlyError';
-import type { CloudDiagram, DiagramListItem } from '../../api/types';
+import type { CloudDiagram, DiagramListItem, FolderListItem } from '../../api/types';
 import { useAuthStore } from '../../api/authStore';
 import { useCloudStore } from '../../store/cloudStore';
 import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
+import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { nameForLoadedFile } from '../../utils/saveDiagram';
@@ -14,6 +16,18 @@ import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
 import { PeoplePage } from './PeoplePage';
 import { TrashPage } from './TrashPage';
+import { DiagramListView } from './DiagramListView';
+import { FolderTile } from './FolderTile';
+import { NameModal } from './NameModal';
+import { OptionsMenu } from './OptionsMenu';
+import { defaultDirFor, visibleDiagrams, type SortKey } from './workspaceList';
+
+const SORT_LABELS: Record<SortKey, string> = {
+  updatedAt: 'Last edited',
+  title: 'Title',
+  lastEditor: 'Editor',
+  versionCount: 'Versions',
+};
 
 /** Card-gallery home view — the landing page for a signed-in user, before
  *  they've opened any particular diagram onto the canvas. App renders this
@@ -27,6 +41,13 @@ export function Workspace() {
   const [groupId, setGroupId] = useState<number | null>(null);
   const [items, setItems] = useState<DiagramListItem[] | null>(null);
   const [loadError, setLoadError] = useState(false);
+  const [folders, setFolders] = useState<FolderListItem[]>([]);
+  const [query, setQuery] = useState('');
+  // null = closed; 'new' = create; a folder = rename that folder.
+  const [folderDialog, setFolderDialog] = useState<'new' | FolderListItem | null>(null);
+  const folderId = useCloudStore((s) => s.folderId);
+  const viewMode = useCloudStore((s) => s.viewMode);
+  const sort = useCloudStore((s) => s.sort);
   const effectiveGroupId = groupId ?? groups[0]?.id ?? null;
   // Guards against a stale response (e.g. group A's request resolving after
   // group B's, once the user has already switched groups) overwriting the
@@ -41,8 +62,20 @@ export function Workspace() {
     setItems(null);
     setLoadError(false);
     try {
-      const result = await api<DiagramListItem[]>(`/api/groups/${effectiveGroupId}/diagrams`);
-      if (seq === requestSeq.current) setItems(result);
+      const [result, folderList] = await Promise.all([
+        api<DiagramListItem[]>(`/api/groups/${effectiveGroupId}/diagrams`),
+        // A server that predates folders answers 404; treat that as none.
+        api<FolderListItem[]>(`/api/groups/${effectiveGroupId}/folders`).catch(() => [] as FolderListItem[]),
+      ]);
+      if (seq === requestSeq.current) {
+        setItems(result);
+        setFolders(folderList);
+        // The folder being browsed was deleted (here or by a teammate).
+        const current = useCloudStore.getState().folderId;
+        if (current !== null && !folderList.some((f) => f.id === current)) {
+          useCloudStore.getState().setFolderId(null);
+        }
+      }
     } catch (err) {
       if (seq === requestSeq.current) {
         useToastStore.getState().addToast('error', friendlyError(err));
@@ -59,10 +92,58 @@ export function Workspace() {
     void (async () => { await refresh(); })();
   }, [refresh, workspaceTab]);
 
+  // Switching groups starts at the top level of the new group.
+  const selectGroup = (id: number) => {
+    setGroupId(id);
+    useCloudStore.getState().setFolderId(null);
+  };
+
+  // Diagrams started from inside a folder are filed there on Add to library.
+  const rememberFolderForNewDiagram = () => {
+    useCloudStore.getState().setNewDiagramFolder(
+      effectiveGroupId !== null && folderId !== null ? { groupId: effectiveGroupId, folderId } : null,
+    );
+  };
+
   const handleNewDiagram = () => {
     useDiagramStore.getState().clearDiagram();
     useCloudStore.getState().clearCloudTarget();
+    rememberFolderForNewDiagram();
     useCloudStore.getState().setView('canvas');
+  };
+
+  const saveFolder = async (name: string) => {
+    try {
+      if (folderDialog === 'new') {
+        await api(`/api/groups/${effectiveGroupId}/folders`, { method: 'POST', body: { name } });
+      } else if (folderDialog) {
+        await api(`/api/folders/${folderDialog.id}`, { method: 'PATCH', body: { name } });
+      }
+      void refresh();
+    } catch (err) {
+      useToastStore.getState().addToast('error', friendlyError(err));
+      throw err;
+    }
+  };
+
+  const deleteFolder = async (folder: FolderListItem) => {
+    const n = folder.diagramCount;
+    const ok = await confirmAsync({
+      title: 'Delete folder',
+      message: n === 0
+        ? `Delete the empty folder "${folder.name}"?`
+        : `Delete "${folder.name}"? Its ${n} ${n === 1 ? 'diagram moves' : 'diagrams move'} back to All diagrams. No diagrams are deleted.`,
+      confirmLabel: 'Delete folder',
+      variant: 'destructive',
+    });
+    if (!ok) return;
+    try {
+      await api(`/api/folders/${folder.id}`, { method: 'DELETE' });
+      if (useCloudStore.getState().folderId === folder.id) useCloudStore.getState().setFolderId(null);
+      void refresh();
+    } catch (err) {
+      useToastStore.getState().addToast('error', friendlyError(err));
+    }
   };
 
   const handleOpenFileClick = () => {
@@ -82,6 +163,7 @@ export function Workspace() {
         const result = await importDrawingFile(file);
         useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
         useCloudStore.getState().clearCloudTarget();
+        rememberFolderForNewDiagram();
         useCloudStore.getState().setView('canvas');
         e.target.value = '';
         return;
@@ -97,6 +179,7 @@ export function Workspace() {
               data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes,
             );
             useCloudStore.getState().clearCloudTarget();
+            rememberFolderForNewDiagram();
             useCloudStore.getState().setView('canvas');
           } else {
             useToastStore.getState().addToast('error', 'Invalid diagram file format');
@@ -141,6 +224,13 @@ export function Workspace() {
   };
 
   const selectedGroup = groups.find((g) => g.id === effectiveGroupId) ?? null;
+  const currentFolder = folderId === null ? null : folders.find((f) => f.id === folderId) ?? null;
+  const searching = query.trim().length > 0;
+  const shown = useMemo(
+    () => (items ? visibleDiagrams(items, { folderId, query, sort }) : []),
+    [items, folderId, query, sort],
+  );
+  const showFolderTiles = !searching && folderId === null && folders.length > 0;
 
   const primaryButtonStyle = { backgroundColor: theme.button.primary.bg, color: theme.button.primary.text };
   const secondaryButtonStyle = {
@@ -155,7 +245,7 @@ export function Workspace() {
         groupName={selectedGroup?.name ?? ''}
         groups={groups}
         selectedGroupId={effectiveGroupId}
-        onSelectGroup={setGroupId}
+        onSelectGroup={selectGroup}
       />
 
       {workspaceTab === 'people' ? (
@@ -164,7 +254,7 @@ export function Workspace() {
         effectiveGroupId !== null && <TrashPage groupId={effectiveGroupId} />
       ) : (
         <div className="max-w-5xl w-full mx-auto px-6 py-8 flex-1">
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex flex-wrap items-center gap-3 mb-6">
             <button
               onClick={handleNewDiagram}
               className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -183,6 +273,17 @@ export function Workspace() {
             >
               Open a file…
             </button>
+            {folderId === null && (
+              <button
+                onClick={() => setFolderDialog('new')}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-1.5"
+                style={secondaryButtonStyle}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bgHover; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = theme.button.secondary.bg; }}
+              >
+                <FolderPlus size={16} aria-hidden="true" /> New folder
+              </button>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -191,6 +292,137 @@ export function Workspace() {
               className="hidden"
             />
           </div>
+
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <label className="relative flex-1 min-w-[12rem] max-w-sm">
+              <span className="sr-only">Search diagram titles</span>
+              <Search
+                size={16}
+                aria-hidden="true"
+                className="absolute left-3 top-1/2 -translate-y-1/2"
+                style={{ color: theme.sidebar.textSecondary }}
+              />
+              <input
+                type="text"
+                role="searchbox"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }}
+                placeholder="Search titles in all folders"
+                className="w-full text-sm border rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{
+                  // Inline: index.css's unlayered reset zeroes Tailwind padding utilities.
+                  padding: '0.5rem 2rem 0.5rem 2.25rem',
+                  backgroundColor: theme.input.bg,
+                  borderColor: theme.input.border,
+                  color: theme.input.text,
+                  outlineColor: theme.focus.ring,
+                }}
+              />
+              {searching && (
+                <button
+                  onClick={() => setQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded"
+                  style={{ color: theme.sidebar.textSecondary }}
+                >
+                  <X size={14} aria-hidden="true" />
+                </button>
+              )}
+            </label>
+
+            <div className="flex items-center gap-2 ml-auto">
+              {viewMode === 'grid' && (
+                <>
+                  <label className="text-sm flex items-center gap-2" style={{ color: theme.sidebar.textSecondary }}>
+                    Sort
+                    <select
+                      value={sort.key}
+                      onChange={(e) => {
+                        const key = e.target.value as SortKey;
+                        useCloudStore.getState().setSort({ key, dir: defaultDirFor(key) });
+                      }}
+                      className="px-2 py-1.5 text-sm border rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                      style={{
+                        backgroundColor: theme.input.bg,
+                        borderColor: theme.input.border,
+                        color: theme.input.text,
+                        outlineColor: theme.focus.ring,
+                      }}
+                    >
+                      {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                        <option key={k} value={k}>{SORT_LABELS[k]}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    onClick={() => useCloudStore.getState().setSort({ key: sort.key, dir: sort.dir === 'asc' ? 'desc' : 'asc' })}
+                    aria-label={sort.dir === 'asc' ? 'Sorted ascending; switch to descending' : 'Sorted descending; switch to ascending'}
+                    title={sort.dir === 'asc' ? 'Ascending' : 'Descending'}
+                    className="p-2 rounded-lg border"
+                    style={{ ...secondaryButtonStyle }}
+                  >
+                    {sort.dir === 'asc' ? <ArrowUp size={14} aria-hidden="true" /> : <ArrowDown size={14} aria-hidden="true" />}
+                  </button>
+                </>
+              )}
+              <div
+                className="inline-flex rounded-lg border overflow-hidden"
+                role="group"
+                aria-label="View"
+                style={{ borderColor: theme.button.secondary.border }}
+              >
+                {([['grid', LayoutGrid, 'Grid view'], ['list', List, 'List view']] as const).map(([mode, Icon, label]) => (
+                  <button
+                    key={mode}
+                    onClick={() => useCloudStore.getState().setViewMode(mode)}
+                    aria-pressed={viewMode === mode}
+                    aria-label={label}
+                    title={label}
+                    className="p-2"
+                    style={{
+                      backgroundColor: viewMode === mode ? theme.sidebar.surfaceActive : theme.button.secondary.bg,
+                      color: theme.button.secondary.text,
+                    }}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {!searching && currentFolder && (
+            <nav className="flex items-center gap-1 mb-4 text-sm" aria-label="Folder">
+              <button
+                onClick={() => useCloudStore.getState().setFolderId(null)}
+                className="px-1 rounded hover:underline"
+                style={{ color: theme.sidebar.textSecondary }}
+              >
+                All diagrams
+              </button>
+              <ChevronRight size={14} aria-hidden="true" style={{ color: theme.sidebar.textSecondary }} />
+              <span className="font-semibold px-1" style={{ color: theme.sidebar.text }} aria-current="page">
+                {currentFolder.name}
+              </span>
+              <OptionsMenu
+                tooltip="Folder options"
+                ariaLabel={`Options for folder "${currentFolder.name}"`}
+                items={[
+                  { icon: Pencil, label: 'Rename folder', onClick: () => setFolderDialog(currentFolder) },
+                  {
+                    icon: Trash2, label: 'Delete folder', variant: 'danger', separatorBefore: true,
+                    onClick: () => { void deleteFolder(currentFolder); },
+                  },
+                ]}
+              />
+            </nav>
+          )}
+          {searching && items !== null && !loadError && (
+            <p className="text-sm mb-4" style={{ color: theme.sidebar.textSecondary }} role="status">
+              {shown.length} {shown.length === 1 ? 'match' : 'matches'} in all folders
+            </p>
+          )}
 
           {items === null ? (
             <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
@@ -211,22 +443,68 @@ export function Workspace() {
                 Try again
               </button>
             </div>
-          ) : items.length === 0 ? (
-            <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
-              No diagrams yet — create the first one.
-            </p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {items.map((item) => (
-                <DiagramCard
-                  key={item.id}
-                  item={item}
-                  onOpen={() => void openDiagram(item)}
+            <>
+              {showFolderTiles && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
+                  {folders.map((f) => (
+                    <FolderTile
+                      key={f.id}
+                      folder={f}
+                      onOpen={() => useCloudStore.getState().setFolderId(f.id)}
+                      onRename={() => setFolderDialog(f)}
+                      onDelete={() => { void deleteFolder(f); }}
+                    />
+                  ))}
+                </div>
+              )}
+              {shown.length === 0 ? (
+                <p className="text-sm py-16 text-center" style={{ color: theme.sidebar.textSecondary }}>
+                  {searching
+                    ? `No diagram titles match “${query.trim()}”.`
+                    : currentFolder
+                      ? 'This folder is empty. To file a diagram here, use its ⋯ menu › Move to folder…'
+                      : items.length === 0
+                        ? 'No diagrams yet — create the first one.'
+                        : 'Every diagram is in a folder.'}
+                </p>
+              ) : viewMode === 'list' ? (
+                <DiagramListView
+                  items={shown}
+                  folders={folders}
+                  showFolder={searching}
+                  sort={sort}
+                  onSort={(next) => useCloudStore.getState().setSort(next)}
+                  onOpen={(item) => void openDiagram(item)}
                   onChanged={() => void refresh()}
                 />
-              ))}
-            </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {shown.map((item) => (
+                    <DiagramCard
+                      key={item.id}
+                      item={item}
+                      folders={folders}
+                      showFolder={searching}
+                      onOpen={() => void openDiagram(item)}
+                      onChanged={() => void refresh()}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
           )}
+
+          <NameModal
+            open={folderDialog !== null}
+            onClose={() => setFolderDialog(null)}
+            title={folderDialog === 'new' ? 'New folder' : 'Rename folder'}
+            label="Folder name"
+            placeholder="e.g. Year 2 lessons"
+            initialValue={folderDialog && folderDialog !== 'new' ? folderDialog.name : ''}
+            submitLabel={folderDialog === 'new' ? 'Create' : 'Save'}
+            onSubmit={saveFolder}
+          />
         </div>
       )}
     </div>

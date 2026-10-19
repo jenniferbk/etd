@@ -92,11 +92,17 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
     return row;
   }
 
+  /** True when folderId is null (top level) or a folder of this group. */
+  function folderBelongsToGroup(folderId: number | null, groupId: number): boolean {
+    if (folderId === null) return true;
+    return db.prepare('SELECT 1 FROM folders WHERE id = ? AND group_id = ?').get(folderId, groupId) !== undefined;
+  }
+
   router.post('/diagrams', (req, res) => {
     const parsed = z
       .object({
         groupId: z.number().int(), title: z.string().trim().min(1), snapshot: snapshotSchema,
-        thumbnail: z.unknown().optional(),
+        thumbnail: z.unknown().optional(), folderId: z.number().int().nullable().optional(),
       })
       .safeParse(req.body);
     if (!parsed.success) {
@@ -104,16 +110,21 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
       return;
     }
     const { groupId, title, snapshot } = parsed.data;
+    const folderId = parsed.data.folderId ?? null;
     if (getRole(db, req.user!.id, groupId) === null) {
       res.status(403).json({ error: 'not a member of this group' });
+      return;
+    }
+    if (!folderBelongsToGroup(folderId, groupId)) {
+      res.status(400).json({ error: 'that folder is not in this group' });
       return;
     }
     let id = 0;
     let currentVersionId = 0;
     db.transaction(() => {
       const d = db
-        .prepare('INSERT INTO diagrams (group_id, creator_id, title) VALUES (?, ?, ?)')
-        .run(groupId, req.user!.id, title);
+        .prepare('INSERT INTO diagrams (group_id, creator_id, title, folder_id) VALUES (?, ?, ?, ?)')
+        .run(groupId, req.user!.id, title, folderId);
       id = Number(d.lastInsertRowid);
       currentVersionId = addVersion(id, req.user!.id, snapshot);
       storeThumbnail(id, parsed.data.thumbnail);
@@ -135,10 +146,12 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
       .prepare(
         `SELECT d.id, d.title, d.updated_at AS updatedAt, u.display_name AS lastEditor,
                 (SELECT COUNT(*) FROM diagram_versions v WHERE v.diagram_id = d.id) AS versionCount,
-                d.thumbnail IS NOT NULL AS hasThumbnail
+                d.thumbnail IS NOT NULL AS hasThumbnail,
+                d.folder_id AS folderId, d.created_at AS createdAt, cu.display_name AS creator
          FROM diagrams d
          JOIN diagram_versions cv ON cv.id = d.current_version_id
          JOIN users u ON u.id = cv.author_id
+         JOIN users cu ON cu.id = d.creator_id
          WHERE d.group_id = ? AND d.deleted_at IS NULL
          ORDER BY d.updated_at DESC, d.id DESC`,
       )
@@ -327,19 +340,31 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
     res.status(204).end();
   });
 
-  // Title-only rename: no version row (renames are metadata, not content).
+  // Metadata only, no version row: rename (title) and/or move (folderId,
+  // null = top level). A move is filing, not editing, so it leaves updated_at.
   router.patch('/diagrams/:id', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;
-    const parsed = z.object({ title: z.string().trim().min(1) }).safeParse(req.body);
+    const parsed = z
+      .object({ title: z.string().trim().min(1).optional(), folderId: z.number().int().nullable().optional() })
+      .refine((b) => b.title !== undefined || b.folderId !== undefined)
+      .safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'title must not be empty' });
       return;
     }
-    db.prepare(`UPDATE diagrams SET title = ?, updated_at = datetime('now') WHERE id = ?`).run(
-      parsed.data.title, row.id,
-    );
-    live.renamed(row.id, parsed.data.title);
+    const { title, folderId } = parsed.data;
+    if (folderId !== undefined && !folderBelongsToGroup(folderId, row.group_id)) {
+      res.status(400).json({ error: 'that folder is not in this group' });
+      return;
+    }
+    if (folderId !== undefined) {
+      db.prepare('UPDATE diagrams SET folder_id = ? WHERE id = ?').run(folderId, row.id);
+    }
+    if (title !== undefined) {
+      db.prepare(`UPDATE diagrams SET title = ?, updated_at = datetime('now') WHERE id = ?`).run(title, row.id);
+      live.renamed(row.id, title);
+    }
     res.json({ ok: true });
   });
 

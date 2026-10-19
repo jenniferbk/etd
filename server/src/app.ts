@@ -6,6 +6,7 @@ import { inviteRoutes } from './routes/invites.js';
 import { groupRoutes } from './routes/groups.js';
 import { resetRoutes } from './routes/resets.js';
 import { diagramRoutes } from './routes/diagrams.js';
+import { folderRoutes } from './routes/folders.js';
 import type { Db } from './db.js';
 import { LiveRooms, type LiveOptions } from './live.js';
 
@@ -35,6 +36,7 @@ export function createApp(db: Db, opts: { staticDir?: string; live?: LiveOptions
   // must be mounted before any router that applies requireAuth router-wide.
   app.use('/api', resetRoutes(db));
   app.use('/api', diagramRoutes(db, live));
+  app.use('/api', folderRoutes(db));
   app.use('/api', groupRoutes(db));
 
   // Catch-all so unknown /api routes return JSON, not Express's HTML 404 —

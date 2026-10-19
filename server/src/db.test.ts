@@ -26,7 +26,7 @@ describe('openDb', () => {
     ).toThrow();
   });
 
-  it('adds trash and thumbnail columns to a database created before they existed', () => {
+  it('adds trash, thumbnail, and folder columns to a database created before they existed', () => {
     const dir = mkdtempSync(join(tmpdir(), 'etd-db-'));
     const path = join(dir, 'old.db');
     const old = new Database(path);
@@ -44,8 +44,10 @@ describe('openDb', () => {
     expect(cols).toContain('deleted_by');
     expect(cols).toContain('thumbnail');
     expect(cols).toContain('thumbnail_mime');
-    const row = db.prepare('SELECT title, deleted_at FROM diagrams').get() as { title: string; deleted_at: string | null };
-    expect(row).toEqual({ title: 'Existing', deleted_at: null });
+    expect(cols).toContain('folder_id');
+    const row = db.prepare('SELECT title, deleted_at, folder_id FROM diagrams').get() as
+      { title: string; deleted_at: string | null; folder_id: number | null };
+    expect(row).toEqual({ title: 'Existing', deleted_at: null, folder_id: null });
     db.close();
     // re-opening is a no-op
     openDb(path).close();

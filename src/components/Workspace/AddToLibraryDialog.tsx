@@ -61,9 +61,12 @@ export function AddToLibraryDialog() {
     setBusy(true);
     try {
       const snapshot = buildCloudSnapshot(title);
+      // Started from inside a workspace folder → file it there.
+      const target = useCloudStore.getState().newDiagramFolder;
+      const folderId = target && target.groupId === groupId ? target.folderId : undefined;
       const res = await api<{ id: number; currentVersionId: number }>('/api/diagrams', {
         method: 'POST',
-        body: { groupId, title, snapshot, thumbnail: captureThumbnail() },
+        body: { groupId, title, snapshot, thumbnail: captureThumbnail(), ...(folderId !== undefined ? { folderId } : {}) },
       });
       useDiagramStore.getState().setDiagramName(title);
       useCloudStore.getState().setCloudTarget(res.id, groupId, res.currentVersionId);

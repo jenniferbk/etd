@@ -44,6 +44,14 @@ CREATE TABLE IF NOT EXISTS diagram_versions (
   label TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS folders (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER NOT NULL REFERENCES groups(id),
+  name TEXT NOT NULL,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS folders_group_name ON folders (group_id, name COLLATE NOCASE);
 CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY,
   diagram_id INTEGER NOT NULL REFERENCES diagrams(id),
@@ -89,6 +97,10 @@ function migrate(db: Db): void {
   // Workspace card thumbnail: the latest one sent with a save (not versioned).
   if (!diagramCols.has('thumbnail')) db.exec('ALTER TABLE diagrams ADD COLUMN thumbnail BLOB');
   if (!diagramCols.has('thumbnail_mime')) db.exec('ALTER TABLE diagrams ADD COLUMN thumbnail_mime TEXT');
+  // Workspace folders (one level). NULL = top level.
+  if (!diagramCols.has('folder_id')) {
+    db.exec('ALTER TABLE diagrams ADD COLUMN folder_id INTEGER REFERENCES folders(id)');
+  }
   // Live collaboration: autosaved versions (auto = 1) are updated in place
   // within an editing window; saved_at is when a version's content was last
   // written (created_at is when the window opened).

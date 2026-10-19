@@ -1,5 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useCloudStore } from './cloudStore';
+
+const localStorageStore = new Map<string, string>();
+vi.stubGlobal('localStorage', {
+  getItem: (k: string) => localStorageStore.get(k) ?? null,
+  setItem: (k: string, v: string) => void localStorageStore.set(k, String(v)),
+  removeItem: (k: string) => void localStorageStore.delete(k),
+  clear: () => void localStorageStore.clear(),
+});
 
 describe('cloudStore view/status', () => {
   beforeEach(() =>
@@ -7,6 +15,7 @@ describe('cloudStore view/status', () => {
       diagramId: null, groupId: null, baseVersionId: null, conflict: null, view: 'canvas',
       status: 'notInLibrary', addToLibraryOpen: false, workspaceTab: 'diagrams',
       preview: null, historyOpen: false,
+      folderId: null, viewMode: 'grid', sort: { key: 'updatedAt', dir: 'desc' }, newDiagramFolder: null,
     }),
   );
 
@@ -96,5 +105,34 @@ describe('cloudStore view/status', () => {
     useCloudStore.getState().setPreview({ versionId: 3, createdAt: '2026-08-01T00:00:00' });
     useCloudStore.getState().clearCloudTarget();
     expect(useCloudStore.getState()).toMatchObject({ historyOpen: false, preview: null });
+  });
+});
+
+describe('cloudStore workspace browsing', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useCloudStore.setState({
+      folderId: null, viewMode: 'grid', sort: { key: 'updatedAt', dir: 'desc' }, newDiagramFolder: null,
+    });
+  });
+
+  it('remembers grid/list and sort in this browser', () => {
+    useCloudStore.getState().setViewMode('list');
+    useCloudStore.getState().setSort({ key: 'title', dir: 'asc' });
+    expect(JSON.parse(localStorage.getItem('etd.workspaceBrowse')!)).toEqual({
+      viewMode: 'list', sort: { key: 'title', dir: 'asc' },
+    });
+  });
+
+  it('clearCloudTarget does not forget the folder a new diagram is meant for', () => {
+    useCloudStore.getState().setNewDiagramFolder({ groupId: 1, folderId: 5 });
+    useCloudStore.getState().clearCloudTarget();
+    expect(useCloudStore.getState().newDiagramFolder).toEqual({ groupId: 1, folderId: 5 });
+  });
+
+  it('setCloudTarget clears the new-diagram folder (the diagram now exists)', () => {
+    useCloudStore.getState().setNewDiagramFolder({ groupId: 1, folderId: 5 });
+    useCloudStore.getState().setCloudTarget(7, 1);
+    expect(useCloudStore.getState().newDiagramFolder).toBeNull();
   });
 });
