@@ -6,6 +6,8 @@ import { useDiagramStore } from '../../store';
 import { theme } from '../../utils/theme';
 import { ArgumentShape } from './shapes/ArgumentShape';
 import { PresenceOutlines } from './shapes/PresenceOutlines';
+import { LiveCursors } from './shapes/LiveCursors';
+import { getLiveSession } from '../../live/liveSession';
 import { TeacherSupportShape } from './shapes/TeacherSupportShape';
 import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
@@ -1020,6 +1022,19 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       style={{ backgroundColor: '#f8f9fa' }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onPointerMove={(e) => {
+        const session = getLiveSession();
+        const stage = stageRef.current;
+        const box = containerRef.current?.getBoundingClientRect();
+        if (!session || !stage || !box) return;
+        // Read the stage itself: during a drag-pan the store's pan lags.
+        const scale = stage.scaleX();
+        session.sendCursor({
+          x: (e.clientX - box.left - stage.x()) / scale,
+          y: (e.clientY - box.top - stage.y()) / scale,
+        });
+      }}
+      onPointerLeave={() => getLiveSession()?.sendCursor(null)}
     >
       {/* Status bar for connect mode */}
       {connectMode && (
@@ -1183,6 +1198,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
 
           {/* Teammates' selections (live collaboration) */}
           <PresenceOutlines elements={elements} />
+          <LiveCursors zoom={zoom} />
 
           {/* Transformer for resizing selected elements */}
           <Transformer

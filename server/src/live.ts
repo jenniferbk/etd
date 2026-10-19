@@ -79,8 +79,12 @@ class Room {
   }
 
   send(event: string, data: unknown, only?: Client): void {
+    this.sendTo(only ? [only] : [...this.clients.values()], event, data);
+  }
+
+  sendTo(clients: Client[], event: string, data: unknown): void {
     const frame = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-    for (const c of only ? [only] : this.clients.values()) c.res.write(frame);
+    for (const c of clients) c.res.write(frame);
   }
 
   broadcastPresence(): void {
@@ -246,6 +250,41 @@ export class LiveRooms {
     client.selectedIds = selectedIds;
     this.rooms.get(diagramId)!.broadcastPresence();
     return true;
+  }
+
+  /** Relay a tab's pointer position (diagram coordinates; null = left the
+   *  canvas) to everyone else. Not stored: cursors are only ever live.
+   *  Returns false when the tab isn't connected. */
+  setCursor(diagramId: number, clientId: string, x: number | null, y: number | null): boolean {
+    const room = this.rooms.get(diagramId);
+    const sender = room?.clients.get(clientId);
+    if (!room || !sender) return false;
+    room.sendTo([...room.clients.values()].filter((c) => c !== sender), 'cursor', { clientId, x, y });
+    return true;
+  }
+
+  /** Ask teammates to look at the sender's view: every tab of toUserId, or
+   *  everyone when it's omitted — never the sending tab. */
+  summon(
+    diagramId: number, clientId: string, toUserId: number | undefined,
+    view: { x: number; y: number; width: number; height: number },
+  ): boolean {
+    const room = this.rooms.get(diagramId);
+    const sender = room?.clients.get(clientId);
+    if (!room || !sender) return false;
+    const targets = [...room.clients.values()].filter(
+      (c) => c !== sender && (toUserId === undefined || c.user.id === toUserId),
+    );
+    room.sendTo(targets, 'summon', {
+      from: { clientId, name: sender.user.displayName, color: sender.color },
+      view,
+    });
+    return true;
+  }
+
+  /** A chat message was saved; show it to whoever has the diagram open. */
+  chatPosted(diagramId: number, message: unknown): void {
+    this.rooms.get(diagramId)?.send('chat', message);
   }
 
   /** Save now as a new version (⌘S). Returns the new version id, or null if no room. */

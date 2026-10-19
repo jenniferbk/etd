@@ -17,7 +17,7 @@ import { TranscriptPanel, TranscriptClosedStrip } from './components/TranscriptP
 import { SettingsModal } from './components/Settings';
 import { Toaster } from './components/ui/Toaster';
 import { ConfirmHost } from './components/ui/ConfirmHost';
-import { AddToLibraryDialog, CanvasHeader, ConflictDialog, HistoryPanel, SetNewPasswordModal, SignInModal, Workspace } from './components/Workspace';
+import { AddToLibraryDialog, CanvasHeader, ChatPanel, ConflictDialog, HistoryPanel, SetNewPasswordModal, SignInModal, SummonBanner, Workspace } from './components/Workspace';
 import { useToastStore } from './store/toastStore';
 import { confirmAsync } from './store/confirmStore';
 import { theme } from './utils/theme';
@@ -109,6 +109,7 @@ function App() {
   const view = useCloudStore((s) => s.view);
   const preview = useCloudStore((s) => s.preview);
   const historyOpen = useCloudStore((s) => s.historyOpen);
+  const chatOpen = useCloudStore((s) => s.chatOpen);
   useDirtyTracking(user !== null && preview === null);
   useLiveSync();
 
@@ -605,7 +606,12 @@ function App() {
             <div className={fullScreen ? 'hidden' : 'contents'}>
               {historyOpen && <HistoryPanel />}
             </div>
+            {/* Chat stays usable during preview too (outside the inert wrapper). */}
+            <div className={fullScreen ? 'hidden' : 'contents'}>
+              {chatOpen && <ChatPanel />}
+            </div>
           </div>
+          <SummonBanner />
 
           {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
           {fullScreen && (

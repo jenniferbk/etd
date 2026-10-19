@@ -14,7 +14,7 @@ describe('cloudStore view/status', () => {
     useCloudStore.setState({
       diagramId: null, groupId: null, baseVersionId: null, conflict: null, view: 'canvas',
       status: 'notInLibrary', addToLibraryOpen: false, workspaceTab: 'diagrams',
-      preview: null, historyOpen: false,
+      preview: null, historyOpen: false, chatOpen: false,
       folderId: null, viewMode: 'grid', sort: { key: 'updatedAt', dir: 'desc' }, newDiagramFolder: null,
     }),
   );

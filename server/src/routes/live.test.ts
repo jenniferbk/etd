@@ -218,3 +218,102 @@ describe('live collaboration', () => {
     expect((await post('short', 'A:1', [{ t: 'del', c: 'elements', id: 'a' }])).status).toBe(400);
   });
 });
+
+describe('cursors, summon, and chat', () => {
+  it('cursor moves go to everyone else, not back to the sender', async () => {
+    const { open, app, adminToken, id } = await setup();
+    const A = open('client-A-0100');
+    await A.next('hello');
+    const B = open('client-B-0100');
+    await B.next('hello');
+    const res = await request(app).post(`/api/diagrams/${id}/live/cursor`).set(auth(adminToken))
+      .send({ clientId: 'client-B-0100', x: 120.5, y: -40 });
+    expect(res.status).toBe(204);
+    const moved = await A.next('cursor');
+    expect(moved).toEqual({ clientId: 'client-B-0100', x: 120.5, y: -40 });
+    await request(app).post(`/api/diagrams/${id}/live/cursor`).set(auth(adminToken))
+      .send({ clientId: 'client-B-0100', x: null, y: null });
+    expect(await A.next('cursor')).toEqual({ clientId: 'client-B-0100', x: null, y: null });
+    await sleep(50);
+    expect(B.frames.some((f) => f.event === 'cursor')).toBe(false);
+  });
+
+  it('rejects a cursor from a tab that is not connected', async () => {
+    const { app, adminToken, id } = await setup();
+    const res = await request(app).post(`/api/diagrams/${id}/live/cursor`).set(auth(adminToken))
+      .send({ clientId: 'client-Z-0100', x: 1, y: 1 });
+    expect(res.status).toBe(409);
+  });
+
+  it('summon goes to the named person (every tab but the sender) with the view and who sent it', async () => {
+    const { open, app, adminToken, id } = await setup();
+    const A = open('client-A-0101');
+    const ahello = await A.next('hello');
+    const B = open('client-B-0101');
+    await B.next('hello');
+    const C = open('client-C-0101');
+    await C.next('hello');
+    const view = { x: 10, y: 20, width: 800, height: 600 };
+    const res = await request(app).post(`/api/diagrams/${id}/live/summon`).set(auth(adminToken))
+      .send({ clientId: 'client-A-0101', toUserId: 1, view });
+    expect(res.status).toBe(204);
+    for (const s of [B, C]) {
+      const got = await s.next('summon');
+      expect(got).toEqual({ from: { clientId: 'client-A-0101', name: expect.any(String), color: ahello.you.color }, view });
+    }
+    await sleep(50);
+    expect(A.frames.some((f) => f.event === 'summon')).toBe(false);
+  });
+
+  it('summon without a person goes to everyone else; a stranger id goes to nobody', async () => {
+    const { open, app, adminToken, id } = await setup();
+    const A = open('client-A-0102');
+    await A.next('hello');
+    const B = open('client-B-0102');
+    await B.next('hello');
+    const view = { x: 0, y: 0, width: 100, height: 100 };
+    await request(app).post(`/api/diagrams/${id}/live/summon`).set(auth(adminToken))
+      .send({ clientId: 'client-A-0102', view });
+    await B.next('summon');
+    await request(app).post(`/api/diagrams/${id}/live/summon`).set(auth(adminToken))
+      .send({ clientId: 'client-A-0102', toUserId: 999, view });
+    await sleep(50);
+    expect(B.frames.some((f) => f.event === 'summon')).toBe(false);
+  });
+
+  it('chat messages are saved, listed oldest first, and broadcast to the room', async () => {
+    const { open, app, adminToken, id } = await setup();
+    const A = open('client-A-0103');
+    await A.next('hello');
+    const sent = await request(app).post(`/api/diagrams/${id}/chat`).set(auth(adminToken)).send({ body: '  look at warrant 3  ' });
+    expect(sent.status).toBe(200);
+    const live = await A.next('chat');
+    expect(live).toMatchObject({ id: sent.body.id, body: 'look at warrant 3', authorId: 1 });
+    expect(live.author).toBeTypeOf('string');
+    expect(live.createdAt).toBeTypeOf('string');
+    await request(app).post(`/api/diagrams/${id}/chat`).set(auth(adminToken)).send({ body: 'second' });
+    const list = await request(app).get(`/api/diagrams/${id}/chat`).set(auth(adminToken));
+    expect(list.status).toBe(200);
+    expect(list.body.map((m: { body: string }) => m.body)).toEqual(['look at warrant 3', 'second']);
+  });
+
+  it('chat works when nobody has the diagram open, and rejects empty or huge messages', async () => {
+    const { app, adminToken, id } = await setup();
+    expect((await request(app).post(`/api/diagrams/${id}/chat`).set(auth(adminToken)).send({ body: 'hi' })).status).toBe(200);
+    expect((await request(app).post(`/api/diagrams/${id}/chat`).set(auth(adminToken)).send({ body: '   ' })).status).toBe(400);
+    expect((await request(app).post(`/api/diagrams/${id}/chat`).set(auth(adminToken)).send({ body: 'x'.repeat(4001) })).status).toBe(400);
+    expect((await request(app).get(`/api/diagrams/${id}/chat`).set(auth(adminToken))).body).toHaveLength(1);
+  });
+
+  it('non-members cannot read or post chat', async () => {
+    const { app, adminToken, id } = await setup();
+    const g2 = await request(app).post('/api/groups').set(auth(adminToken)).send({ name: 'Other' });
+    const inv = await request(app).post('/api/invites').set(auth(adminToken)).send({ groupId: g2.body.id });
+    const reg = await request(app).post('/api/auth/register').send({
+      inviteToken: inv.body.token, email: 'out@uga.edu', password: 'longenough', displayName: 'Out', acceptedPolicy: true,
+    });
+    const outsider = reg.body.token as string;
+    expect((await request(app).get(`/api/diagrams/${id}/chat`).set(auth(outsider))).status).toBe(403);
+    expect((await request(app).post(`/api/diagrams/${id}/chat`).set(auth(outsider)).send({ body: 'hi' })).status).toBe(403);
+  });
+});

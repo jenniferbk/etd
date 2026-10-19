@@ -15,3 +15,5 @@ export { ResetLinkDialog } from './ResetLinkDialog';
 export { CopyLinkField } from './CopyLinkField';
 export { HistoryPanel } from './HistoryPanel';
 export { PreviewBanner } from './PreviewBanner';
+export { ChatPanel } from './ChatPanel';
+export { SummonBanner } from './SummonBanner';

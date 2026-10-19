@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS comments (
   body TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS comments_diagram ON comments (diagram_id, id);
 CREATE TABLE IF NOT EXISTS invites (
   token_hash TEXT PRIMARY KEY,
   group_id INTEGER NOT NULL REFERENCES groups(id),

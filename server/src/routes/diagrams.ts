@@ -278,7 +278,7 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
   const clientIdSchema = z.string().min(8).max(100);
 
   // Server-Sent Events stream: 'hello' (the document), then 'ops', 'presence',
-  // 'persisted', 'reset', and 'gone' events.
+  // 'persisted', 'reset', 'gone', 'cursor', 'summon', and 'chat' events.
   router.get('/diagrams/:id/live', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;
@@ -322,6 +322,90 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
     }
     live.setSelection(row.id, parsed.data.clientId, parsed.data.selectedIds);
     res.status(204).end();
+  });
+
+  const coord = z.number().finite().min(-1e7).max(1e7);
+
+  router.post('/diagrams/:id/live/cursor', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const parsed = z
+      .object({ clientId: clientIdSchema, x: coord.nullable(), y: coord.nullable() })
+      .refine((b) => (b.x === null) === (b.y === null))
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid cursor' });
+      return;
+    }
+    const { clientId, x, y } = parsed.data;
+    if (!live.setCursor(row.id, clientId, x, y)) {
+      res.status(409).json({ error: 'not connected to this diagram' });
+      return;
+    }
+    res.status(204).end();
+  });
+
+  router.post('/diagrams/:id/live/summon', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const parsed = z
+      .object({
+        clientId: clientIdSchema,
+        toUserId: z.number().int().optional(),
+        view: z.object({ x: coord, y: coord, width: coord.positive(), height: coord.positive() }),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid summon' });
+      return;
+    }
+    const { clientId, toUserId, view } = parsed.data;
+    if (!live.summon(row.id, clientId, toUserId, view)) {
+      res.status(409).json({ error: 'not connected to this diagram' });
+      return;
+    }
+    res.status(204).end();
+  });
+
+  // Per-diagram chat, kept in the comments table. Saved whether or not
+  // anyone has the diagram open; broadcast to those who do.
+  const MAX_CHAT_LENGTH = 4000;
+  const CHAT_HISTORY = 500;
+
+  router.get('/diagrams/:id/chat', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const rows = db
+      .prepare(
+        `SELECT * FROM (
+           SELECT c.id, c.body, c.author_id AS authorId, u.display_name AS author, c.created_at AS createdAt
+           FROM comments c JOIN users u ON u.id = c.author_id
+           WHERE c.diagram_id = ? ORDER BY c.id DESC LIMIT ?
+         ) ORDER BY id`,
+      )
+      .all(row.id, CHAT_HISTORY);
+    res.json(rows);
+  });
+
+  router.post('/diagrams/:id/chat', (req, res) => {
+    const row = getDiagramForMember(req, res);
+    if (!row) return;
+    const parsed = z.object({ body: z.string().trim().min(1).max(MAX_CHAT_LENGTH) }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: `messages must be 1–${MAX_CHAT_LENGTH} characters` });
+      return;
+    }
+    const r = db
+      .prepare('INSERT INTO comments (diagram_id, author_id, body) VALUES (?, ?, ?)')
+      .run(row.id, req.user!.id, parsed.data.body);
+    const message = db
+      .prepare(
+        `SELECT c.id, c.body, c.author_id AS authorId, u.display_name AS author, c.created_at AS createdAt
+         FROM comments c JOIN users u ON u.id = c.author_id WHERE c.id = ?`,
+      )
+      .get(Number(r.lastInsertRowid));
+    live.chatPosted(row.id, message);
+    res.json(message);
   });
 
   // Save (⌘S) during a live session: write the live document as a new,

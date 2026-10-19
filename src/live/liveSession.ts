@@ -9,6 +9,7 @@
 //     both applied and autosaved this tab's edits, then Saved,
 //   - reconnects with backoff, resending anything that was not confirmed.
 import { api, ApiError, getServerUrl, getToken } from '../api/client';
+import { useAuthStore } from '../api/authStore';
 import { useCloudStore } from '../store/cloudStore';
 import { useDiagramStore } from '../store';
 import { useToastStore } from '../store/toastStore';
@@ -18,6 +19,8 @@ import { captureThumbnail } from '../utils/thumbnail';
 import { generateUuid } from '../utils/uuid';
 import type { LiveDoc, Op } from './ops';
 import { usePresenceStore, type PresenceMember } from './presenceStore';
+import { useCollabStore, type ChatMessage, type Summon } from './collabStore';
+import { currentView } from './viewport';
 import { readEventStream } from './sse';
 import { setReplaceHandler } from './replaceGuard';
 import { applyDocToStore, docFromState, docFromStore } from './storeBridge';
@@ -28,6 +31,8 @@ const PRESENCE_DELAY_MS = 250;
 const THUMBNAIL_EVERY_MS = 30_000;
 const STALL_MS = 60_000; // server pings every 25 s
 const BACKOFF_MS = [1000, 2000, 5000, 10_000];
+/** Pointer positions are sent at most this often (latest position wins). */
+const CURSOR_INTERVAL_MS = 80;
 
 let current: LiveSession | null = null;
 
@@ -51,6 +56,9 @@ export class LiveSession {
   private sending = false;
   private sendTimer: ReturnType<typeof setTimeout> | null = null;
   private presenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private cursorTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Latest pointer position not yet sent; undefined = nothing pending. */
+  private pendingCursor: { x: number; y: number } | null | undefined = undefined;
   private thumbTimer: ReturnType<typeof setInterval> | null = null;
   private stallTimer: ReturnType<typeof setTimeout> | null = null;
   private thumbDirty = false;
@@ -72,6 +80,7 @@ export class LiveSession {
 
   start(): void {
     setCurrent(this);
+    useCollabStore.getState().reset();
     // Anything else replacing the whole document (open a file, recover an
     // autosave, import from an image, clear) means the canvas is no longer
     // this library diagram. Detach before the new content reaches the store,
@@ -119,11 +128,12 @@ export class LiveSession {
     this.detach();
     await this.drain(3000);
     this.stopped = true;
-    for (const t of [this.sendTimer, this.presenceTimer, this.stallTimer]) if (t) clearTimeout(t);
+    for (const t of [this.sendTimer, this.presenceTimer, this.stallTimer, this.cursorTimer]) if (t) clearTimeout(t);
     if (this.thumbTimer) clearInterval(this.thumbTimer);
     this.streamCtrl?.abort();
     this.wake?.();
     usePresenceStore.getState().reset();
+    useCollabStore.getState().reset();
   }
 
   get isConnected(): boolean {
@@ -252,6 +262,21 @@ export class LiveSession {
       case 'presence': {
         const members = (data.members as PresenceMember[]).filter((m) => m.clientId !== this.clientId);
         usePresenceStore.getState().setOthers(members);
+        useCollabStore.getState().pruneCursors(members.map((m) => m.clientId));
+        return;
+      }
+      case 'cursor': {
+        const { clientId, x, y } = data as { clientId: string; x: number | null; y: number | null };
+        useCollabStore.getState().setCursor(clientId, x === null || y === null ? null : { x, y });
+        return;
+      }
+      case 'summon':
+        useCollabStore.getState().setSummon(data as unknown as Summon);
+        return;
+      case 'chat': {
+        const message = data as unknown as ChatMessage;
+        const seen = useCloudStore.getState().chatOpen || message.authorId === useAuthStore.getState().user?.id;
+        useCollabStore.getState().receiveChat(message, seen);
         return;
       }
       case 'gone':
@@ -288,6 +313,50 @@ export class LiveSession {
     this.setConnected(true, you.color);
     this.scheduleSend(0);
     this.schedulePresence();
+    // (Re)load chat: messages sent while disconnected arrive here.
+    void this.loadChat();
+  }
+
+  private async loadChat(): Promise<void> {
+    try {
+      const messages = await api<ChatMessage[]>(`/api/diagrams/${this.diagramId}/chat`);
+      if (!this.stopped) useCollabStore.getState().setChatHistory(this.diagramId, messages);
+    } catch { /* the panel shows what it has; the next reconnect retries */ }
+  }
+
+  // ---- cursors, summon, chat ---------------------------------------------
+
+  /** This tab's pointer on the canvas (diagram coordinates), or null when it
+   *  leaves. Throttled; only the latest position is sent. */
+  sendCursor(pos: { x: number; y: number } | null): void {
+    if (!this.connected || this.stopped) return;
+    this.pendingCursor = pos;
+    if (this.cursorTimer) return;
+    const flush = () => {
+      this.cursorTimer = null;
+      const next = this.pendingCursor;
+      if (next === undefined || !this.connected || this.stopped) return;
+      this.pendingCursor = undefined;
+      void api(`/api/diagrams/${this.diagramId}/live/cursor`, {
+        method: 'POST', body: { clientId: this.clientId, x: next?.x ?? null, y: next?.y ?? null },
+      }).catch(() => undefined);
+      this.cursorTimer = setTimeout(flush, CURSOR_INTERVAL_MS);
+    };
+    flush();
+  }
+
+  /** Ask a teammate (every tab of toUserId), or everyone, to look at what
+   *  this tab is showing right now. */
+  async summon(toUserId?: number): Promise<void> {
+    const view = currentView(useDiagramStore.getState());
+    await api(`/api/diagrams/${this.diagramId}/live/summon`, {
+      method: 'POST', body: { clientId: this.clientId, view, ...(toUserId !== undefined ? { toUserId } : {}) },
+    });
+  }
+
+  async sendChat(body: string): Promise<void> {
+    const message = await api<ChatMessage>(`/api/diagrams/${this.diagramId}/chat`, { method: 'POST', body: { body } });
+    useCollabStore.getState().receiveChat(message, true);
   }
 
   private onReset(doc: LiveDoc, currentVersionId: number, seq: number, lastBatchNo = 0): void {

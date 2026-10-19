@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useCollabStore } from '../../live/collabStore';
 import { Download, FolderOpen } from 'lucide-react';
 import { useAuthStore } from '../../api/authStore';
 import { useCloudStore, type LibrarySaveStatus } from '../../store/cloudStore';
@@ -38,6 +39,8 @@ export function CanvasHeader() {
   const diagramId = useCloudStore((s) => s.diagramId);
   const preview = useCloudStore((s) => s.preview);
   const historyOpen = useCloudStore((s) => s.historyOpen);
+  const chatOpen = useCloudStore((s) => s.chatOpen);
+  const unread = useCollabStore((s) => s.unread);
   const diagramName = useDiagramStore((s) => s.diagramName);
   const setDiagramName = useDiagramStore((s) => s.setDiagramName);
 
@@ -306,6 +309,32 @@ export function CanvasHeader() {
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = historyOpen ? theme.sidebar.hover : 'transparent'; }}
           >
             History
+          </button>
+
+          <button
+            onClick={() => useCloudStore.getState().setChatOpen(!chatOpen)}
+            disabled={diagramId === null}
+            aria-pressed={chatOpen}
+            aria-label={unread > 0 ? `Chat, ${unread} unread` : 'Chat'}
+            className="relative px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              color: theme.sidebar.text,
+              backgroundColor: chatOpen ? theme.sidebar.hover : 'transparent',
+              outlineColor: theme.focus.ring,
+            }}
+            onMouseEnter={(e) => { if (diagramId !== null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = chatOpen ? theme.sidebar.hover : 'transparent'; }}
+          >
+            Chat
+            {unread > 0 && !chatOpen && (
+              <span
+                className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full text-[10px] font-semibold flex items-center justify-center"
+                style={{ padding: '0 4px', backgroundColor: theme.danger.fg, color: '#FFFFFF' }}
+                aria-hidden
+              >
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
           </button>
 
           <div className="relative inline-flex">

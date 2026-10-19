@@ -51,6 +51,8 @@ interface CloudState {
   workspaceTab: WorkspaceTab;
   /** Whether the version-history side panel is open. */
   historyOpen: boolean;
+  /** Whether the diagram chat side panel is open. */
+  chatOpen: boolean;
   /** Set while the canvas is showing a read-only past version instead of the
    *  live diagram. Null when viewing the current (editable) content. */
   preview: { versionId: number; createdAt: string } | null;
@@ -71,6 +73,7 @@ interface CloudState {
   setAddToLibraryOpen: (open: boolean) => void;
   setWorkspaceTab: (tab: WorkspaceTab) => void;
   setHistoryOpen: (open: boolean) => void;
+  setChatOpen: (open: boolean) => void;
   setPreview: (preview: { versionId: number; createdAt: string } | null) => void;
   setFolderId: (folderId: number | null) => void;
   setViewMode: (viewMode: WorkspaceViewMode) => void;
@@ -88,6 +91,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
   addToLibraryOpen: false,
   workspaceTab: 'diagrams',
   historyOpen: false,
+  chatOpen: false,
   preview: null,
   folderId: null,
   ...loadBrowsePrefs(),
@@ -109,6 +113,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
       conflict: null,
       preview: null,
       historyOpen: false,
+      chatOpen: false,
     }),
   setBaseVersionId: (baseVersionId) => set({ baseVersionId }),
   setConflict: (conflict) => set({ conflict }),
@@ -117,6 +122,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
   setAddToLibraryOpen: (addToLibraryOpen) => set({ addToLibraryOpen }),
   setWorkspaceTab: (workspaceTab) => set({ workspaceTab }),
   setHistoryOpen: (historyOpen) => set({ historyOpen }),
+  setChatOpen: (chatOpen) => set({ chatOpen }),
   setPreview: (preview) => set({ preview }),
   setFolderId: (folderId) => set({ folderId }),
   setViewMode: (viewMode) => {
