@@ -152,8 +152,11 @@ in, running the server as a `launchd` daemon.
 2. **Energy Saver / Lock Screen**: set the Mac to never sleep (System
    Settings → Energy Saver / Battery → Prevent automatic sleeping), so the
    daemon keeps running. Screen lock/password can still be on.
-3. **Install Node ≥ 20** (via the official installer, `nvm`, or Homebrew).
-   Confirm with `node --version`.
+3. **Install Node 24 LTS** (via the official installer, `nvm`, or Homebrew).
+   Confirm with `node --version`: it must be a supported, patched line
+   (24.22.1+ or 22.23.4+ as of the Oct 21, 2026 Node.js security release).
+   Node 20 and 25 are end-of-life. This server decompresses request bodies
+   before authentication, so an unpatched Node is directly exposed.
 4. **Clone the repo** to a stable path, e.g. `/Users/coms/etd`, and run
    `cd /Users/coms/etd/server && npm install` once.
 5. **Fill in the two plists** in `server/deploy/`:
