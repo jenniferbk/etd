@@ -13,6 +13,7 @@ import {
 import { computeExportBounds } from './exportBounds';
 import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
 import { computePolylineFor, counterclaimSlash } from './connectionPath';
+import { resolveArrowhead, isRebuttalToAttachedQualifier } from './arrowhead';
 import { saveFile } from './saveFile';
 
 interface SvgExportOptions {
@@ -40,14 +41,14 @@ export function exportToSvg(
   // Build SVG content
   const svgContent: string[] = [];
 
+  // Pre-built once for claim-role derivation and arrowhead resolution.
+  const elementsById = new Map(elements.map((el) => [el.id, el]));
+
   // Add connections first (behind elements)
   connections.forEach((conn) => {
-    const svg = renderConnectionSvg(conn, elements, connections, offsetX, offsetY);
+    const svg = renderConnectionSvg(conn, elements, connections, offsetX, offsetY, elementsById);
     if (svg) svgContent.push(svg);
   });
-
-  // Pre-build the elements-by-id map once for claim-role derivation.
-  const elementsById = new Map(elements.map((el) => [el.id, el]));
 
   // Add elements
   elements.forEach((el) => {
@@ -375,21 +376,19 @@ function renderConnectionSvg(
   elements: DiagramElement[],
   connections: Connection[],
   offsetX: number,
-  offsetY: number
+  offsetY: number,
+  elementsById: ReadonlyMap<string, DiagramElement>
 ): string {
+  const arrowhead = resolveArrowhead(conn, elementsById);
+  const markerEnd = arrowhead ? ' marker-end="url(#arrowhead)"' : '';
   // Rebuttal-to-qualifier special case (mirrors Arrow.tsx ConnectionArrow):
   // when the target is an attached qualifier, render a vertical line from the
   // source down through the qualifier to the parent connection's y at the
-  // qualifier's x. No arrowhead. Misaligned x → faint dashed gray hint.
-  if (typeof conn.to === 'string') {
-    const targetEl = elements.find((e) => e.id === conn.to);
-    const sourceEl = elements.find((e) => e.id === conn.from);
-    if (
-      targetEl && sourceEl &&
-      targetEl.type === 'argument' &&
-      (targetEl as ArgumentElement).argumentType === 'qualifier' &&
-      (targetEl as ArgumentElement).attachedTo !== undefined
-    ) {
+  // qualifier's x. Arrowhead only when toggled on. Misaligned x → faint dashed gray hint.
+  if (isRebuttalToAttachedQualifier(conn, elementsById)) {
+    const targetEl = elementsById.get(conn.to as string);
+    const sourceEl = elementsById.get(conn.from);
+    if (targetEl && sourceEl) {
       const qual = targetEl as ArgumentElement;
       const parentConn = connections.find((c) => c.id === qual.attachedTo!.connectionId);
       const parentPolyline = parentConn ? computePolylineFor(parentConn, elements, connections) : null;
@@ -409,7 +408,11 @@ function renderConnectionSvg(
         return `<line x1="${sourceCenter.x + offsetX}" y1="${sourceCenter.y + offsetY}" x2="${qualCenter.x + offsetX}" y2="${qualCenter.y + offsetY}" stroke="#999" stroke-width="1" stroke-dasharray="4,4"/>`;
       }
       const sourceBottom = sourceEl.position.y + sourceEl.size.height;
-      return `<line x1="${qualCenter.x + offsetX}" y1="${sourceBottom + offsetY}" x2="${qualCenter.x + offsetX}" y2="${qualCenter.y + offsetY}" stroke="#000000" stroke-width="1.5"/>`;
+      let endY = qualCenter.y;
+      if (arrowhead) {
+        endY = sourceCenter.y < qualCenter.y ? qual.position.y : qual.position.y + qual.size.height;
+      }
+      return `<line x1="${qualCenter.x + offsetX}" y1="${sourceBottom + offsetY}" x2="${qualCenter.x + offsetX}" y2="${endY + offsetY}" stroke="#000000" stroke-width="1.5"${markerEnd}/>`;
     }
   }
 
@@ -430,17 +433,14 @@ function renderConnectionSvg(
     ? `<line x1="${slash[0] + offsetX}" y1="${slash[1] + offsetY}" x2="${slash[2] + offsetX}" y2="${slash[3] + offsetY}" stroke="#333333" stroke-width="2" stroke-linecap="round"/>`
     : '';
 
-  // Warrant-attachment connections render no arrowhead (matches Arrow.tsx).
   // Warning-state attachments render dashed and faint to signal "no valid attachment".
   if (isArrowAttachment(conn.to)) {
     if (attachmentStyle === 'warning') {
       return `<polyline points="${pointsAttr}" stroke="#A0A0A0" stroke-width="1" stroke-dasharray="4,4" opacity="0.6" fill="none"/>`;
     }
-    return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"/>${slashSvg}`;
+    return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"${markerEnd}/>${slashSvg}`;
   }
 
-  // Counterclaims are symmetric: no arrowhead, slash at the midpoint.
-  const markerEnd = isCounterclaim ? '' : ' marker-end="url(#arrowhead)"';
   return `<polyline points="${pointsAttr}" stroke="#333333" stroke-width="2" fill="none"${markerEnd}/>${slashSvg}`;
 }
 

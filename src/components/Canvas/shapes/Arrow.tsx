@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Connection, DiagramElement, Position, BoxEdge, EdgeAnchor, ArgumentElement } from '../../../types';
-import { isArrowAttachment, isArgumentElement } from '../../../types';
+import { isArrowAttachment } from '../../../types';
 import { computePolylineFor, counterclaimSlash, getConnectionPathPoints } from '../../../utils/connectionPath';
+import { resolveArrowhead, isRebuttalToAttachedQualifier } from '../../../utils/arrowhead';
 import { useDiagramStore } from '../../../store';
 import { NoteBadge } from './NoteBadge';
 import {
@@ -121,6 +122,8 @@ export function ConnectionArrow({
   onNoteBadgeClick,
 }: ArrowProps) {
   const isAttachment = isArrowAttachment(connection.to);
+  const elementsById = useMemo(() => new Map(elements.map((el) => [el.id, el])), [elements]);
+  const showArrowhead = resolveArrowhead(connection, elementsById);
 
   // Transient drag state — not persisted to store until mouseup.
   const [dragOverride, setDragOverride] = useState<Position[] | null>(null);
@@ -303,18 +306,13 @@ export function ConnectionArrow({
   // element whose argumentType is 'qualifier' AND that qualifier has
   // attachedTo set, render a vertical line from the source down through the
   // qualifier to the parent connection's polyline at the qualifier's x.
-  // No arrowhead. Per Anna's vertical-only rule, the source's center.x must
+  // Arrowhead only when toggled on. Per Anna's vertical-only rule, the source's center.x must
   // match the qualifier's center.x; otherwise render a faint dashed gray
   // "reposition me" hint instead.
-  const targetElForQualifierCheck =
-    typeof connection.to === 'string'
-      ? elements.find((el) => el.id === connection.to)
-      : null;
-  const isTargetAttachedQualifier =
-    targetElForQualifierCheck &&
-    isArgumentElement(targetElForQualifierCheck) &&
-    targetElForQualifierCheck.argumentType === 'qualifier' &&
-    targetElForQualifierCheck.attachedTo !== undefined;
+  const isTargetAttachedQualifier = isRebuttalToAttachedQualifier(connection, elementsById);
+  const targetElForQualifierCheck = isTargetAttachedQualifier
+    ? elementsById.get(connection.to as string)
+    : undefined;
 
   if (isTargetAttachedQualifier && targetElForQualifierCheck) {
     const qual = targetElForQualifierCheck as ArgumentElement;
@@ -354,20 +352,51 @@ export function ConnectionArrow({
     // Aligned: vertical line from source's bottom edge straight down to the
     // parent connection's y at qual.center.x. The qualifier box renders on top
     // of this line (separate Konva node), so it visually occludes the middle.
+    const startY = sourceEl.position.y + sourceEl.size.height;
+    const lineColor = isSelected ? '#4A90D9' : '#000000';
+    const lineWidth = isSelected ? 2 : 1.5;
+    if (!showArrowhead) {
+      return (
+        <Line
+          points={[qualCenter.x, startY, qualCenter.x, qualCenter.y]}
+          stroke={lineColor}
+          strokeWidth={lineWidth}
+          listening={true}
+          onClick={onSelect}
+          onTap={onSelect}
+        />
+      );
+    }
+    // Arrowhead on: end at the qualifier's nearest horizontal edge.
+    const endY = sourceCenter.y < qualCenter.y ? qual.position.y : qual.position.y + qual.size.height;
+    const dir = endY >= startY ? 1 : -1;
+    const headLen = 10;
     return (
-      <Line
-        points={[
-          qualCenter.x,
-          sourceEl.position.y + sourceEl.size.height,
-          qualCenter.x,
-          qualCenter.y,
-        ]}
-        stroke={isSelected ? '#4A90D9' : '#000000'}
-        strokeWidth={isSelected ? 2 : 1.5}
-        listening={true}
-        onClick={onSelect}
-        onTap={onSelect}
-      />
+      <>
+        <Line
+          points={[qualCenter.x, startY, qualCenter.x, endY]}
+          stroke={lineColor}
+          strokeWidth={lineWidth}
+          listening={true}
+          onClick={onSelect}
+          onTap={onSelect}
+        />
+        <Line
+          points={[
+            qualCenter.x - headLen * Math.sin(Math.PI / 6),
+            endY - dir * headLen * Math.cos(Math.PI / 6),
+            qualCenter.x,
+            endY,
+            qualCenter.x + headLen * Math.sin(Math.PI / 6),
+            endY - dir * headLen * Math.cos(Math.PI / 6),
+          ]}
+          stroke={lineColor}
+          strokeWidth={lineWidth}
+          fill={lineColor}
+          closed
+          listening={false}
+        />
+      </>
     );
   }
 
@@ -589,7 +618,7 @@ export function ConnectionArrow({
 
   // Calculate arrow angle for the last segment
   const arrowAngle = Math.atan2(endY - prevY, endX - prevX);
-  const arrowLength = isAttachment ? 0 : 10;
+  const arrowLength = 10;
 
   return (
     <>
@@ -778,7 +807,7 @@ export function ConnectionArrow({
       )}
 
       {/* Arrow head at the end */}
-      {!isAttachment && !isCounterclaim && (
+      {showArrowhead && !(isAttachment && attachmentStyle === 'warning') && (
         <Line
           points={[
             endX - arrowLength * Math.cos(arrowAngle - Math.PI / 6),

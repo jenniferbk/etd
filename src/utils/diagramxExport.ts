@@ -26,6 +26,7 @@ import {
   isTeacherSupportElement,
 } from '../types';
 import { getContributorColor, getSupportColors } from './colors';
+import { resolveArrowhead } from './arrowhead';
 import { saveFile } from './saveFile';
 import { generateUuid } from './uuid';
 
@@ -503,9 +504,8 @@ export function exportToDiagramx(
     if (!fromEl) continue;
 
     let endpoints: ConnectorEndpoints | null = null;
-    // Counterclaims are symmetric — no arrowhead. Their slash has no
-    // DiagramMix equivalent and is dropped (Toolbar warns).
-    let hasEndArrow = conn.type !== 'counterclaim';
+    // Counterclaim slash has no DiagramMix equivalent and is dropped (Toolbar warns).
+    const hasEndArrow = resolveArrowhead(conn, elementsById);
 
     if (isArrowAttachment(conn.to)) {
       const target = endpointsById.get(conn.to.connectionId);
@@ -519,7 +519,6 @@ export function exportToDiagramx(
         from: getEdgeMidpointNearestTo(fromEl, attachPoint),
         to: attachPoint,
       };
-      hasEndArrow = false;
     } else {
       const toEl = elementsById.get(conn.to);
       if (!toEl) continue;

@@ -40,6 +40,33 @@ describe('exportToDiagramx connectors', () => {
   });
 });
 
+describe('exportToDiagramx arrowhead override', () => {
+  const els = [claim('1', 0), claim('2', 400)];
+
+  it('support with arrowhead:false exports without end arrow', () => {
+    const conns: Connection[] = [{ id: 'c', from: '1', to: '2', type: 'support', arrowhead: false }];
+    const styles = connectorStyles(exportToDiagramx(els, conns, 'd'));
+    expect(styles[0].endArrowheadKind).toBeUndefined();
+  });
+
+  it('rebuttal→attached qualifier exports without end arrow', () => {
+    const qual: ArgumentElement = {
+      id: 'q', type: 'argument', argumentType: 'qualifier', contributor: 'student',
+      label: 'Q', content: '',
+      position: { x: 240, y: 20 }, size: { width: 100, height: 40 },
+      attachedTo: { connectionId: 'base', position: 0.5 },
+    };
+    const src = { ...claim('r', 200), position: { x: 200, y: -300 } };
+    const conns: Connection[] = [
+      { id: 'base', from: '1', to: '2', type: 'support', arrowhead: false },
+      { id: 'r1', from: 'r', to: 'q', type: 'rebuttal' },
+    ];
+    const styles = connectorStyles(exportToDiagramx([...els, qual, src], conns, 'd'));
+    expect(styles).toHaveLength(2);
+    expect(styles.every((s) => s.endArrowheadKind === undefined)).toBe(true);
+  });
+});
+
 describe('hasCounterclaims', () => {
   it('is true only when at least one connection is a counterclaim', () => {
     expect(hasCounterclaims([])).toBe(false);
