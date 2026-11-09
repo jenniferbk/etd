@@ -262,7 +262,8 @@ export const useDiagramStore = create<DiagramState>()(
 
             return updated;
           });
-          return { elements: kindChanged ? normalizeContainers(mapped) : mapped };
+          // An attached qualifier is never a member; re-normalize when attachedTo changes.
+          return { elements: kindChanged || 'attachedTo' in updates ? normalizeContainers(mapped) : mapped };
         }),
 
       removeElement: (id) =>
@@ -349,8 +350,11 @@ export const useDiagramStore = create<DiagramState>()(
             el.id === id ? { ...el, size, ...(position ? { position } : {}) } : el
           );
           const target = resized.find((el) => el.id === id);
+          if (!target) return { elements: resized };
           return {
-            elements: target && isContainerElement(target) ? retestAroundContainer(resized, id) : resized,
+            elements: isContainerElement(target)
+              ? retestAroundContainer(resized, id)
+              : retestMembership(resized, new Set([id])),
           };
         }),
 
@@ -373,8 +377,8 @@ export const useDiagramStore = create<DiagramState>()(
         })),
 
       setElementImageSettings: (id, settings) =>
-        set((state) => ({
-          elements: state.elements.map((el) => {
+        set((state) => {
+          const elements = state.elements.map((el) => {
             if (el.id !== id) return el;
             const updated = {
               ...el,
@@ -401,12 +405,37 @@ export const useDiagramStore = create<DiagramState>()(
               return { ...updated, size: autoSize };
             }
             return updated;
-          }),
-        })),
+          });
+          // A container whose size changed may gain or lose members.
+          const target = elements.find((el) => el.id === id);
+          return { elements: target && isContainerElement(target) ? retestAroundContainer(elements, id) : elements };
+        }),
 
       duplicateElements: (ids) => {
         const state = get();
         const makeId = () => `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const hasContainer = ids.some((id) => {
+          const el = state.elements.find((e) => e.id === id);
+          return !!el && isContainerElement(el);
+        });
+        if (!hasContainer) {
+          // Pre-container behavior: copy the elements only, offset by 20.
+          const duplicates = ids.flatMap((id) => {
+            const original = state.elements.find((el) => el.id === id);
+            if (!original) return [];
+            return [{
+              ...original,
+              id: makeId(),
+              position: { x: original.position.x + 20, y: original.position.y + 20 },
+            } as DiagramElement];
+          });
+          const combined = [...state.elements, ...duplicates];
+          set({
+            elements: retestMembership(combined, new Set(duplicates.map((d) => d.id))),
+            selectedIds: duplicates.map((d) => d.id),
+          });
+          return;
+        }
         const dup = duplicateWithMembers(
           state.elements, state.connections, ids, makeId, { x: 20, y: 20 },
         );

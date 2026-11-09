@@ -597,3 +597,77 @@ describe('container loadDiagram', () => {
     }
   });
 });
+
+describe('resizeElement on a member', () => {
+  it('drops containerId when the resized member center leaves the container', () => {
+    freshHistory([box('c', 0, 0), member('m', 'c', 300, 100)]);
+    st().resizeElement('m', { width: 400, height: 60 });
+    expect('containerId' in byId('m')).toBe(false);
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+
+  it('a resized loose element whose center lands inside joins', () => {
+    freshHistory([box('c', 0, 0), arg('p', 350, 100)]);
+    st().resizeElement('p', { width: 20, height: 60 }, { x: 350, y: 100 });
+    expect(byId('p').containerId).toBe('c');
+  });
+});
+
+describe('updateElement attachedTo', () => {
+  it('an attached qualifier drops containerId', () => {
+    freshHistory(
+      [box('c', 0, 0), member('a', 'c', 50, 50), member('b', 'c', 250, 50), { ...qualifier('q'), containerId: 'c', position: { x: 150, y: 150 } }],
+      [{ id: 'k', from: 'a', to: 'b', type: 'support' }],
+    );
+    st().updateElement('q', { attachedTo: { connectionId: 'k', position: 0.5 } } as Partial<DiagramElement>);
+    expect('containerId' in byId('q')).toBe(false);
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+});
+
+describe('setElementImageSettings on a container', () => {
+  it('shrinking the image scale re-tests membership', () => {
+    const c: ArgumentElement = {
+      ...box('c', 0, 0), size: { width: 400, height: 400 },
+      image: 'data:x', imageSettings: { scale: 3 },
+    };
+    freshHistory([c, member('low', 'c', 100, 300), member('high', 'c', 100, 20)]);
+    st().setElementImageSettings('c', { scale: 1 });
+    expect(byId('c').size.height).toBe(200);
+    expect('containerId' in byId('low')).toBe(false);
+    expect(byId('high').containerId).toBe('c');
+  });
+});
+
+describe('duplicateElements without containers', () => {
+  it('copies elements only, +20 offset, elem- ids, no connections', () => {
+    freshHistory(
+      [arg('a', 0, 0), arg('b', 300, 0), { ...qualifier('q', 'k'), position: { x: 150, y: 0 } }],
+      [{ id: 'k', from: 'a', to: 'b', type: 'support' }],
+    );
+    st().duplicateElements(['a', 'b']);
+    expect(st().elements).toHaveLength(5);
+    expect(st().connections).toHaveLength(1);
+    const copies = st().elements.filter((e) => st().selectedIds.includes(e.id));
+    expect(copies).toHaveLength(2);
+    expect(copies.map((e) => e.position)).toEqual([{ x: 20, y: 20 }, { x: 320, y: 20 }]);
+    for (const e of copies) expect(e.id).toMatch(/^elem-\d+-[a-z0-9]+$/);
+  });
+});
+
+describe('duplicateElements with a container in the selection', () => {
+  it('copies connections and attached qualifiers', () => {
+    freshHistory(
+      [box('c', 0, 0), member('m1', 'c', 50, 50), member('m2', 'c', 250, 50),
+        { ...qualifier('q', 'k'), position: { x: 150, y: 50 } }],
+      [{ id: 'k', from: 'm1', to: 'm2', type: 'support' }],
+    );
+    st().duplicateElements(['c']);
+    expect(st().connections).toHaveLength(2);
+    const nc = st().connections[1];
+    expect(nc.id).toMatch(/^conn-/);
+    const newQ = st().elements.find((e) =>
+      st().selectedIds.includes(e.id) && (e as ArgumentElement).argumentType === 'qualifier') as ArgumentElement;
+    expect(newQ.attachedTo?.connectionId).toBe(nc.id);
+  });
+});
