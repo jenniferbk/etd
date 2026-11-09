@@ -29,6 +29,7 @@ import { getContributorColor, getSupportColors } from './colors';
 import { resolveArrowhead } from './arrowhead';
 import { saveFile } from './saveFile';
 import { generateUuid } from './uuid';
+import { splitForRender } from './containers';
 
 // Shape symbolIds. Rectangle is a UUID from the GraphicStyle pack; textbox / oval /
 // hexagon are DiagramMix short-string built-ins that render alongside GraphicStyle.
@@ -491,7 +492,9 @@ export function exportToDiagramx(
 
   const symbolUuids: string[] = [];
   const symbolItems: Record<string, unknown>[] = [];
-  for (const el of elements) {
+  // Containers first so each container item precedes its members.
+  const { containers, others } = splitForRender(elements);
+  for (const el of [...containers, ...others]) {
     const uuid = normalizeId(el.id, idMap);
     symbolUuids.push(uuid);
     symbolItems.push(buildSymbolItem(el, uuid, styleConfig));

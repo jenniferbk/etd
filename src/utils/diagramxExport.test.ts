@@ -98,3 +98,13 @@ describe('exportToDiagramx support fills', () => {
     expect(fills(json)).toEqual([0, 1]);
   });
 });
+
+describe('exportToDiagramx containers', () => {
+  it('container item precedes its members in item order', () => {
+    const m: ArgumentElement = { ...claim('m1', 60), containerId: 'box' };
+    const box: ArgumentElement = { ...claim('box', 0), isContainer: true, size: { width: 500, height: 300 } };
+    const json = exportToDiagramx([m, box], [], 'd');
+    expect(json.indexOf('Claim box')).toBeGreaterThan(-1);
+    expect(json.indexOf('Claim box')).toBeLessThan(json.indexOf('Claim m1'));
+  });
+});

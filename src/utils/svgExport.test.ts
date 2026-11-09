@@ -109,3 +109,33 @@ describe('exportToSvg connections', () => {
     });
   });
 });
+
+describe('exportToSvg containers', () => {
+  const container = (over: Partial<ArgumentElement> = {}): ArgumentElement => ({
+    ...claim('box', 0), isContainer: true, size: { width: 500, height: 300 }, ...over,
+  });
+  const member = (): ArgumentElement => ({
+    ...claim('m1', 60), containerId: 'box', position: { x: 60, y: 60 },
+  });
+
+  it('container is emitted before connector polylines, members after', () => {
+    const m2: ArgumentElement = { ...claim('m2', 300), containerId: 'box', position: { x: 300, y: 60 } };
+    const conns: Connection[] = [{ id: 'c', from: 'm1', to: 'm2', type: 'support' }];
+    // Members listed before the container to prove ordering is by role.
+    const svg = exportToSvg([member(), m2, container()], conns, createCurrentDefaults());
+    const containerIdx = svg.indexOf('width="500" height="300"');
+    const lineIdx = svg.indexOf('<polyline');
+    const memberIdx = svg.indexOf('Claim m1');
+    expect(containerIdx).toBeGreaterThan(-1);
+    expect(lineIdx).toBeGreaterThan(-1);
+    expect(containerIdx).toBeLessThan(lineIdx);
+    expect(lineIdx).toBeLessThan(memberIdx);
+  });
+
+  it('implicit container renders as dashed rect, not cloud path', () => {
+    const cloudy = container({ contributor: 'implicit' });
+    const svg = exportToSvg([cloudy], [], createCurrentDefaults());
+    expect(svg).not.toMatch(/<path d="[^"]*" transform="translate/);
+    expect(svg).toMatch(/<rect x="[-\d.]+" y="[-\d.]+" width="500" height="300"[^>]*stroke-dasharray="/);
+  });
+});

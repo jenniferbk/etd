@@ -15,6 +15,7 @@ import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
 import { computePolylineFor, counterclaimSlash } from './connectionPath';
 import { resolveArrowhead, isRebuttalToAttachedQualifier } from './arrowhead';
 import { saveFile } from './saveFile';
+import { splitForRender, isContainerElement } from './containers';
 
 interface SvgExportOptions {
   padding?: number;
@@ -44,17 +45,21 @@ export function exportToSvg(
   // Pre-built once for claim-role derivation and arrowhead resolution.
   const elementsById = new Map(elements.map((el) => [el.id, el]));
 
-  // Add connections first (behind elements)
+  // Draw order matches the canvas: containers, then connectors, then other elements.
+  const { containers, others } = splitForRender(elements);
+  const pushElement = (el: DiagramElement) => {
+    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig, connections, elementsById, elements);
+    if (svg) svgContent.push(svg);
+  };
+
+  containers.forEach(pushElement);
+
   connections.forEach((conn) => {
     const svg = renderConnectionSvg(conn, elements, connections, offsetX, offsetY, elementsById);
     if (svg) svgContent.push(svg);
   });
 
-  // Add elements
-  elements.forEach((el) => {
-    const svg = renderElementSvg(el, offsetX, offsetY, styleConfig, connections, elementsById, elements);
-    if (svg) svgContent.push(svg);
-  });
+  others.forEach(pushElement);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
@@ -197,7 +202,16 @@ function renderArgumentSvg(
   }
 
   let shapeElement: string;
-  if (style.borderShape === 'cloud') {
+  if (isContainerElement(el)) {
+    // Containers never draw as a cloud: implicit ones become a dashed rectangle
+    // (same exception as the canvas).
+    const containerDashValues = style.borderShape === 'cloud'
+      ? dashArrayForBorderStyle('dashed')
+      : dashArrayValues;
+    const containerDashAttr = containerDashValues ? `stroke-dasharray="${containerDashValues.join(' ')}"` : '';
+    const rx = style.borderShape === 'rounded' ? 8 : 0;
+    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${containerDashAttr}/>`;
+  } else if (style.borderShape === 'cloud') {
     const cloudPath = generateCloudPath(width, height);
     shapeElement = `<path d="${cloudPath}" transform="translate(${x},${y})" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr} />`;
   } else if (style.borderShape === 'ellipse') {
