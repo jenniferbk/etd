@@ -219,23 +219,13 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       const newWidth = Math.max(80, element.size.width * scaleX);
       const newHeight = Math.max(60, element.size.height * scaleY);
 
-      // Reset scale and update position
+      // Reset scale, then commit size and position in one step so a resize
+      // never carries container members along.
       node.scaleX(1);
       node.scaleY(1);
-
-      // Update position (transformer may have moved it)
-      moveElement(id, {
-        x: node.x(),
-        y: node.y(),
-      });
-
-      // Update size
-      resizeElement(id, {
-        width: newWidth,
-        height: newHeight,
-      });
+      resizeElement(id, { width: newWidth, height: newHeight }, { x: node.x(), y: node.y() });
     },
-    [elements, moveElement, resizeElement]
+    [elements, resizeElement]
   );
 
   // Handle wheel: two-finger swipe (ctrlKey false) pans, pinch/Ctrl+scroll zooms.

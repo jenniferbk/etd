@@ -1,4 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Node has no canvas; loadDiagram's auto-size only needs a height.
+vi.mock('../utils/textMeasure', () => ({
+  calculateElementSize: () => ({ width: 0, height: 0 }),
+}));
 import { useDiagramStore, sweepOrphanedQualifiers } from './diagramStore';
 import type { ArgumentElement, SupportElement, DiagramElement, Connection, AnalyticNote } from '../types';
 
@@ -382,5 +387,179 @@ describe('straightenConnection', () => {
     const before = useDiagramStore.getState().connections;
     expect(useDiagramStore.getState().straightenConnection('c')).toBe(false);
     expect(useDiagramStore.getState().connections).toBe(before);
+  });
+});
+
+// ---- Containers ----
+function box(id: string, x = 0, y = 0): ArgumentElement {
+  return { ...arg(id, x, y), isContainer: true, size: { width: 400, height: 250 } };
+}
+function member(id: string, containerId: string, x: number, y: number): ArgumentElement {
+  return { ...arg(id, x, y), containerId };
+}
+const st = () => useDiagramStore.getState();
+const byId = (id: string) => st().elements.find((e) => e.id === id)!;
+const freshHistory = (elements: DiagramElement[], connections: Connection[] = []) => {
+  useDiagramStore.setState({ elements, connections, selectedIds: [] });
+  useDiagramStore.temporal.getState().clear();
+};
+
+describe('container moveElement', () => {
+  it('moves members with the container', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100), member('m2', 'c', 200, 100)]);
+    st().moveElement('c', { x: 50, y: 30 });
+    expect(byId('c').position).toEqual({ x: 50, y: 30 });
+    expect(byId('m1').position).toEqual({ x: 150, y: 130 });
+    expect(byId('m2').position).toEqual({ x: 250, y: 130 });
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+
+  it('leaves excluded members in place', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100), member('m2', 'c', 200, 100)]);
+    st().moveElement('c', { x: 50, y: 30 }, { excludeMemberIds: ['m1'] });
+    expect(byId('m1').position).toEqual({ x: 100, y: 100 });
+    expect(byId('m2').position).toEqual({ x: 250, y: 130 });
+  });
+
+  it('joins a container when moved inside and leaves when moved out', () => {
+    freshHistory([box('c', 0, 0), arg('p', 600, 600)]);
+    st().moveElement('p', { x: 100, y: 100 });
+    expect((byId('p') as ArgumentElement).containerId).toBe('c');
+    st().moveElement('p', { x: 700, y: 700 });
+    expect('containerId' in byId('p')).toBe(false);
+  });
+});
+
+describe('container moveCluster / moveAndLink', () => {
+  it('cluster dropped inside a container joins it', () => {
+    freshHistory([box('c', 0, 0), arg('a', 600, 600), sup('s', 650, 650, 'a')]);
+    st().moveCluster(new Map([['a', { x: 600, y: 600 }], ['s', { x: 650, y: 650 }]]), { x: -500, y: -500 });
+    expect(byId('a').containerId).toBe('c');
+    expect(byId('s').containerId).toBe('c');
+  });
+
+  it('moveAndLink re-tests membership', () => {
+    freshHistory([box('c', 0, 0), sup('s', 700, 700)]);
+    st().moveAndLink('s', { x: 100, y: 100 }, null);
+    expect(byId('s').containerId).toBe('c');
+  });
+});
+
+describe('container resizeElement', () => {
+  it('shrinking drops an outside member and does not move members', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 50, 50), member('m2', 'c', 300, 150)]);
+    st().resizeElement('c', { width: 200, height: 250 }, { x: 0, y: 0 });
+    expect(byId('m1').containerId).toBe('c');
+    expect('containerId' in byId('m2')).toBe(false);
+    expect(byId('m1').position).toEqual({ x: 50, y: 50 });
+    expect(byId('m2').position).toEqual({ x: 300, y: 150 });
+  });
+
+  it('growing takes in an element', () => {
+    freshHistory([box('c', 0, 0), arg('p', 450, 50)]);
+    st().resizeElement('c', { width: 600, height: 250 });
+    expect(byId('p').containerId).toBe('c');
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+
+  it('applies new position when given', () => {
+    freshHistory([arg('a', 0, 0)]);
+    st().resizeElement('a', { width: 150, height: 90 }, { x: 10, y: 20 });
+    expect(byId('a').position).toEqual({ x: 10, y: 20 });
+    expect(byId('a').size).toEqual({ width: 150, height: 90 });
+  });
+});
+
+describe('container removeElement', () => {
+  it('releases members and undoes in one step', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100)]);
+    st().removeElement('c');
+    expect(st().elements).toHaveLength(1);
+    expect('containerId' in byId('m1')).toBe(false);
+    useDiagramStore.temporal.getState().undo();
+    expect(st().elements).toHaveLength(2);
+    expect(byId('m1').containerId).toBe('c');
+  });
+});
+
+describe('setContainer', () => {
+  it('on: min size and sweep, one undo step', () => {
+    freshHistory([arg('a', 0, 0), arg('p', 150, 100)]);
+    st().setContainer('a', true);
+    expect((byId('a') as ArgumentElement).isContainer).toBe(true);
+    expect(byId('a').size).toEqual({ width: 400, height: 250 });
+    expect(byId('p').containerId).toBe('a');
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+
+  it('off: members released', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100)]);
+    st().setContainer('c', false);
+    expect('isContainer' in byId('c')).toBe(false);
+    expect('containerId' in byId('m1')).toBe(false);
+  });
+
+  it('off: ex-container inside another container becomes its member', () => {
+    freshHistory([box('big', 0, 0), { ...box('small', 100, 100), size: { width: 100, height: 60 } }]);
+    st().setContainer('small', false);
+    expect(byId('small').containerId).toBe('big');
+  });
+});
+
+describe('duplicateElements with containers', () => {
+  it('copies container, members and inner connection; selects new ids', () => {
+    freshHistory(
+      [box('c', 0, 0), member('m1', 'c', 100, 100), member('m2', 'c', 250, 100)],
+      [{ id: 'k', from: 'm1', to: 'm2', type: 'support' }],
+    );
+    st().duplicateElements(['c']);
+    expect(st().elements).toHaveLength(6);
+    expect(st().connections).toHaveLength(2);
+    const newIds = st().selectedIds;
+    expect(newIds).toHaveLength(3);
+    const copies = st().elements.filter((e) => newIds.includes(e.id));
+    const newBox = copies.find((e) => (e as ArgumentElement).isContainer)!;
+    expect(copies.filter((e) => e.containerId === newBox.id)).toHaveLength(2);
+    const nc = st().connections[1];
+    expect(nc.id).not.toBe('k');
+    expect(newIds).toContain(nc.from);
+    expect(newIds).toContain(nc.to as string);
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+});
+
+describe('convertToSupport on a container', () => {
+  it('drops the flag and releases members', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100)]);
+    st().convertToSupport('c', 'question');
+    expect(byId('c').type).toBe('support');
+    expect('isContainer' in byId('c')).toBe(false);
+    expect('containerId' in byId('m1')).toBe(false);
+  });
+});
+
+describe('updateElement argumentType change', () => {
+  it('keeps valid containment intact and is one undo step', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100)]);
+    st().updateElement('m1', { argumentType: 'warrant' });
+    expect(byId('m1').containerId).toBe('c');
+    expect((byId('c') as ArgumentElement).isContainer).toBe(true);
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(1);
+  });
+});
+
+describe('container loadDiagram', () => {
+  it('clears a dangling containerId', () => {
+    st().loadDiagram([member('m', 'ghost', 0, 0)], [], 'n');
+    expect('containerId' in byId('m')).toBe(false);
+  });
+
+  it('leaves files without container fields unchanged', () => {
+    const input = [arg('a', 5, 5), sup('s', 300, 300)];
+    st().loadDiagram(input, [], 'n');
+    for (const el of input) {
+      const out = byId(el.id);
+      expect({ ...out, size: undefined }).toEqual({ ...el, size: undefined });
+    }
   });
 });

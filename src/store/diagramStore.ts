@@ -15,6 +15,10 @@ import { imageAreaHeight } from '../utils/imageLayout';
 import { DEFAULT_DIAGRAM_NAME } from '../utils/saveDiagram';
 import { documentWillBeReplaced } from '../live/replaceGuard';
 import { straightenRouting } from '../utils/orthogonalRouting';
+import {
+  duplicateWithMembers, isContainerElement, makeContainer, normalizeContainers,
+  retestAroundContainer, retestMembership, unmakeContainer,
+} from '../utils/containers';
 
 interface LegendConfig {
   visible: boolean;
@@ -120,10 +124,11 @@ interface DiagramState {
   addElement: (element: DiagramElement) => void;
   updateElement: (id: string, updates: Partial<DiagramElement>) => void;
   removeElement: (id: string) => void;
-  moveElement: (id: string, position: Position) => void;
+  moveElement: (id: string, position: Position, opts?: { excludeMemberIds?: readonly string[] }) => void;
+  setContainer: (id: string, on: boolean) => void;
   moveCluster: (startPositions: Map<string, Position>, delta: Position) => void;
   moveAndLink: (id: string, position: Position, associatedArgumentId: string | null) => void;
-  resizeElement: (id: string, size: Size) => void;
+  resizeElement: (id: string, size: Size, position?: Position) => void;
   setElementImage: (id: string, imageData: string | null) => void;
   setElementImageSettings: (id: string, settings: Partial<ImageSettings>) => void;
   duplicateElements: (ids: string[]) => void;
@@ -218,8 +223,13 @@ export const useDiagramStore = create<DiagramState>()(
         }),
 
       updateElement: (id, updates) =>
-        set((state) => ({
-          elements: state.elements.map((el) => {
+        set((state) => {
+          const existing = state.elements.find((el) => el.id === id);
+          const kindChanged = !!existing && (
+            ('argumentType' in updates && (updates as { argumentType?: unknown }).argumentType !== (existing as { argumentType?: unknown }).argumentType) ||
+            ('type' in updates && updates.type !== existing.type)
+          );
+          const mapped = state.elements.map((el) => {
             if (el.id !== id) return el;
 
             // Apply updates first
@@ -251,17 +261,24 @@ export const useDiagramStore = create<DiagramState>()(
             }
 
             return updated;
-          }),
-        })),
+          });
+          return { elements: kindChanged ? normalizeContainers(mapped) : mapped };
+        }),
 
       removeElement: (id) =>
         set((state) => {
           const removed = state.elements.find((el) => el.id === id);
           const isArg = removed?.type === 'argument';
+          const wasContainer = !!removed && isContainerElement(removed);
           return {
             elements: state.elements
               .filter((el) => el.id !== id)
               .map((el) => {
+                if (wasContainer && el.containerId === id) {
+                  const { containerId: _drop, ...rest } = el;
+                  void _drop;
+                  return rest as DiagramElement;
+                }
                 if (!isArg) return el;
                 if (el.type !== 'support') return el;
                 const supEl = el as SupportElement;
@@ -277,25 +294,41 @@ export const useDiagramStore = create<DiagramState>()(
           };
         }),
 
-      moveElement: (id, position) =>
-        set((state) => ({
-          elements: state.elements.map((el) =>
-            el.id === id ? { ...el, position } : el
-          ),
-        })),
+      moveElement: (id, position, opts) =>
+        set((state) => {
+          const target = state.elements.find((el) => el.id === id);
+          if (!target) return state;
+          if (isContainerElement(target)) {
+            const dx = position.x - target.position.x;
+            const dy = position.y - target.position.y;
+            const skip = new Set(opts?.excludeMemberIds ?? []);
+            return {
+              elements: state.elements.map((el) => {
+                if (el.id === id) return { ...el, position };
+                if (el.containerId === id && !skip.has(el.id)) {
+                  return { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } };
+                }
+                return el;
+              }),
+            };
+          }
+          const moved = state.elements.map((el) => (el.id === id ? { ...el, position } : el));
+          return { elements: retestMembership(moved, new Set([id])) };
+        }),
 
       moveCluster: (startPositions, delta) =>
-        set((state) => ({
-          elements: state.elements.map((el) => {
+        set((state) => {
+          const moved = state.elements.map((el) => {
             const start = startPositions.get(el.id);
             if (!start) return el;
             return { ...el, position: { x: start.x + delta.x, y: start.y + delta.y } };
-          }),
-        })),
+          });
+          return { elements: retestMembership(moved, new Set(startPositions.keys())) };
+        }),
 
       moveAndLink: (id, position, associatedArgumentId) =>
-        set((state) => ({
-          elements: state.elements.map((el) => {
+        set((state) => {
+          const moved = state.elements.map((el) => {
             if (el.id !== id) return el;
             if (el.type !== 'support') return el;  // no-op for non-supports
             const supEl = el as SupportElement;
@@ -305,15 +338,27 @@ export const useDiagramStore = create<DiagramState>()(
               return { ...rest, position };
             }
             return { ...supEl, position, associatedWith: associatedArgumentId };
-          }),
-        })),
+          });
+          return { elements: retestMembership(moved, new Set([id])) };
+        }),
 
-      resizeElement: (id, size) =>
-        set((state) => ({
-          elements: state.elements.map((el) =>
-            el.id === id ? { ...el, size } : el
-          ),
-        })),
+      resizeElement: (id, size, position) =>
+        set((state) => {
+          const resized = state.elements.map((el) =>
+            el.id === id ? { ...el, size, ...(position ? { position } : {}) } : el
+          );
+          const target = resized.find((el) => el.id === id);
+          return {
+            elements: target && isContainerElement(target) ? retestAroundContainer(resized, id) : resized,
+          };
+        }),
+
+      setContainer: (id, on) =>
+        set((state) => {
+          if (on) return { elements: makeContainer(state.elements, id) };
+          const released = unmakeContainer(state.elements, id);
+          return { elements: retestMembership(released, new Set([id])) };
+        }),
 
       setElementImage: (id, imageData) =>
         set((state) => ({
@@ -360,24 +405,26 @@ export const useDiagramStore = create<DiagramState>()(
 
       duplicateElements: (ids) => {
         const state = get();
-        const duplicates: DiagramElement[] = [];
-        ids.forEach((id) => {
-          const original = state.elements.find((el) => el.id === id);
-          if (original) {
-            const duplicate = {
-              ...original,
-              id: `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              position: {
-                x: original.position.x + 20,
-                y: original.position.y + 20,
-              },
-            } as DiagramElement;
-            duplicates.push(duplicate);
-          }
-        });
+        const makeId = () => `elem-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const dup = duplicateWithMembers(
+          state.elements, state.connections, ids, makeId, { x: 20, y: 20 },
+        );
+        // Connections elsewhere use `conn-...` ids; re-prefix the copies to match.
+        const connIdMap = new Map(dup.connections.map((c) => [c.id, `conn-${c.id.slice(5)}`]));
+        const connections = dup.connections.map((c) => ({
+          ...c,
+          id: connIdMap.get(c.id)!,
+          to: typeof c.to === 'string' ? c.to : { ...c.to, connectionId: connIdMap.get(c.to.connectionId) ?? c.to.connectionId },
+        }));
+        const elements = dup.elements.map((el) =>
+          isArgumentElement(el) && el.attachedTo && connIdMap.has(el.attachedTo.connectionId)
+            ? { ...el, attachedTo: { ...el.attachedTo, connectionId: connIdMap.get(el.attachedTo.connectionId)! } }
+            : el,
+        );
         set({
-          elements: [...state.elements, ...duplicates],
-          selectedIds: duplicates.map((d) => d.id),
+          elements: [...state.elements, ...elements],
+          connections: [...state.connections, ...connections],
+          selectedIds: dup.newIds,
         });
       },
 
@@ -470,7 +517,7 @@ export const useDiagramStore = create<DiagramState>()(
 
       convertToSupport: (id, supportType, subtype) =>
         set((state) => ({
-          elements: state.elements.map((el) => {
+          elements: normalizeContainers(state.elements.map((el) => {
             if (el.id !== id) return el;
             if (!isArgumentElement(el)) return el;
 
@@ -492,7 +539,7 @@ export const useDiagramStore = create<DiagramState>()(
             };
 
             return newElement;
-          }),
+          })),
         })),
 
       addConnection: (connection) =>
@@ -709,7 +756,7 @@ export const useDiagramStore = create<DiagramState>()(
         documentWillBeReplaced();
         // Orphan sweep: clear attachedTo on qualifiers whose connectionId is
         // no longer valid. Pure helper so it's testable without DOM.
-        const sweptElements = sweepOrphanedQualifiers(elements, connections);
+        const sweptElements = normalizeContainers(sweepOrphanedQualifiers(elements, connections));
 
         // Auto-size all elements on load to ensure content fits
         const sizedElements = sweptElements.map((el) => {
