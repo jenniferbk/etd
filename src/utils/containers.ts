@@ -6,7 +6,7 @@ import type {
   ArgumentElement, Connection, DiagramElement, Position, Size, SupportElement,
 } from '../types';
 import { isArgumentElement, isArrowAttachment, isSupportElement } from '../types';
-import { computeCluster } from './clusters';
+import { bboxesOverlap, computeCluster } from './clusters';
 
 export const CONTAINER_MIN_SIZE: Size = { width: 400, height: 250 };
 
@@ -134,13 +134,19 @@ export function normalizeContainers(elements: DiagramElement[]): DiagramElement[
   });
 }
 
-/** Container + members + supports hanging off the container's cluster. */
+/**
+ * Container + members + supports hanging off the container's cluster. A
+ * non-member support rides along only when it is unlinked or linked to the
+ * container itself; one linked to another argument stays with that argument.
+ */
 export function containerDragIds(elements: readonly DiagramElement[], containerId: string): string[] {
   const ids = new Set<string>([containerId]);
   for (const m of membersOf(elements, containerId)) ids.add(m.id);
   const cluster = computeCluster(elements as DiagramElement[], containerId);
   for (const s of cluster?.supports ?? []) {
-    if (s.containerId === undefined || s.containerId === containerId) ids.add(s.id);
+    if (s.containerId === containerId) { ids.add(s.id); continue; }
+    if (s.containerId !== undefined) continue;
+    if (s.associatedWith === undefined || s.associatedWith === containerId) ids.add(s.id);
   }
   return [...ids];
 }
@@ -157,6 +163,33 @@ export function linkCandidates(
     out.add(id);
   }
   return out;
+}
+
+/**
+ * Arguments a support dropped at `position` could link to: one BFS over the
+ * overlap graph from the support's would-be bounds, walking through supports
+ * and walling at arguments, then filtered through linkCandidates.
+ */
+export function dropLinkCandidates(
+  elements: readonly DiagramElement[], supportId: string, position: Position,
+): Set<string> {
+  const support = elements.find((el) => el.id === supportId);
+  if (!support) return new Set();
+  const hypothetical = elements.map((el) => (el.id === supportId ? { ...el, position } : el));
+  const start = hypothetical.find((el) => el.id === supportId)!;
+  const visited = new Set<string>([supportId]);
+  const queue: DiagramElement[] = [start];
+  const overlappedArgIds = new Set<string>();
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const candidate of hypothetical) {
+      if (visited.has(candidate.id) || !bboxesOverlap(current, candidate)) continue;
+      visited.add(candidate.id);
+      if (isArgumentElement(candidate)) overlappedArgIds.add(candidate.id);
+      else if (isSupportElement(candidate)) queue.push(candidate);
+    }
+  }
+  return linkCandidates(start, overlappedArgIds, new Map(hypothetical.map((el) => [el.id, el])));
 }
 
 export function splitForRender<T extends DiagramElement>(

@@ -33,11 +33,11 @@ import { SelectionRect } from './SelectionRect';
 import { useMarqueeSelection } from '../../hooks/useMarqueeSelection';
 import { InlineEditor } from './InlineEditor';
 import { ClusterHalo } from './shapes/ClusterHalo';
-import { computeCluster, bboxesOverlap } from '../../utils/clusters';
+import { computeCluster } from '../../utils/clusters';
 import type { Cluster } from '../../utils/clusters';
 import { countNotesByAnchor } from '../../utils/noteAnchors';
 import {
-  containerDragIds, isContainerElement, linkCandidates, splitForRender,
+  containerDragIds, dropLinkCandidates, isContainerElement, splitForRender,
 } from '../../utils/containers';
 
 interface ContextMenuState {
@@ -591,36 +591,10 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       return;
     }
 
-    // Single BFS from the dropped support's would-be position. Walls at arguments.
-    // Build a hypothetical element list with the support at its final position.
-    const hypothetical: DiagramElement[] = elements.map((el) =>
-      el.id === id ? { ...el, position: finalPos } : el
-    );
-    const startSupport = hypothetical.find((e) => e.id === id)!;
-    const visited = new Set<string>([id]);
-    const queue: DiagramElement[] = [startSupport];
-    const overlappedArgIds = new Set<string>();
-
-    while (queue.length > 0) {
-      const current = queue.shift()!;
-      for (const candidate of hypothetical) {
-        if (visited.has(candidate.id)) continue;
-        if (!bboxesOverlap(current, candidate)) continue;
-        visited.add(candidate.id);
-        if (isArgumentElement(candidate)) {
-          overlappedArgIds.add(candidate.id);
-          // wall: do not queue
-        } else if (isSupportElement(candidate)) {
-          queue.push(candidate);
-        }
-      }
-    }
-
-    // A support dropped inside a container links to what it touches inside,
-    // not to the container that merely surrounds it.
-    const candidates = linkCandidates(
-      startSupport, overlappedArgIds, new Map(hypothetical.map((el) => [el.id, el])),
-    );
+    // Single BFS from the dropped support's would-be position (walls at
+    // arguments). A support dropped inside a container links to what it
+    // touches inside, not to the container that merely surrounds it.
+    const candidates = dropLinkCandidates(elements, id, finalPos);
     if (candidates.size === 1) {
       const argId = candidates.values().next().value as string;
       moveAndLink(id, finalPos, argId);
@@ -1019,27 +993,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     if (draggingSupportId && draggingSupportPos) {
       const dragSup = elements.find((e) => e.id === draggingSupportId);
       if (dragSup && isSupportElement(dragSup) && !dragSup.associatedWith) {
-        const finalPos = draggingSupportPos;
-        const hypothetical = elements.map((el) =>
-          el.id === draggingSupportId ? { ...el, position: finalPos } : el
-        );
-        const start = hypothetical.find((e) => e.id === draggingSupportId)!;
-        const visited = new Set<string>([draggingSupportId]);
-        const queue: DiagramElement[] = [start];
-        const dragArgIds = new Set<string>();
-        while (queue.length > 0) {
-          const current = queue.shift()!;
-          for (const candidate of hypothetical) {
-            if (visited.has(candidate.id)) continue;
-            if (!bboxesOverlap(current, candidate)) continue;
-            visited.add(candidate.id);
-            if (isArgumentElement(candidate)) {
-              dragArgIds.add(candidate.id);
-            } else if (isSupportElement(candidate)) {
-              queue.push(candidate);
-            }
-          }
-        }
+        // Same candidates as handleSupportDragEnd, so the preview never
+        // promises a link to a container the drop would not make.
+        const dragArgIds = dropLinkCandidates(elements, draggingSupportId, draggingSupportPos);
         for (const argId of dragArgIds) {
           // Drag mode wins over select mode on tie.
           const c = computeCluster(elements, argId);

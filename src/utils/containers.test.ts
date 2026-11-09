@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   CONTAINER_MIN_SIZE, containerAt, retestMembership, retestAroundContainer,
   makeContainer, unmakeContainer, normalizeContainers, containerDragIds,
-  linkCandidates, duplicateWithMembers, splitForRender, membersOf,
+  linkCandidates, duplicateWithMembers, splitForRender, membersOf, dropLinkCandidates,
 } from './containers';
 import type { ArgumentElement, SupportElement, DiagramElement, Connection } from '../types';
 
@@ -324,5 +324,55 @@ describe('qualifiers never contain', () => {
     expect(byId(out, 'q')).not.toHaveProperty('isContainer');
     expect(byId(out, 'a')).not.toHaveProperty('containerId');
     expect(normalizeContainers(out)).toBe(out);
+  });
+});
+
+describe('containerDragIds and linked outside supports', () => {
+  it('does not carry a support linked to an outside claim that overlaps the border', () => {
+    const els: DiagramElement[] = [
+      box('c'), arg('outside', 600, 100), sup('linked', 480, 100, { associatedWith: 'outside' }),
+    ];
+    expect(containerDragIds(els, 'c')).not.toContain('linked');
+  });
+
+  it('still carries an unlinked hanging support and one linked to the container', () => {
+    const els: DiagramElement[] = [
+      box('c'), sup('free', 480, 100), sup('own', 480, 200, { associatedWith: 'c' }),
+    ];
+    const ids = containerDragIds(els, 'c');
+    expect(ids).toContain('free');
+    expect(ids).toContain('own');
+  });
+
+  it('still carries a member support linked to a member claim', () => {
+    const els: DiagramElement[] = [
+      box('c'), arg('m', 100, 100, { containerId: 'c' }),
+      sup('ms', 200, 100, { containerId: 'c', associatedWith: 'm' }),
+    ];
+    expect(containerDragIds(els, 'c')).toContain('ms');
+  });
+});
+
+describe('dropLinkCandidates', () => {
+  it('finds arguments reached through a support chain from the drop position', () => {
+    const els: DiagramElement[] = [
+      arg('a', 0, 0), sup('chain', 90, 0), sup('s', 900, 900),
+    ];
+    // s dropped overlapping chain (160..240), chain overlaps a.
+    expect(dropLinkCandidates(els, 's', { x: 160, y: 10 })).toEqual(new Set(['a']));
+  });
+
+  it('never offers the container a support is dropped inside', () => {
+    const els: DiagramElement[] = [box('c'), arg('claim', 100, 100, { containerId: 'c' }), sup('s', 900, 900)];
+    expect(dropLinkCandidates(els, 's', { x: 90, y: 90 })).toEqual(new Set(['claim']));
+  });
+
+  it('keeps a container when the drop center is outside it', () => {
+    const els: DiagramElement[] = [box('c'), sup('s', 900, 900)];
+    expect(dropLinkCandidates(els, 's', { x: 480, y: 100 })).toEqual(new Set(['c']));
+  });
+
+  it('returns an empty set for an unknown id', () => {
+    expect(dropLinkCandidates([box('c')], 'nope', { x: 0, y: 0 })).toEqual(new Set());
   });
 });
