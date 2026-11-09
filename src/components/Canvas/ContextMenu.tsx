@@ -9,6 +9,9 @@ import {
   ArrowRightLeft,
   Slash,
   MoveHorizontal,
+  Eye,
+  EyeOff,
+  RotateCcw,
 } from 'lucide-react';
 import { theme } from '../../utils/theme';
 import type {
@@ -38,6 +41,12 @@ interface ContextMenuProps {
   connectionType?: ConnectionType;
   onToggleCounterclaim?: () => void;
   onStraighten?: () => void;
+  /** Whether the arrowhead currently resolves on; present only for connections. */
+  arrowheadVisible?: boolean;
+  /** True when the connection has an explicit arrowhead override. */
+  hasArrowheadOverride?: boolean;
+  onToggleArrowhead?: () => void;
+  onResetArrowhead?: () => void;
 }
 
 export function ContextMenu({
@@ -57,6 +66,10 @@ export function ContextMenu({
   connectionType,
   onToggleCounterclaim,
   onStraighten,
+  arrowheadVisible,
+  hasArrowheadOverride,
+  onToggleArrowhead,
+  onResetArrowhead,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +165,32 @@ export function ContextMenu({
         >
           <Slash size={16} />
           {connectionType === 'counterclaim' ? 'Mark as support' : 'Mark as counterclaim'}
+        </button>
+      )}
+
+      {/* Arrowhead (connections only) */}
+      {elementType === 'connection' && onToggleArrowhead && (
+        <button
+          onClick={() => {
+            onToggleArrowhead();
+            onClose();
+          }}
+          className={menuItemClass}
+        >
+          {arrowheadVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+          {arrowheadVisible ? 'Hide arrowhead' : 'Show arrowhead'}
+        </button>
+      )}
+      {elementType === 'connection' && hasArrowheadOverride && onResetArrowhead && (
+        <button
+          onClick={() => {
+            onResetArrowhead();
+            onClose();
+          }}
+          className={menuItemClass}
+        >
+          <RotateCcw size={16} />
+          Reset arrowhead
         </button>
       )}
 

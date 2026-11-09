@@ -236,6 +236,41 @@ describe('setConnectionType', () => {
   });
 });
 
+describe('setConnectionArrowhead', () => {
+  const setup = () => {
+    useDiagramStore.setState({
+      elements: [arg('a'), arg('b')],
+      connections: [{ id: 'c1', from: 'a', to: 'b', type: 'support' }],
+    });
+    useDiagramStore.temporal.getState().clear();
+  };
+
+  it('sets true/false', () => {
+    setup();
+    useDiagramStore.getState().setConnectionArrowhead('c1', false);
+    expect(useDiagramStore.getState().connections[0].arrowhead).toBe(false);
+    useDiagramStore.getState().setConnectionArrowhead('c1', true);
+    expect(useDiagramStore.getState().connections[0].arrowhead).toBe(true);
+  });
+
+  it('undefined removes the key', () => {
+    setup();
+    useDiagramStore.getState().setConnectionArrowhead('c1', true);
+    useDiagramStore.getState().setConnectionArrowhead('c1', undefined);
+    const conn = useDiagramStore.getState().connections[0];
+    expect(!('arrowhead' in conn)).toBe(true);
+  });
+
+  it('is undoable in one step', () => {
+    setup();
+    const original = useDiagramStore.getState().connections[0];
+    useDiagramStore.getState().setConnectionArrowhead('c1', false);
+    useDiagramStore.temporal.getState().undo();
+    expect(useDiagramStore.getState().connections[0]).toEqual(original);
+    expect('arrowhead' in useDiagramStore.getState().connections[0]).toBe(false);
+  });
+});
+
 describe('analytic notes', () => {
   beforeEach(() => {
     useDiagramStore.setState({ notes: [] });

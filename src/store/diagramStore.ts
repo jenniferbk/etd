@@ -143,6 +143,8 @@ interface DiagramState {
   /** Remove jogs from a connection's route. Returns false when there was nothing to change. */
   straightenConnection: (id: string) => boolean;
   setConnectionType: (id: string, type: ConnectionType) => void;
+  /** undefined removes the override (automatic rule). */
+  setConnectionArrowhead: (id: string, value: boolean | undefined) => void;
 
   // Actions - Selection
   setSelectedIds: (ids: string[]) => void;
@@ -575,6 +577,19 @@ export const useDiagramStore = create<DiagramState>()(
           connections: state.connections.map((conn) =>
             conn.id === id ? { ...conn, type } : conn,
           ),
+        })),
+
+      setConnectionArrowhead: (id, value) =>
+        set((state) => ({
+          connections: state.connections.map((conn) => {
+            if (conn.id !== id) return conn;
+            if (value === undefined) {
+              const next = { ...conn };
+              delete next.arrowhead;
+              return next;
+            }
+            return { ...conn, arrowhead: value };
+          }),
         })),
 
       setSelectedIds: (ids) => set({ selectedIds: ids }),

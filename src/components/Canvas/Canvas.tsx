@@ -13,6 +13,7 @@ import { SupportShape } from './shapes/SupportShape';
 import { ConnectionArrow } from './shapes/Arrow';
 import { computePolylineFor } from '../../utils/connectionPath';
 import { canAttachToConnection } from '../../utils/connectionAttachment';
+import { resolveArrowhead } from '../../utils/arrowhead';
 import { computeWheelTransform } from '../../utils/canvasWheel';
 import {
   hitTestPolyline,
@@ -135,6 +136,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     removeElement,
     removeConnection,
     setConnectionType,
+    setConnectionArrowhead,
     straightenConnection,
     duplicateElements,
     bringToFront,
@@ -675,6 +677,24 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     if (!conn) return;
     setConnectionType(conn.id, conn.type === 'counterclaim' ? 'support' : 'counterclaim');
   }, [contextMenu.elementId, connections, setConnectionType]);
+
+  const contextArrowheadVisible = useMemo(
+    () =>
+      contextConnection
+        ? resolveArrowhead(contextConnection, new Map(elements.map((el) => [el.id, el])))
+        : false,
+    [contextConnection, elements],
+  );
+
+  const handleContextMenuToggleArrowhead = useCallback(() => {
+    if (!contextConnection) return;
+    setConnectionArrowhead(contextConnection.id, !contextArrowheadVisible);
+  }, [contextConnection, contextArrowheadVisible, setConnectionArrowhead]);
+
+  const handleContextMenuResetArrowhead = useCallback(() => {
+    if (!contextConnection) return;
+    setConnectionArrowhead(contextConnection.id, undefined);
+  }, [contextConnection, setConnectionArrowhead]);
 
   const handleContextMenuStraighten = useCallback(() => {
     if (!contextMenu.elementId) return;
@@ -1255,6 +1275,10 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           onSendToBack={handleContextMenuSendToBack}
           connectionType={contextConnection?.type}
           onToggleCounterclaim={contextConnection ? handleContextMenuToggleCounterclaim : undefined}
+          arrowheadVisible={contextArrowheadVisible}
+          hasArrowheadOverride={contextConnection?.arrowhead !== undefined}
+          onToggleArrowhead={contextConnection ? handleContextMenuToggleArrowhead : undefined}
+          onResetArrowhead={contextConnection ? handleContextMenuResetArrowhead : undefined}
           onStraighten={contextConnection && typeof contextConnection.to === 'string' ? handleContextMenuStraighten : undefined}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
           onChangeSupportContributor={contextMenu.elementType === 'support' ? handleContextMenuChangeSupportContributor : undefined}

@@ -1,13 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
-import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType } from '../../types';
+import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType, Connection } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { ImageUpload } from './ImageUpload';
 import { useImagePaste } from '../../hooks/useImagePaste';
 import { requiredWidthForImage } from '../../utils/imageLayout';
 import { straightenRouting } from '../../utils/orthogonalRouting';
+import { resolveArrowhead } from '../../utils/arrowhead';
+
+const ARROWHEAD_OPTIONS: { label: string; value: boolean | undefined }[] = [
+  { label: 'Auto', value: undefined },
+  { label: 'On', value: true },
+  { label: 'Off', value: false },
+];
+
+function currentArrowheadLabel(conn: Connection, elements: DiagramElement[]): string {
+  const byId = new Map(elements.map((el) => [el.id, el]));
+  return resolveArrowhead(conn, byId) ? '(currently on)' : '(currently off)';
+}
 
 // Contributor type options
 const CONTRIBUTOR_TYPES: { value: ContributorType; label: string }[] = [
@@ -56,6 +68,7 @@ export function PropertiesPanel() {
   const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);
   const straightenConnection = useDiagramStore((s) => s.straightenConnection);
   const setConnectionType = useDiagramStore((s) => s.setConnectionType);
+  const setConnectionArrowhead = useDiagramStore((s) => s.setConnectionArrowhead);
 
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
@@ -241,6 +254,48 @@ export function PropertiesPanel() {
                 </button>
               );
             })}
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
+              Arrowhead
+            </span>
+            <div
+              role="group"
+              aria-label="Arrowhead"
+              className="flex rounded-md overflow-hidden border"
+              style={{ borderColor: theme.input.border }}
+              onClick={(e) => {
+                const target = (e.target as HTMLElement).closest('button[data-arrowhead]');
+                const key = target?.getAttribute('data-arrowhead');
+                if (!key) return;
+                setConnectionArrowhead(selectedConnection.id, key === 'auto' ? undefined : key === 'on');
+              }}
+            >
+              {ARROWHEAD_OPTIONS.map(({ label, value }) => {
+                const active = selectedConnection.arrowhead === value;
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    aria-pressed={active}
+                    data-arrowhead={label.toLowerCase()}
+                    className="px-3 py-1.5 text-sm transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    style={{
+                      backgroundColor: active ? theme.sidebar.accent : theme.input.bg,
+                      color: active ? theme.sidebar.accentText : theme.input.text,
+                      outlineColor: theme.focus.ring,
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedConnection.arrowhead === undefined && (
+              <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
+                {currentArrowheadLabel(selectedConnection, elements)}
+              </span>
+            )}
           </div>
           <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
             Connection — {hasManualRouting ? 'manual routing applied' : 'auto-routed'}
