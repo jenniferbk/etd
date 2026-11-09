@@ -489,8 +489,7 @@ export const useDiagramStore = create<DiagramState>()(
           ).length;
           const label = `${argumentType.charAt(0).toUpperCase() + argumentType.slice(1)} ${existingCount + 1}`;
 
-          return {
-            elements: state.elements.map((el) => {
+          const converted = state.elements.map((el) => {
               if (el.id !== id) return el;
               if (!isSupportElement(el) && !isTeacherSupportElement(el)) return el;
 
@@ -511,13 +510,14 @@ export const useDiagramStore = create<DiagramState>()(
               };
 
               return newElement;
-            }),
-          };
+            });
+          // The rebuilt element drops containerId; re-derive it from position.
+          return { elements: retestMembership(converted, new Set([id])) };
         }),
 
       convertToSupport: (id, supportType, subtype) =>
-        set((state) => ({
-          elements: normalizeContainers(state.elements.map((el) => {
+        set((state) => {
+          const converted = state.elements.map((el) => {
             if (el.id !== id) return el;
             if (!isArgumentElement(el)) return el;
 
@@ -539,8 +539,11 @@ export const useDiagramStore = create<DiagramState>()(
             };
 
             return newElement;
-          })),
-        })),
+          });
+          // A converted container releases its members (normalize); a converted
+          // member is re-tested so it stays in its container.
+          return { elements: retestMembership(normalizeContainers(converted), new Set([id])) };
+        }),
 
       addConnection: (connection) =>
         set((state) => ({ connections: [...state.connections, connection] })),

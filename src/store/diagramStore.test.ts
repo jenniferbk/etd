@@ -538,6 +538,22 @@ describe('convertToSupport on a container', () => {
   });
 });
 
+describe('convert keeps membership', () => {
+  it('member claim -> support stays a member', () => {
+    freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100)]);
+    st().convertToSupport('m1', 'question');
+    expect(byId('m1').type).toBe('support');
+    expect(byId('m1').containerId).toBe('c');
+  });
+
+  it('member support -> argument stays a member', () => {
+    freshHistory([box('c', 0, 0), { ...sup('s', 100, 100), containerId: 'c' }]);
+    st().convertToArgument('s', 'claim');
+    expect(byId('s').type).toBe('argument');
+    expect(byId('s').containerId).toBe('c');
+  });
+});
+
 describe('updateElement argumentType change', () => {
   it('keeps valid containment intact and is one undo step', () => {
     freshHistory([box('c', 0, 0), member('m1', 'c', 100, 100)]);
