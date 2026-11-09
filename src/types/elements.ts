@@ -75,6 +75,7 @@ export interface BaseElement {
   image?: string | null;       // Base64 or URL
   imageSettings?: ImageSettings; // Resize/crop settings
   sourceTranscript?: { transcriptId: string; lineIndex: number };
+  containerId?: string;        // id of the container element this one belongs to (one level only)
 }
 
 export interface ArgumentElement extends BaseElement {
@@ -87,6 +88,8 @@ export interface ArgumentElement extends BaseElement {
   // same convention as ConnectionTarget.position). Undefined → orphan/legacy
   // qualifier (renders with dashed red + ⚠).
   attachedTo?: { connectionId: string; position: number };
+  // Enlarged to hold a one-level sub-argument; members carry containerId.
+  isContainer?: boolean;
 }
 
 export interface SupportElement extends BaseElement {
