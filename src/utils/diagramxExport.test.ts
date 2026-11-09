@@ -107,4 +107,21 @@ describe('exportToDiagramx containers', () => {
     expect(json.indexOf('Claim box')).toBeGreaterThan(-1);
     expect(json.indexOf('Claim box')).toBeLessThan(json.indexOf('Claim m1'));
   });
+
+  const RECT = 'DC1D4341-F0D2-4524-81EC-6061602C6C3A';
+  const HEX = 'eGR84FC';
+
+  it('implicit container exports as the rectangle symbol, not the hexagon', () => {
+    const box: ArgumentElement = { ...claim('box', 0), contributor: 'implicit', isContainer: true };
+    const json = exportToDiagramx([box], [], 'd');
+    expect(json).toContain(RECT);
+    expect(json).not.toContain(HEX);
+  });
+
+  it('ordinary implicit element still exports as the hexagon', () => {
+    const el: ArgumentElement = { ...claim('w', 0), contributor: 'implicit' };
+    const json = exportToDiagramx([el], [], 'd');
+    expect(json).toContain(HEX);
+    expect(json).not.toContain(RECT);
+  });
 });

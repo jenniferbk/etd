@@ -29,7 +29,7 @@ import { getContributorColor, getSupportColors } from './colors';
 import { resolveArrowhead } from './arrowhead';
 import { saveFile } from './saveFile';
 import { generateUuid } from './uuid';
-import { splitForRender } from './containers';
+import { splitForRender, isContainerElement } from './containers';
 
 // Shape symbolIds. Rectangle is a UUID from the GraphicStyle pack; textbox / oval /
 // hexagon are DiagramMix short-string built-ins that render alongside GraphicStyle.
@@ -140,14 +140,16 @@ function getElementStyle(element: DiagramElement, styleConfig?: StyleConfig): El
   }
   if (isArgumentElement(element)) {
     const stroke = hexToRgba(getContributorColor(element.contributor));
+    // An implicit container is a dashed rectangle (not the hexagon stand-in).
+    const implicitContainer = element.contributor === 'implicit' && isContainerElement(element);
     const lineType: 'solid' | 'dashed' =
-      element.contributor === 'student' || element.contributor === 'joint'
+      element.contributor === 'student' || element.contributor === 'joint' || implicitContainer
         ? 'dashed'
         : 'solid';
     // Implicit warrants render as the "preparation" hexagon — a visual stand-in
     // for the cloud shape that ETD uses natively, since DiagramMix has no cloud.
     const symbolId =
-      element.contributor === 'implicit' ? HEXAGON_SYMBOL_ID : RECTANGLE_SYMBOL_ID;
+      element.contributor === 'implicit' && !implicitContainer ? HEXAGON_SYMBOL_ID : RECTANGLE_SYMBOL_ID;
     return {
       colorSchemeId: contributorToColorSchemeId(element.contributor),
       fillColor: null,

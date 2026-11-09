@@ -138,4 +138,31 @@ describe('exportToSvg containers', () => {
     expect(svg).not.toMatch(/<path d="[^"]*" transform="translate/);
     expect(svg).toMatch(/<rect x="[-\d.]+" y="[-\d.]+" width="500" height="300"[^>]*stroke-dasharray="/);
   });
+
+  it('ordinary implicit element still renders a cloud path', () => {
+    const el: ArgumentElement = { ...claim('w', 0), contributor: 'implicit' };
+    const svg = exportToSvg([el], [], createCurrentDefaults());
+    expect(svg).toMatch(/<path d="[^"]*" transform="translate/);
+  });
+
+  it('container attribution sits below the text block, above the box midline', () => {
+    const c = container({ attribution: { speaker: 'Ana', timestamp: '1:02' } });
+    const svg = exportToSvg([c], [], createCurrentDefaults());
+    const m = svg.match(/<text x="[-\d.]+" y="([-\d.]+)" class="attribution"/);
+    expect(m).not.toBeNull();
+    // box top is y=50 after export padding; midline is 50 + 150
+    expect(Number(m![1])).toBeLessThan(200);
+  });
+
+  it('container image width is capped at 260', () => {
+    const c = container({ image: 'data:image/png;base64,AAAA' });
+    const svg = exportToSvg([c], [], createCurrentDefaults());
+    expect(svg).toMatch(/<image href="[^"]*" x="[-\d.]+" y="[-\d.]+" width="260"/);
+  });
+
+  it('long container content wraps into multiple tspans', () => {
+    const c = container({ content: 'word '.repeat(80) });
+    const svg = exportToSvg([c], [], createCurrentDefaults());
+    expect((svg.match(/<tspan /g) ?? []).length).toBeGreaterThan(1);
+  });
 });

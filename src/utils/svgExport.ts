@@ -15,7 +15,7 @@ import { getClaimRole, deriveClaimLabel } from './claimRoleDerivation';
 import { computePolylineFor, counterclaimSlash } from './connectionPath';
 import { resolveArrowhead, isRebuttalToAttachedQualifier } from './arrowhead';
 import { saveFile } from './saveFile';
-import { splitForRender, isContainerElement } from './containers';
+import { splitForRender } from './containers';
 
 interface SvgExportOptions {
   padding?: number;
@@ -149,6 +149,10 @@ function renderArgumentSvg(
   const dashArrayValues = dashArrayForBorderStyle(style.borderStyle);
   const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
 
+  if (el.isContainer === true) {
+    return renderContainerSvg(el, x, y, width, height, style, displayLabel, dashArrayValues);
+  }
+
   const padding = 10;
   const labelY = y + padding + 14;
   const contentY = y + padding + 30;
@@ -202,16 +206,7 @@ function renderArgumentSvg(
   }
 
   let shapeElement: string;
-  if (isContainerElement(el)) {
-    // Containers never draw as a cloud: implicit ones become a dashed rectangle
-    // (same exception as the canvas).
-    const containerDashValues = style.borderShape === 'cloud'
-      ? dashArrayForBorderStyle('dashed')
-      : dashArrayValues;
-    const containerDashAttr = containerDashValues ? `stroke-dasharray="${containerDashValues.join(' ')}"` : '';
-    const rx = style.borderShape === 'rounded' ? 8 : 0;
-    shapeElement = `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${containerDashAttr}/>`;
-  } else if (style.borderShape === 'cloud') {
+  if (style.borderShape === 'cloud') {
     const cloudPath = generateCloudPath(width, height);
     shapeElement = `<path d="${cloudPath}" transform="translate(${x},${y})" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr} />`;
   } else if (style.borderShape === 'ellipse') {
@@ -229,6 +224,81 @@ function renderArgumentSvg(
     <text x="${x + padding}" y="${contentY}" class="content" font-size="12" fill="#000000">${escapeXml(el.content)}</text>
     ${imageElement}
     ${attributionElement}
+  </g>`;
+}
+
+const CONTAINER_PADDING = 10;
+const CONTAINER_TEXT_MAX_WIDTH = 260;
+const CONTENT_FONT_SIZE = 12;
+const CONTENT_LINE_HEIGHT = 15;
+// Rough average glyph width of system-ui at 12px; SVG export has no canvas to measure with.
+const CONTENT_CHAR_WIDTH = 6.4;
+
+function wrapText(text: string, maxWidth: number): string[] {
+  const maxChars = Math.max(1, Math.floor(maxWidth / CONTENT_CHAR_WIDTH));
+  const lines: string[] = [];
+  for (const paragraph of text.split('\n')) {
+    let line = '';
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      if (line && line.length + 1 + word.length > maxChars) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = line ? `${line} ${word}` : word;
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+
+// Mirrors the container branch of ArgumentShape: dashed rect (never a cloud),
+// text block top-left at min(width - 2*padding, 260), then attribution, then image.
+function renderContainerSvg(
+  el: ArgumentElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  style: ReturnType<typeof resolveArgumentStyle>,
+  displayLabel: string,
+  borderDash: number[] | undefined,
+): string {
+  const dashValues = style.borderShape === 'cloud' ? dashArrayForBorderStyle('dashed') : borderDash;
+  const dashAttr = dashValues ? `stroke-dasharray="${dashValues.join(' ')}"` : '';
+  const rx = style.borderShape === 'rounded' ? 8 : 0;
+  const textWidth = Math.max(0, Math.min(width - 2 * CONTAINER_PADDING, CONTAINER_TEXT_MAX_WIDTH));
+  const textX = x + CONTAINER_PADDING;
+  const labelY = y + CONTAINER_PADDING + 14;
+
+  const lines = el.content ? wrapText(el.content, textWidth) : [];
+  const contentTop = y + CONTAINER_PADDING + 20;
+  const contentEl = lines.length
+    ? `<text x="${textX}" y="${contentTop + CONTENT_FONT_SIZE}" class="content" font-size="${CONTENT_FONT_SIZE}" fill="#000000">${lines
+        .map((l, i) => `<tspan x="${textX}" dy="${i === 0 ? 0 : CONTENT_LINE_HEIGHT}">${escapeXml(l)}</tspan>`)
+        .join('')}</text>`
+    : '';
+  const contentBottom = contentTop + lines.length * CONTENT_LINE_HEIGHT;
+
+  const attributionText = el.attribution?.speaker || el.attribution?.timestamp
+    ? `${el.attribution.speaker || ''}${el.attribution.speaker && el.attribution.timestamp ? ' @ ' : ''}${el.attribution.timestamp || ''}`
+    : '';
+  const attributionY = contentBottom + 4;
+  const attributionEl = attributionText
+    ? `<text x="${textX + textWidth}" y="${attributionY + 10}" class="attribution" font-size="10" fill="#666666" text-anchor="end">${escapeXml(attributionText)}</text>`
+    : '';
+
+  const imageY = attributionY + (attributionText ? 16 : 0);
+  const imageEl = el.image
+    ? `<image href="${el.image}" x="${textX}" y="${imageY}" width="${textWidth}" height="${imageAreaHeight(el.imageSettings?.scale ?? 1)}" preserveAspectRatio="xMidYMid meet"/>`
+    : '';
+
+  return `<g>
+    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${rx}" fill="${style.backgroundColor}" stroke="${style.borderColor}" stroke-width="${style.borderWidth}" ${dashAttr}/>
+    <text x="${textX}" y="${labelY}" class="label" font-size="14" fill="${style.borderColor}">${escapeXml(displayLabel)}</text>
+    ${contentEl}
+    ${attributionEl}
+    ${imageEl}
   </g>`;
 }
 
