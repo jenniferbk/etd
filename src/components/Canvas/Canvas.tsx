@@ -709,8 +709,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const contextContainerTarget = useMemo(() => {
     if (contextMenu.elementType !== 'argument') return undefined;
     const el = elements.find((e) => e.id === contextMenu.elementId);
-    if (!el || !isArgumentElement(el)) return undefined;
-    if (el.argumentType === 'qualifier' && el.attachedTo) return undefined;
+    // Qualifiers never contain, attached or not.
+    if (!el || !isArgumentElement(el) || el.argumentType === 'qualifier') return undefined;
     return el;
   }, [contextMenu.elementType, contextMenu.elementId, elements]);
 

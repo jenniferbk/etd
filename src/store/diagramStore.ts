@@ -302,15 +302,16 @@ export const useDiagramStore = create<DiagramState>()(
             const dx = position.x - target.position.x;
             const dy = position.y - target.position.y;
             const skip = new Set(opts?.excludeMemberIds ?? []);
-            return {
-              elements: state.elements.map((el) => {
-                if (el.id === id) return { ...el, position };
-                if (el.containerId === id && !skip.has(el.id)) {
-                  return { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } };
-                }
-                return el;
-              }),
-            };
+            const moved = state.elements.map((el) => {
+              if (el.id === id) return { ...el, position };
+              if (el.containerId === id && !skip.has(el.id)) {
+                return { ...el, position: { x: el.position.x + dx, y: el.position.y + dy } };
+              }
+              return el;
+            });
+            // Excluded ids were moved separately (multi-select drag) and may
+            // have been tested against the old bounds; re-test them now.
+            return { elements: skip.size > 0 ? retestMembership(moved, skip) : moved };
           }
           const moved = state.elements.map((el) => (el.id === id ? { ...el, position } : el));
           return { elements: retestMembership(moved, new Set([id])) };

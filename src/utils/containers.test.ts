@@ -309,3 +309,20 @@ describe('fix round 1', () => {
     expect(r.connections[0].waypoints).toEqual([{ x: 15, y: 27 }]);
   });
 });
+
+describe('qualifiers never contain', () => {
+  const looseQual = (id: string, extra: Partial<ArgumentElement> = {}) =>
+    arg(id, 0, 0, { argumentType: 'qualifier', ...extra }, 200, 100);
+
+  it('makeContainer on an unattached qualifier returns the same reference', () => {
+    const els = [looseQual('q'), sup('s', 50, 50)];
+    expect(makeContainer(els, 'q')).toBe(els);
+  });
+  it('normalize clears isContainer on an unattached qualifier and releases its members', () => {
+    const els = [looseQual('q', { isContainer: true }), arg('a', 20, 20, { containerId: 'q' })];
+    const out = normalizeContainers(els);
+    expect(byId(out, 'q')).not.toHaveProperty('isContainer');
+    expect(byId(out, 'a')).not.toHaveProperty('containerId');
+    expect(normalizeContainers(out)).toBe(out);
+  });
+});

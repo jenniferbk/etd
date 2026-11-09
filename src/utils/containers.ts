@@ -14,8 +14,12 @@ export function isContainerElement(el: DiagramElement): el is ArgumentElement {
   return isArgumentElement(el) && el.isContainer === true;
 }
 
+function isQualifier(el: DiagramElement): boolean {
+  return isArgumentElement(el) && el.argumentType === 'qualifier';
+}
+
 function isAttachedQualifier(el: DiagramElement): boolean {
-  return isArgumentElement(el) && el.argumentType === 'qualifier' && !!el.attachedTo;
+  return isQualifier(el) && !!(el as ArgumentElement).attachedTo;
 }
 
 export function elementCenter(el: DiagramElement): Position {
@@ -87,7 +91,8 @@ export function retestAroundContainer(elements: DiagramElement[], containerId: s
 
 export function makeContainer(elements: DiagramElement[], id: string): DiagramElement[] {
   const el = elements.find((e) => e.id === id);
-  if (!el || !isArgumentElement(el) || isAttachedQualifier(el)) return elements;
+  // Qualifiers never contain, attached or not.
+  if (!el || !isArgumentElement(el) || isQualifier(el)) return elements;
   const width = Math.max(el.size.width, CONTAINER_MIN_SIZE.width);
   const height = Math.max(el.size.height, CONTAINER_MIN_SIZE.height);
   const next = mapChanged(elements, (e) => {
@@ -115,11 +120,11 @@ function dropIsContainer(el: DiagramElement): DiagramElement {
 
 export function normalizeContainers(elements: DiagramElement[]): DiagramElement[] {
   const containerIds = new Set(
-    elements.filter((el) => isContainerElement(el) && !isAttachedQualifier(el)).map((el) => el.id),
+    elements.filter((el) => isContainerElement(el) && !isQualifier(el)).map((el) => el.id),
   );
   return mapChanged(elements, (el) => {
     const flagged = (el as { isContainer?: boolean }).isContainer !== undefined;
-    const badFlag = flagged && (!isArgumentElement(el) || isAttachedQualifier(el));
+    const badFlag = flagged && (!isArgumentElement(el) || isQualifier(el));
     const next = badFlag ? dropIsContainer(el) : el;
     const cid = next.containerId;
     const badId =

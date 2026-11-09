@@ -260,7 +260,7 @@ export function ContextMenu({
         </>
       )}
 
-      {/* Container toggle (argument elements, not attached qualifiers) */}
+      {/* Container toggle (argument elements other than qualifiers) */}
       {elementType === 'argument' && onToggleContainer && (
         <>
           <div

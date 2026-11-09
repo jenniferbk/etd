@@ -399,8 +399,7 @@ export function PropertiesPanel() {
   };
 
   const canToggleContainer =
-    isArgumentElement(selectedElement) &&
-    !(selectedElement.argumentType === 'qualifier' && selectedElement.attachedTo);
+    isArgumentElement(selectedElement) && selectedElement.argumentType !== 'qualifier';
   const parentContainer = selectedElement.containerId
     ? elements.filter(isContainerElement).find((el) => el.id === selectedElement.containerId)
     : undefined;

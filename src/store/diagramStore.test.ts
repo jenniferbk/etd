@@ -482,6 +482,24 @@ describe('container removeElement', () => {
   });
 });
 
+describe('multi-select drag of a container and its member', () => {
+  it('keeps a member that moved first, before the container', () => {
+    freshHistory([box('c', 0, 0), member('m', 'c', 100, 100)]);
+    // Member dragend fires first: outside the container's old bounds.
+    st().moveElement('m', { x: 600, y: 100 });
+    st().moveElement('c', { x: 500, y: 0 }, { excludeMemberIds: ['m'] });
+    expect(byId('m').position).toEqual({ x: 600, y: 100 });
+    expect((byId('m') as ArgumentElement).containerId).toBe('c');
+  });
+  it('keeps a member when the container moves first', () => {
+    freshHistory([box('c', 0, 0), member('m', 'c', 100, 100)]);
+    st().moveElement('c', { x: 500, y: 0 }, { excludeMemberIds: ['m'] });
+    st().moveElement('m', { x: 600, y: 100 });
+    expect(byId('m').position).toEqual({ x: 600, y: 100 });
+    expect((byId('m') as ArgumentElement).containerId).toBe('c');
+  });
+});
+
 describe('setContainer', () => {
   it('on: min size and sweep, one undo step', () => {
     freshHistory([arg('a', 0, 0), arg('p', 150, 100)]);
