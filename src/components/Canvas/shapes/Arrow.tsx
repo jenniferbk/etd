@@ -854,8 +854,9 @@ export function ConnectionArrow({
       )}
 
       {/* For arrow attachments, show a small perpendicular indicator.
-          Suppressed in 'warning' state — the line is a fallback hint, not a real attachment. */}
-      {isAttachment && attachmentStyle === 'normal' && (
+          Suppressed in 'warning' state — the line is a fallback hint, not a real attachment —
+          and when the arrowhead is shown, matching the SVG export (which draws no dot). */}
+      {isAttachment && attachmentStyle === 'normal' && !showArrowhead && (
         <Circle
           x={endX}
           y={endY}
