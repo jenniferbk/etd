@@ -28,6 +28,7 @@ export interface Connection {
   waypoints?: Position[];  // Interior bend points (orthogonal). Empty/undefined → default Z-elbow at render.
   fromAnchor?: EdgeAnchor;  // Optional anchor point on source element edge
   toAnchor?: EdgeAnchor;    // Optional anchor point on target element edge
+  arrowhead?: boolean;      // Override: true/false forces the arrowhead at the `to` end; undefined = automatic rule
 }
 
 // Type guard for arrow attachment
