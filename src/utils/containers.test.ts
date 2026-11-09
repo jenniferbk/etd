@@ -211,3 +211,101 @@ describe('membersOf', () => {
     expect(membersOf(els, 'c').map((e) => e.id)).toEqual(['a']);
   });
 });
+
+describe('fix round 1', () => {
+  const qual = (id: string, extra: Partial<ArgumentElement> = {}) =>
+    arg(id, 100, 100, { argumentType: 'qualifier', attachedTo: { connectionId: 'k1', position: 0.5 }, ...extra });
+
+  it('normalize clears containerId pointing at a flagged attached qualifier', () => {
+    const q = qual('q', { isContainer: true });
+    const out = normalizeContainers([q, arg('a', 0, 0, { containerId: 'q' })]);
+    expect(byId(out, 'a').containerId).toBeUndefined();
+    expect((byId(out, 'q') as ArgumentElement).isContainer).toBeUndefined();
+  });
+  it('normalize is idempotent by reference', () => {
+    const q = qual('q', { isContainer: true });
+    const once = normalizeContainers([q, arg('a', 0, 0, { containerId: 'q' })]);
+    expect(normalizeContainers(once)).toBe(once);
+  });
+  it('normalize clears a self containerId', () => {
+    const out = normalizeContainers([box('c'), arg('a', 0, 0, { containerId: 'a' })]);
+    expect(byId(out, 'a').containerId).toBeUndefined();
+  });
+  it('normalize clears isContainer on an attached qualifier', () => {
+    const out = normalizeContainers([qual('q', { isContainer: true })]);
+    expect(out[0]).not.toHaveProperty('isContainer');
+  });
+
+  it('duplicate copies qualifiers attached to copied connections', () => {
+    const els: DiagramElement[] = [
+      box('c'), arg('A', 50, 50, { containerId: 'c' }), arg('B', 250, 50, { containerId: 'c' }), qual('q'),
+    ];
+    const conns: Connection[] = [{ id: 'k1', from: 'A', to: 'B', type: 'support' }];
+    let n = 0;
+    const r = duplicateWithMembers(els, conns, ['c'], () => `n${++n}`, { x: 5, y: 5 });
+    expect(r.elements).toHaveLength(4);
+    const q = r.elements.find((e) => (e as ArgumentElement).argumentType === 'qualifier') as ArgumentElement;
+    expect(q.attachedTo!.connectionId).toBe(r.connections[0].id);
+    expect(q.attachedTo!.connectionId).not.toBe('k1');
+  });
+  it('duplicate copies connections from/to a copied qualifier', () => {
+    const els: DiagramElement[] = [arg('A', 0, 0), arg('B', 300, 0), qual('q')];
+    const conns: Connection[] = [
+      { id: 'k1', from: 'A', to: 'B', type: 'support' },
+      { id: 'k2', from: 'q', to: 'B', type: 'support' },
+    ];
+    let n = 0;
+    const r = duplicateWithMembers(els, conns, ['A', 'B'], () => `n${++n}`, { x: 5, y: 5 });
+    expect(r.connections).toHaveLength(2);
+  });
+
+  it('makeContainer returns the same reference when already a big container', () => {
+    const els = [box('c')];
+    expect(makeContainer(els, 'c')).toBe(els);
+  });
+  it('unmakeContainer returns the same reference for non-container or missing id', () => {
+    const els = [arg('a'), sup('s')];
+    expect(unmakeContainer(els, 'a')).toBe(els);
+    expect(unmakeContainer(els, 'nope')).toBe(els);
+  });
+
+  it('containerDragIds excludes supports belonging to another container', () => {
+    const els: DiagramElement[] = [
+      box('c'), box('o', 2000, 2000), sup('hang', 480, 100, { containerId: 'o' }), sup('free', 490, 100),
+    ];
+    const ids = containerDragIds(els, 'c');
+    expect(ids).not.toContain('hang');
+    expect(ids).toContain('free');
+  });
+
+  it('linkCandidates keeps a container when the support center is outside it', () => {
+    const c = box('c');
+    const s = sup('s', 480, 100); // center x 520 > 500
+    const map = new Map<string, DiagramElement>([['c', c]]);
+    expect(linkCandidates(s, new Set(['c']), map)).toEqual(new Set(['c']));
+  });
+  it('duplicate remaps associatedWith when the target was copied', () => {
+    const els: DiagramElement[] = [arg('a', 0, 0), sup('s', 10, 10, { associatedWith: 'a' })];
+    let n = 0;
+    const r = duplicateWithMembers(els, [], ['a', 's'], () => `n${++n}`, { x: 5, y: 5 });
+    const s = r.elements.find((e) => e.type === 'support') as SupportElement;
+    expect(s.associatedWith).toBe(r.newIds[0]);
+  });
+  it('duplicate keeps associatedWith unchanged when the target was not copied', () => {
+    const els: DiagramElement[] = [arg('a', 0, 0), sup('s', 10, 10, { associatedWith: 'a' })];
+    const r = duplicateWithMembers(els, [], ['s'], () => 'n1', { x: 5, y: 5 });
+    expect((r.elements[0] as SupportElement).associatedWith).toBe('a');
+  });
+  it('lone copied member landing outside loses containerId', () => {
+    const els = [box('c'), arg('m', 350, 100, { containerId: 'c' })];
+    const r = duplicateWithMembers(els, [], ['m'], () => 'n1', { x: 200, y: 0 });
+    expect(r.elements[0].containerId).toBeUndefined();
+  });
+  it('copied connection waypoints are offset', () => {
+    const els = [arg('a', 0, 0), arg('b', 300, 0)];
+    const conns: Connection[] = [{ id: 'k', from: 'a', to: 'b', type: 'support', waypoints: [{ x: 10, y: 20 }] }];
+    let n = 0;
+    const r = duplicateWithMembers(els, conns, ['a', 'b'], () => `n${++n}`, { x: 5, y: 7 });
+    expect(r.connections[0].waypoints).toEqual([{ x: 15, y: 27 }]);
+  });
+});

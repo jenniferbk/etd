@@ -88,24 +88,22 @@ export function retestAroundContainer(elements: DiagramElement[], containerId: s
 export function makeContainer(elements: DiagramElement[], id: string): DiagramElement[] {
   const el = elements.find((e) => e.id === id);
   if (!el || !isArgumentElement(el) || isAttachedQualifier(el)) return elements;
-  const grown = withContainerId(el, null) as ArgumentElement;
-  const next = elements.map((e) =>
-    e.id !== id ? e : {
-      ...grown,
-      isContainer: true,
-      size: {
-        width: Math.max(el.size.width, CONTAINER_MIN_SIZE.width),
-        height: Math.max(el.size.height, CONTAINER_MIN_SIZE.height),
-      },
-    },
-  );
+  const width = Math.max(el.size.width, CONTAINER_MIN_SIZE.width);
+  const height = Math.max(el.size.height, CONTAINER_MIN_SIZE.height);
+  const next = mapChanged(elements, (e) => {
+    if (e.id !== id) return e;
+    const unchanged = el.isContainer === true && el.containerId === undefined &&
+      width === el.size.width && height === el.size.height;
+    if (unchanged) return e;
+    return { ...(withContainerId(el, null) as ArgumentElement), isContainer: true, size: { width, height } };
+  });
   return retestAroundContainer(next, id);
 }
 
 export function unmakeContainer(elements: DiagramElement[], id: string): DiagramElement[] {
-  return elements.map((el) => {
+  return mapChanged(elements, (el) => {
     if (el.id === id && isArgumentElement(el)) {
-      return omitKey(el, 'isContainer') as ArgumentElement;
+      return el.isContainer === undefined ? el : (omitKey(el, 'isContainer') as ArgumentElement);
     }
     return el.containerId === id ? withContainerId(el, null) : el;
   });
@@ -116,7 +114,9 @@ function dropIsContainer(el: DiagramElement): DiagramElement {
 }
 
 export function normalizeContainers(elements: DiagramElement[]): DiagramElement[] {
-  const containerIds = new Set(elements.filter(isContainerElement).map((el) => el.id));
+  const containerIds = new Set(
+    elements.filter((el) => isContainerElement(el) && !isAttachedQualifier(el)).map((el) => el.id),
+  );
   return mapChanged(elements, (el) => {
     const flagged = (el as { isContainer?: boolean }).isContainer !== undefined;
     const badFlag = flagged && (!isArgumentElement(el) || isAttachedQualifier(el));
@@ -134,7 +134,9 @@ export function containerDragIds(elements: readonly DiagramElement[], containerI
   const ids = new Set<string>([containerId]);
   for (const m of membersOf(elements, containerId)) ids.add(m.id);
   const cluster = computeCluster(elements as DiagramElement[], containerId);
-  for (const s of cluster?.supports ?? []) ids.add(s.id);
+  for (const s of cluster?.supports ?? []) {
+    if (s.containerId === undefined || s.containerId === containerId) ids.add(s.id);
+  }
   return [...ids];
 }
 
@@ -177,6 +179,20 @@ function copiedConnectionIds(
   return picked;
 }
 
+/** Grows `wanted` with qualifiers attached to copied connections; returns copied connection ids. */
+function closeOverQualifiers(
+  elements: readonly DiagramElement[], connections: readonly Connection[], wanted: Set<string>,
+): Set<string> {
+  for (;;) {
+    const picked = copiedConnectionIds(connections, wanted);
+    const before = wanted.size;
+    for (const el of elements) {
+      if (isArgumentElement(el) && el.attachedTo && picked.has(el.attachedTo.connectionId)) wanted.add(el.id);
+    }
+    if (wanted.size === before) return picked;
+  }
+}
+
 export function duplicateWithMembers(
   elements: readonly DiagramElement[],
   connections: readonly Connection[],
@@ -189,9 +205,9 @@ export function duplicateWithMembers(
     const el = elements.find((e) => e.id === id);
     if (el && isContainerElement(el)) membersOf(elements, id).forEach((m) => wanted.add(m.id));
   }
+  const picked = closeOverQualifiers(elements, connections, wanted);
   const sources = elements.filter((el) => wanted.has(el.id));
   const idMap = new Map(sources.map((el) => [el.id, makeId()]));
-  const picked = copiedConnectionIds(connections, new Set(idMap.keys()));
   const connMap = new Map<string, string>();
   for (const c of connections) if (picked.has(c.id)) connMap.set(c.id, makeId());
 
