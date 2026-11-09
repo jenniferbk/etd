@@ -36,6 +36,9 @@ import { ClusterHalo } from './shapes/ClusterHalo';
 import { computeCluster, bboxesOverlap } from '../../utils/clusters';
 import type { Cluster } from '../../utils/clusters';
 import { countNotesByAnchor } from '../../utils/noteAnchors';
+import {
+  containerDragIds, isContainerElement, linkCandidates, splitForRender,
+} from '../../utils/containers';
 
 interface ContextMenuState {
   visible: boolean;
@@ -56,10 +59,11 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
   const containerRef = useRef<HTMLDivElement>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const shapeRefs = useRef<Map<string, Konva.Group>>(new Map());
+  // Sticky drag: the dragged argument's start position plus every node it
+  // carries (cluster supports, or a container's members and supports).
   const stickyDragRef = useRef<{
-    cluster: Cluster;
     startPositions: Map<string, { x: number; y: number }>;
-    supportNodes: Map<string, Konva.Node>;
+    carriedNodes: Map<string, Konva.Node>;
   } | null>(null);
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [hoveredArrowId, setHoveredArrowId] = useState<string | null>(null);
@@ -137,6 +141,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     removeConnection,
     setConnectionType,
     setConnectionArrowhead,
+    setContainer,
     straightenConnection,
     duplicateElements,
     bringToFront,
@@ -399,9 +404,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     (id: string, e: Konva.KonvaEventObject<DragEvent>) => {
       const x = e.target.x();
       const y = e.target.y();
-      moveElement(id, { x, y });
+      moveElement(id, { x, y }, { excludeMemberIds: selectedIds });
     },
-    [moveElement]
+    [moveElement, selectedIds]
   );
 
   const handleArgumentDragStart = useCallback(
@@ -411,22 +416,30 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
         stickyDragRef.current = null;
         return;
       }
-      const cluster = computeCluster(elements, id);
-      if (!cluster) {
-        stickyDragRef.current = null;
-        return;
+      const dragged = elements.find((el) => el.id === id);
+      let carriedIds: string[];
+      if (dragged && isContainerElement(dragged)) {
+        carriedIds = containerDragIds(elements, id).filter((cid) => cid !== id);
+      } else {
+        const cluster = computeCluster(elements, id);
+        if (!cluster) {
+          stickyDragRef.current = null;
+          return;
+        }
+        carriedIds = cluster.supports.map((s) => s.id);
       }
+      const byId = new Map(elements.map((el) => [el.id, el]));
       const startPositions = new Map<string, { x: number; y: number }>();
-      startPositions.set(cluster.argument.id, { ...cluster.argument.position });
-      for (const s of cluster.supports) {
-        startPositions.set(s.id, { ...s.position });
+      const carriedNodes = new Map<string, Konva.Node>();
+      for (const cid of [id, ...carriedIds]) {
+        const el = byId.get(cid);
+        if (el) startPositions.set(cid, { ...el.position });
       }
-      const supportNodes = new Map<string, Konva.Node>();
-      for (const s of cluster.supports) {
-        const node = shapeRefs.current.get(s.id);
-        if (node) supportNodes.set(s.id, node);
+      for (const cid of carriedIds) {
+        const node = shapeRefs.current.get(cid);
+        if (node) carriedNodes.set(cid, node);
       }
-      stickyDragRef.current = { cluster, startPositions, supportNodes };
+      stickyDragRef.current = { startPositions, carriedNodes };
     },
     [elements, selectedIds]
   );
@@ -467,8 +480,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       const argStart = cache.startPositions.get(id);
       if (!argStart) return;
       const delta = { x: e.target.x() - argStart.x, y: e.target.y() - argStart.y };
-      for (const [supId, node] of cache.supportNodes) {
-        const start = cache.startPositions.get(supId);
+      for (const [carriedId, node] of cache.carriedNodes) {
+        const start = cache.startPositions.get(carriedId);
         if (!start) continue;
         node.position({ x: start.x + delta.x, y: start.y + delta.y });
       }
@@ -537,7 +550,9 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       const cache = stickyDragRef.current;
       if (!cache) {
         // Fallback to single-element move (multi-select case or no cluster).
-        moveElement(id, finalArg);
+        // Konva already moved the other selected nodes; a container must not
+        // shift those members again.
+        moveElement(id, finalArg, { excludeMemberIds: selectedIds });
         return;
       }
       const argStart = cache.startPositions.get(id)!;
@@ -545,7 +560,7 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       moveCluster(cache.startPositions, delta);
       stickyDragRef.current = null;
     },
-    [elements, connections, moveElement, moveCluster, updateElement]
+    [elements, connections, selectedIds, moveElement, moveCluster, updateElement]
   );
 
   const handleSupportDragStart = useCallback((id: string) => {
@@ -601,8 +616,13 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
       }
     }
 
-    if (overlappedArgIds.size === 1) {
-      const argId = overlappedArgIds.values().next().value as string;
+    // A support dropped inside a container links to what it touches inside,
+    // not to the container that merely surrounds it.
+    const candidates = linkCandidates(
+      startSupport, overlappedArgIds, new Map(hypothetical.map((el) => [el.id, el])),
+    );
+    if (candidates.size === 1) {
+      const argId = candidates.values().next().value as string;
       moveAndLink(id, finalPos, argId);
     } else {
       moveElement(id, finalPos);
@@ -685,6 +705,19 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     if (!contextConnection) return;
     setConnectionArrowhead(contextConnection.id, undefined);
   }, [contextConnection, setConnectionArrowhead]);
+
+  const contextContainerTarget = useMemo(() => {
+    if (contextMenu.elementType !== 'argument') return undefined;
+    const el = elements.find((e) => e.id === contextMenu.elementId);
+    if (!el || !isArgumentElement(el)) return undefined;
+    if (el.argumentType === 'qualifier' && el.attachedTo) return undefined;
+    return el;
+  }, [contextMenu.elementType, contextMenu.elementId, elements]);
+
+  const handleContextMenuToggleContainer = useCallback(() => {
+    if (!contextContainerTarget) return;
+    setContainer(contextContainerTarget.id, !contextContainerTarget.isContainer);
+  }, [contextContainerTarget, setContainer]);
 
   const handleContextMenuStraighten = useCallback(() => {
     if (!contextMenu.elementId) return;
@@ -1025,6 +1058,86 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
     : null;
   const isConnectionAttachment = canAttachToConnection(connectingFromElement);
 
+  // One renderer for every element; containers and others share it so the
+  // draw order (containers -> connections -> others) is the only difference.
+  const renderElement = (element: DiagramElement) => {
+    if (isArgumentElement(element)) {
+      return (
+        <ArgumentShape
+          key={element.id}
+          element={element}
+          isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
+          onSelect={(e) => handleElementSelect(element.id, e)}
+          onDoubleClick={() => handleElementDoubleClick(element)}
+          onDragStart={() => handleArgumentDragStart(element.id)}
+          onDragMove={(e) => handleArgumentDragMove(element.id, e)}
+          onDragEnd={(e) => handleArgumentDragEnd(element.id, e)}
+          shapeRef={(node) => registerShapeRef(element.id, node)}
+          onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+          onContextMenu={(e) => handleContextMenu(element.id, 'argument', e)}
+          noteCount={noteCounts.get(element.id)}
+          onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
+        />
+      );
+    }
+    if (isSupportElement(element)) {
+      return (
+        <SupportShape
+          key={element.id}
+          element={element}
+          isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
+          onSelect={(e) => handleElementSelect(element.id, e)}
+          onDoubleClick={() => handleElementDoubleClick(element)}
+          onDragStart={() => handleSupportDragStart(element.id)}
+          onDragMove={(e) => handleSupportDragMove(element.id, e)}
+          onDragEnd={(e) => handleSupportDragEnd(element.id, e)}
+          shapeRef={(node) => registerShapeRef(element.id, node)}
+          onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+          onContextMenu={(e) => handleContextMenu(element.id, 'support', e)}
+          noteCount={noteCounts.get(element.id)}
+          onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
+        />
+      );
+    }
+    // Deprecated: TeacherSupportElement (for backwards compatibility)
+    if (isTeacherSupportElement(element)) {
+      return (
+        <TeacherSupportShape
+          key={element.id}
+          element={element}
+          isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
+          onSelect={(e) => handleElementSelect(element.id, e)}
+          onDoubleClick={() => handleElementDoubleClick(element)}
+          onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+          shapeRef={(node) => registerShapeRef(element.id, node)}
+          onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+          onContextMenu={(e) => handleContextMenu(element.id, 'teacherSupport', e)}
+          noteCount={noteCounts.get(element.id)}
+          onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
+        />
+      );
+    }
+    if (isInfoBoxElement(element)) {
+      return (
+        <InfoBoxShape
+          key={element.id}
+          element={element}
+          isSelected={selectedIds.includes(element.id)}
+          onSelect={(e) => handleElementSelect(element.id, e)}
+          onDoubleClick={() => handleElementDoubleClick(element)}
+          onDragEnd={(e) => handleElementDragEnd(element.id, e)}
+          shapeRef={(node) => registerShapeRef(element.id, node)}
+          onTransformEnd={(node) => handleTransformEnd(element.id, node)}
+          onContextMenu={(e) => handleContextMenu(element.id, 'infoBox', e)}
+          noteCount={noteCounts.get(element.id)}
+          onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
+        />
+      );
+    }
+    return null;
+  };
+  const { containers, others } = splitForRender(elements);
+
   return (
     <div
       ref={containerRef}
@@ -1109,7 +1222,10 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
             <ClusterHalo key={`halo-${argId}-${mode}`} cluster={cluster} mode={mode} />
           ))}
 
-          {/* Render connections first (behind elements) */}
+          {/* Containers draw first so their fill never hides inner connectors */}
+          {containers.map(renderElement)}
+
+          {/* Connections draw behind ordinary elements */}
           {connections.map((connection) => (
             <ConnectionArrow
               key={connection.id}
@@ -1128,83 +1244,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
             />
           ))}
 
-          {/* Render elements */}
-          {elements.map((element) => {
-            if (isArgumentElement(element)) {
-              return (
-                <ArgumentShape
-                  key={element.id}
-                  element={element}
-                  isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
-                  onSelect={(e) => handleElementSelect(element.id, e)}
-                  onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragStart={() => handleArgumentDragStart(element.id)}
-                  onDragMove={(e) => handleArgumentDragMove(element.id, e)}
-                  onDragEnd={(e) => handleArgumentDragEnd(element.id, e)}
-                  shapeRef={(node) => registerShapeRef(element.id, node)}
-                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
-                  onContextMenu={(e) => handleContextMenu(element.id, 'argument', e)}
-                  noteCount={noteCounts.get(element.id)}
-                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
-                />
-              );
-            }
-            if (isSupportElement(element)) {
-              return (
-                <SupportShape
-                  key={element.id}
-                  element={element}
-                  isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
-                  onSelect={(e) => handleElementSelect(element.id, e)}
-                  onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragStart={() => handleSupportDragStart(element.id)}
-                  onDragMove={(e) => handleSupportDragMove(element.id, e)}
-                  onDragEnd={(e) => handleSupportDragEnd(element.id, e)}
-                  shapeRef={(node) => registerShapeRef(element.id, node)}
-                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
-                  onContextMenu={(e) => handleContextMenu(element.id, 'support', e)}
-                  noteCount={noteCounts.get(element.id)}
-                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
-                />
-              );
-            }
-            // Deprecated: TeacherSupportElement (for backwards compatibility)
-            if (isTeacherSupportElement(element)) {
-              return (
-                <TeacherSupportShape
-                  key={element.id}
-                  element={element}
-                  isSelected={selectedIds.includes(element.id) || connectingFrom === element.id}
-                  onSelect={(e) => handleElementSelect(element.id, e)}
-                  onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragEnd={(e) => handleElementDragEnd(element.id, e)}
-                  shapeRef={(node) => registerShapeRef(element.id, node)}
-                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
-                  onContextMenu={(e) => handleContextMenu(element.id, 'teacherSupport', e)}
-                  noteCount={noteCounts.get(element.id)}
-                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
-                />
-              );
-            }
-            if (isInfoBoxElement(element)) {
-              return (
-                <InfoBoxShape
-                  key={element.id}
-                  element={element}
-                  isSelected={selectedIds.includes(element.id)}
-                  onSelect={(e) => handleElementSelect(element.id, e)}
-                  onDoubleClick={() => handleElementDoubleClick(element)}
-                  onDragEnd={(e) => handleElementDragEnd(element.id, e)}
-                  shapeRef={(node) => registerShapeRef(element.id, node)}
-                  onTransformEnd={(node) => handleTransformEnd(element.id, node)}
-                  onContextMenu={(e) => handleContextMenu(element.id, 'infoBox', e)}
-                  noteCount={noteCounts.get(element.id)}
-                  onNoteBadgeClick={() => handleNoteBadgeClick(element.id)}
-                />
-              );
-            }
-            return null;
-          })}
+          {/* Elements other than containers draw above connections */}
+          {others.map(renderElement)}
 
           {/* Teammates' selections (live collaboration) */}
           <PresenceOutlines elements={elements} />
@@ -1269,6 +1310,8 @@ export function Canvas({ connectMode, onConnectionStart, connectingFrom }: Canva
           hasArrowheadOverride={contextConnection?.arrowhead !== undefined}
           onToggleArrowhead={contextConnection ? handleContextMenuToggleArrowhead : undefined}
           onResetArrowhead={contextConnection ? handleContextMenuResetArrowhead : undefined}
+          isContainer={contextContainerTarget?.isContainer === true}
+          onToggleContainer={contextContainerTarget ? handleContextMenuToggleContainer : undefined}
           onStraighten={contextConnection && typeof contextConnection.to === 'string' ? handleContextMenuStraighten : undefined}
           onChangeContributor={contextMenu.elementType === 'argument' ? handleContextMenuChangeContributor : undefined}
           onChangeSupportContributor={contextMenu.elementType === 'support' ? handleContextMenuChangeSupportContributor : undefined}

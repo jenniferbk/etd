@@ -12,6 +12,8 @@ import {
   Eye,
   EyeOff,
   RotateCcw,
+  Group,
+  Ungroup,
 } from 'lucide-react';
 import { theme } from '../../utils/theme';
 import type {
@@ -47,6 +49,10 @@ interface ContextMenuProps {
   hasArrowheadOverride?: boolean;
   onToggleArrowhead?: () => void;
   onResetArrowhead?: () => void;
+  /** Whether the argument element is a container; drives the toggle's label. */
+  isContainer?: boolean;
+  /** Present only for argument elements that can become containers. */
+  onToggleContainer?: () => void;
 }
 
 export function ContextMenu({
@@ -70,6 +76,8 @@ export function ContextMenu({
   hasArrowheadOverride,
   onToggleArrowhead,
   onResetArrowhead,
+  isContainer,
+  onToggleContainer,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -248,6 +256,26 @@ export function ContextMenu({
           >
             <ArrowDownToLine size={16} />
             Send to Back
+          </button>
+        </>
+      )}
+
+      {/* Container toggle (argument elements, not attached qualifiers) */}
+      {elementType === 'argument' && onToggleContainer && (
+        <>
+          <div
+            className="my-1 border-t"
+            style={{ borderColor: theme.sidebar.border }}
+          />
+          <button
+            onClick={() => {
+              onToggleContainer();
+              onClose();
+            }}
+            className={menuItemClass}
+          >
+            {isContainer ? <Ungroup size={16} /> : <Group size={16} />}
+            {isContainer ? 'Remove container' : 'Make container'}
           </button>
         </>
       )}

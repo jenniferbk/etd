@@ -9,6 +9,7 @@ import { useImagePaste } from '../../hooks/useImagePaste';
 import { requiredWidthForImage } from '../../utils/imageLayout';
 import { straightenRouting } from '../../utils/orthogonalRouting';
 import { resolveArrowhead } from '../../utils/arrowhead';
+import { isContainerElement } from '../../utils/containers';
 
 const ARROWHEAD_OPTIONS: { label: string; value: boolean | undefined }[] = [
   { label: 'Auto', value: undefined },
@@ -69,6 +70,7 @@ export function PropertiesPanel() {
   const straightenConnection = useDiagramStore((s) => s.straightenConnection);
   const setConnectionType = useDiagramStore((s) => s.setConnectionType);
   const setConnectionArrowhead = useDiagramStore((s) => s.setConnectionArrowhead);
+  const setContainer = useDiagramStore((s) => s.setContainer);
 
   // Get the first selected element
   const selectedElement = selectedIds.length === 1
@@ -396,6 +398,13 @@ export function PropertiesPanel() {
     });
   };
 
+  const canToggleContainer =
+    isArgumentElement(selectedElement) &&
+    !(selectedElement.argumentType === 'qualifier' && selectedElement.attachedTo);
+  const parentContainer = selectedElement.containerId
+    ? elements.filter(isContainerElement).find((el) => el.id === selectedElement.containerId)
+    : undefined;
+
   const isUnattachedQualifier =
     isArgumentElement(selectedElement) &&
     selectedElement.argumentType === 'qualifier' &&
@@ -663,6 +672,25 @@ export function PropertiesPanel() {
                 </span>
               </div>
             </>
+          )}
+          {(canToggleContainer || parentContainer) && (
+            <div className="flex flex-col gap-1.5 justify-end">
+              {canToggleContainer && (
+                <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: theme.sidebar.text }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedElement.isContainer === true}
+                    onChange={(e) => setContainer(selectedElement.id, e.target.checked)}
+                  />
+                  <span>Container</span>
+                </label>
+              )}
+              {parentContainer && (
+                <span className="text-sm" style={{ color: theme.sidebar.textSecondary }}>
+                  In {parentContainer.label}
+                </span>
+              )}
+            </div>
           )}
         </div>
 

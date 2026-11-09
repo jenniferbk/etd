@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Group, Rect, Ellipse, Text, Path } from 'react-konva';
 import { generateCloudPath } from '../../../utils/cloudPath';
-import type Konva from 'konva';
+import Konva from 'konva';
 import type { ArgumentElement } from '../../../types';
 import { EmbeddedImage } from './EmbeddedImage';
 import { imageAreaHeight } from '../../../utils/imageLayout';
@@ -11,6 +11,9 @@ import { resolveArgumentStyle, dashArrayForBorderStyle } from '../../../utils/st
 import { getClaimRole, deriveClaimLabel } from '../../../utils/claimRoleDerivation';
 import { computePolylineFor } from '../../../utils/connectionPath';
 import { getPointOnPolyline } from '../../../utils/orthogonalRouting';
+
+const CONTAINER_PADDING = 10;
+const CONTAINER_TEXT_MAX_WIDTH = 260;
 
 interface ArgumentShapeProps {
   element: ArgumentElement;
@@ -74,6 +77,17 @@ export function ArgumentShape({
     if (!polyline) return null;
     return getPointOnPolyline(polyline, element.attachedTo.position);
   }, [isAttachedQualifier, element.attachedTo, connections, elements]);
+
+  // Containers keep their text as a normal-element-sized block at top-left.
+  const isContainer = element.isContainer === true && !isAttachedQualifier;
+  const containerTextWidth = Math.max(0, Math.min(size.width - 2 * CONTAINER_PADDING, CONTAINER_TEXT_MAX_WIDTH));
+  const containerContentHeight = useMemo(() => {
+    if (!isContainer || !content) return 0;
+    const probe = new Konva.Text({ text: content, width: containerTextWidth, fontSize: 12, wrap: 'word' });
+    const h = probe.height();
+    probe.destroy();
+    return h;
+  }, [isContainer, content, containerTextWidth]);
 
   if (typeof window !== 'undefined' && window.localStorage?.getItem('etd-debug-style-render') === '1') {
     console.log('[etd-style] ArgumentShape', {
@@ -156,6 +170,108 @@ export function ArgumentShape({
         )}
         {(noteCount ?? 0) > 0 && (
           <NoteBadge x={qWidth - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
+        )}
+      </Group>
+    );
+  }
+
+  if (isContainer) {
+    // Implicit containers draw as a dashed rectangle, never a cloud (approved
+    // exception to the cloud rule, containers only).
+    const containerDash = isCloud ? dashArrayForBorderStyle('dashed') : dashArray;
+    const cornerRadius = style.borderShape === 'rounded' ? 8 : 0;
+    const contentY = CONTAINER_PADDING + labelHeight;
+    const attributionY = contentY + containerContentHeight + 4;
+    const imageY = attributionY + (attributionText ? 16 : 0);
+    return (
+      <Group
+        ref={shapeRef}
+        x={position.x}
+        y={position.y}
+        draggable
+        onClick={onSelect}
+        onTap={onSelect}
+        onDblClick={onDoubleClick}
+        onDblTap={onDoubleClick}
+        onDragStart={onDragStart}
+        onDragMove={onDragMove}
+        onDragEnd={onDragEnd}
+        onTransformEnd={(e) => onTransformEnd?.(e.target as Konva.Group)}
+        onContextMenu={onContextMenu}
+      >
+        <Rect
+          width={size.width}
+          height={size.height}
+          fill={style.backgroundColor}
+          stroke={borderColor}
+          strokeWidth={strokeWidth}
+          dash={containerDash}
+          cornerRadius={cornerRadius}
+        />
+        {isSelected && (
+          <Rect
+            width={size.width + 6}
+            height={size.height + 6}
+            x={-3}
+            y={-3}
+            stroke="#4A90D9"
+            strokeWidth={2}
+            fill="transparent"
+            dash={[5, 3]}
+            cornerRadius={cornerRadius ? 10 : 0}
+          />
+        )}
+        <Text
+          x={CONTAINER_PADDING}
+          y={CONTAINER_PADDING}
+          width={containerTextWidth}
+          text={displayLabel}
+          fontSize={14}
+          fontStyle="bold"
+          textDecoration="underline"
+          fill={borderColor}
+        />
+        {content && (
+          <Text
+            x={CONTAINER_PADDING}
+            y={contentY}
+            width={containerTextWidth}
+            text={content}
+            fontSize={12}
+            fill="#000000"
+            wrap="word"
+          />
+        )}
+        {attributionText && (
+          <Text
+            x={CONTAINER_PADDING}
+            y={attributionY}
+            width={containerTextWidth}
+            text={attributionText}
+            fontSize={10}
+            fill="#666666"
+            fontStyle="italic"
+            align="right"
+          />
+        )}
+        {image && (
+          <EmbeddedImage
+            imageData={image}
+            x={CONTAINER_PADDING}
+            y={imageY}
+            maxWidth={containerTextWidth}
+            maxHeight={imageArea}
+            scale={imageSettings?.scale ?? 1}
+            offsetX={imageSettings?.offsetX ?? 0}
+            offsetY={imageSettings?.offsetY ?? 0}
+            cropArea={imageSettings?.cropArea}
+            elementLabel={displayLabel}
+            elementId={element.id}
+            isSelected={isSelected}
+          />
+        )}
+        {(noteCount ?? 0) > 0 && (
+          <NoteBadge x={size.width - 8} y={-6} count={noteCount ?? 0} onClick={onNoteBadgeClick} />
         )}
       </Group>
     );
