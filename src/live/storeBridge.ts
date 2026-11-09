@@ -2,6 +2,7 @@
 import { useDiagramStore } from '../store';
 import type { AnalyticNote, Connection, DiagramElement, Transcript } from '../types';
 import type { StyleConfig } from '../types/styleConfig';
+import { normalizeContainers } from '../utils/containers';
 import { SAVE_SCHEMA_VERSION } from '../utils/schema';
 import { applyOps, diffDocs, type LiveDoc, type Op } from './ops';
 
@@ -60,7 +61,10 @@ export function applyDocToStore(next: LiveDoc): void {
   temporal.getState().pause();
   try {
     useDiagramStore.setState((s) => {
-      const elements = next.elements as unknown as DiagramElement[];
+      // Concurrent edits can break the one-level rule; repair it here. The
+      // normalizer is deterministic and returns the same array when valid, so
+      // the corrected doc diffs back to the server once and converges.
+      const elements = normalizeContainers(next.elements as unknown as DiagramElement[]);
       const ids = new Set(elements.map((e) => e.id));
       const connIds = new Set((next.connections as unknown as Connection[]).map((c) => c.id));
       return {
