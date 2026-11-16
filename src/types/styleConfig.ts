@@ -23,6 +23,9 @@ export interface Subtype {
   label: string;  // display label, e.g. "Displays"
   // v1.8+. Absent on files saved before v1.8; see applySubtypeStyleMigration.
   style?: SubtypeStyle;
+  // Mirrored from the group codebook (Task 4). Absent on older files.
+  category?: string;
+  retired?: boolean;
 }
 
 // Deprecated alias — kept so existing imports keep compiling during the transition.
