@@ -125,4 +125,25 @@ describe('codebook', () => {
     const log = await request(app).get('/api/groups/1/codebook/log').set(auth(adminToken));
     expect(log.body.entries.filter((e: { action: string }) => e.action === 'seed')).toHaveLength(2);
   });
+  it('seed aborts without writing when a label belongs to another unmerged kind', async () => {
+    const { app, adminToken, db } = await makeTestServer();
+    await request(app).post('/api/groups/1/codebook/init').set(auth(adminToken)).send({ kinds: [
+      { id: 'mine', label: 'Recall', category: 'Cat 2', type: 'question' },
+      { id: 'old', label: 'Displays', category: 'k', type: 'other' },
+      { id: 'keep', label: 'Keep', category: 'k', type: 'other' },
+    ] });
+    // A merged kind may share a label; it does not count.
+    const merged = await request(app).post('/api/groups/1/codebook/kinds/old/merge').set(auth(adminToken)).send({ into: 'keep' });
+    expect(merged.status).toBe(200);
+    const seed = { kinds: [
+      { id: 'new', label: 'Brand new', category: 'k', type: 'other' as const },
+      { id: 'displays', label: 'Displays', category: 'Showing', type: 'other' as const },
+      { id: 'recall', label: ' recall ', category: 'Cat 2', type: 'question' as const },
+    ] };
+    expect(() => seedCodebook(db, 1, seed)).toThrow(/recall.*mine/is);
+    const got = await request(app).get('/api/groups/1/codebook').set(auth(adminToken));
+    expect(got.body.kinds.map((k: { id: string }) => k.id)).toEqual(['mine', 'old', 'keep']);
+    const log = await request(app).get('/api/groups/1/codebook/log').set(auth(adminToken));
+    expect(log.body.entries.filter((e: { action: string }) => e.action === 'seed')).toHaveLength(0);
+  });
 });

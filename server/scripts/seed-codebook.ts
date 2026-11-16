@@ -10,10 +10,44 @@ export interface SeedSummary { added: number; updated: number; unchanged: number
 
 interface Row { id: string; label: string; category: string; type: string }
 
+const labelKey = (label: string) => label.trim().toLowerCase();
+
+/** Labels the seed would leave shared by two unmerged kinds (labels are unique
+ *  per group, case-insensitive, among unmerged kinds). Checked against the
+ *  codebook as it would be after the seed, so a seed that relabels a kind and
+ *  reuses its old label elsewhere is fine. */
+export function seedLabelCollisions(db: Db, groupId: number, seed: Seed): { label: string; ids: string[] }[] {
+  const rows = db
+    .prepare('SELECT id, label, merged_into AS mergedInto FROM codebook_kinds WHERE group_id = ?')
+    .all(groupId) as { id: string; label: string; mergedInto: string | null }[];
+  const finalLabel = new Map<string, string>();
+  const merged = new Set<string>();
+  for (const r of rows) {
+    finalLabel.set(r.id, r.label);
+    if (r.mergedInto !== null) merged.add(r.id);
+  }
+  for (const k of seed.kinds) finalLabel.set(k.id, k.label);
+  const seedKeys = new Set(seed.kinds.map((k) => labelKey(k.label)));
+  const byLabel = new Map<string, string[]>();
+  for (const [id, label] of finalLabel) {
+    if (merged.has(id) || !seedKeys.has(labelKey(label))) continue;
+    const ids = byLabel.get(labelKey(label)) ?? [];
+    ids.push(id);
+    byLabel.set(labelKey(label), ids);
+  }
+  return [...byLabel].filter(([, ids]) => ids.length > 1).map(([label, ids]) => ({ label, ids }));
+}
+
 // Upsert by id: insert missing kinds, update label/category/type of existing
-// ones, log one `seed` entry per change (user NULL). Never deletes.
+// ones, log one `seed` entry per change (user NULL). Never deletes. Throws,
+// changing nothing, when a seed label would collide with another unmerged kind.
 export function seedCodebook(db: Db, groupId: number, seed: Seed): SeedSummary {
   return db.transaction((): SeedSummary => {
+    const collisions = seedLabelCollisions(db, groupId, seed);
+    if (collisions.length > 0) {
+      const list = collisions.map((c) => `  "${c.label}": ${c.ids.join(', ')}`).join('\n');
+      throw new Error(`Seed not applied: these labels would be held by more than one unmerged kind:\n${list}`);
+    }
     const summary: SeedSummary = { added: 0, updated: 0, unchanged: 0 };
     const get = db.prepare('SELECT id, label, category, type FROM codebook_kinds WHERE group_id = ? AND id = ?');
     for (const k of seed.kinds) {
@@ -52,7 +86,13 @@ function main(): void {
     process.exit(1);
   }
   const seed = JSON.parse(readFileSync(values.seed, 'utf8')) as Seed;
-  const s = seedCodebook(db, group.id, seed);
+  let s: SeedSummary;
+  try {
+    s = seedCodebook(db, group.id, seed);
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  }
   console.log(`Seeded group "${values['group-name']}": ${s.added} added, ${s.updated} updated, ${s.unchanged} unchanged.`);
 }
 
