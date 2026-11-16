@@ -129,8 +129,22 @@ export function useLibraryDataSource(
   const codebook = useGroupCodebook(groupId);
   const groupName = useGroupName(groupId);
   const requestSeq = useRef(0);
+  // Kept in step with `diagrams` at every write (not after render), so two
+  // quick edits to one diagram each build on the one before.
   const diagramsRef = useRef<GroupDataDiagram[] | null>(null);
-  useEffect(() => { diagramsRef.current = diagrams; }, [diagrams]);
+  const putDiagrams = useCallback((next: GroupDataDiagram[] | null) => {
+    diagramsRef.current = next;
+    setDiagrams(next);
+  }, []);
+
+  // A different group: drop the old group's rows at once so they can't be
+  // seen or edited while the new ones load.
+  const [shownGroup, setShownGroup] = useState(groupId);
+  if (shownGroup !== groupId) {
+    setShownGroup(groupId);
+    setDiagrams(null);
+    setError(null);
+  }
 
   const reload = useCallback(async () => {
     const seq = ++requestSeq.current;
@@ -139,7 +153,7 @@ export function useLibraryDataSource(
     try {
       res = await api<{ diagrams: GroupDataDiagram[] }>(`/api/groups/${groupId}/data`);
       if (seq !== requestSeq.current) return;
-      setDiagrams(res.diagrams);
+      putDiagrams(res.diagrams);
     } catch (err) {
       if (seq === requestSeq.current) setError(friendlyError(err));
       return;
@@ -150,9 +164,11 @@ export function useLibraryDataSource(
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));
     }
-  }, [groupId]);
+  }, [groupId, putDiagrams]);
 
   useEffect(() => {
+    // The render-time reset above can't touch the ref; clear it here too.
+    diagramsRef.current = null;
     void (async () => { await reload(); })();
   }, [reload]);
 
@@ -178,8 +194,8 @@ export function useLibraryDataSource(
       if (!target) return;
       const ops = editsToOps(edits, target.snapshot);
       if (ops.length === 0) return;
-      setDiagrams((prev) =>
-        prev && prev.map((d) => (d.id === id ? { ...d, snapshot: applyOps(d.snapshot, ops) } : d)),
+      putDiagrams(
+        diagramsRef.current!.map((d) => (d.id === id ? { ...d, snapshot: applyOps(d.snapshot, ops) } : d)),
       );
       try {
         await api<{ seq?: number; duplicate?: boolean }>(`/api/diagrams/${id}/live/ops`, {
@@ -191,7 +207,7 @@ export function useLibraryDataSource(
         await reload();
       }
     },
-    [reload],
+    [reload, putDiagrams],
   );
 
   return {

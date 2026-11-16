@@ -1,6 +1,7 @@
 // In-place editors for the Data grid. Only the cell being edited mounts one,
 // so a few thousand rows stay plain text.
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import type { CommitVia } from '../../data/cellCommit';
 import { LocateFixed } from 'lucide-react';
 
 export interface SelectOption {
@@ -22,33 +23,33 @@ export function TextEditor({
 }: {
   initial: string;
   multiline?: boolean;
-  onCommit: (value: string) => void;
+  onCommit: (value: string, via: CommitVia) => void;
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(initial);
   const done = useRef(false);
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.focus({ preventScroll: true });
     el.setSelectionRange(el.value.length, el.value.length);
   }, []);
 
-  const finish = (commit: boolean) => {
+  const finish = (via: CommitVia | 'escape') => {
     if (done.current) return;
     done.current = true;
-    if (commit) onCommit(value);
-    else onCancel();
+    if (via === 'escape') onCancel();
+    else onCommit(value, via);
   };
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
-      finish(false);
+      finish('escape');
     } else if (e.key === 'Enter' && !(multiline && e.shiftKey)) {
       e.preventDefault();
-      finish(true);
+      finish('enter');
     }
   };
 
@@ -62,7 +63,7 @@ export function TextEditor({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        onBlur={() => finish(true)}
+        onBlur={() => finish('blur')}
       />
     );
   }
@@ -73,7 +74,7 @@ export function TextEditor({
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={onKeyDown}
-      onBlur={() => finish(true)}
+      onBlur={() => finish('blur')}
     />
   );
 }
@@ -94,7 +95,7 @@ export function SelectEditor({
   const done = useRef(false);
   const ref = useRef<HTMLSelectElement>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.focus({ preventScroll: true });

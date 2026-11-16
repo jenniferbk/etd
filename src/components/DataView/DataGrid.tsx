@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { DATA_COLUMNS, type DataColumn, type DataColumnGroup } from '../../data/columns';
 import { activeKinds } from '../../data/codebook';
+import { clipCommit, moveContentCommit, type CommitVia } from '../../data/cellCommit';
 import type { CellEdit } from '../../data/edits';
 import type { Codebook, DataColumnKey, DataRow, MoveCell, MoveSlot } from '../../data/types';
 import type { ArgumentType } from '../../types/elements';
@@ -58,18 +59,15 @@ function saveWidths(w: Record<string, number>) {
   } catch { /* not remembered; widths reset next visit */ }
 }
 
-/** Splits "content (75:07)" back into content and timestamp. Only a trailing
- *  parenthesis that looks like a time (has a colon) counts as the timestamp. */
-function splitMoveText(text: string): { content: string; time: string } {
-  const m = /^([\s\S]*?)\s*\(\s*(\d+:\d{2}[^()]*)\)\s*$/.exec(text.trim());
-  return m ? { content: m[1].trim(), time: m[2].trim() } : { content: text.trim(), time: '' };
-}
-
 // ---- cell specs
 
 type Spec =
   | { mode: 'readonly'; node: ReactNode; title?: string; open?: () => void }
-  | { mode: 'text'; node: ReactNode; initial: string; multiline?: boolean; commit: (v: string) => void; title?: string; open?: () => void }
+  | {
+      mode: 'text'; node: ReactNode; initial: string; multiline?: boolean; commit: (v: string, via: CommitVia) => void;
+      /** Read-only text shown under the editor (a move's timestamp). */
+      aside?: string; title?: string; open?: () => void;
+    }
   | {
       mode: 'select'; node: ReactNode; value: string; options: SelectOption[];
       commit: (v: string) => void; dismiss?: (reason: 'blur' | 'escape') => void; title?: string; open?: () => void;
@@ -80,7 +78,7 @@ interface Ctx {
   pendingType: 'question' | 'other' | undefined;
   edit: (diagramKey: string, edits: CellEdit[]) => void;
   setPending: (moveId: string, type: 'question' | 'other' | null) => void;
-  editKind: (rowIndex: number) => void;
+  editKind: (key: string) => void;
   open: (diagramId: number | null, id: string) => void;
   speaker: (diagramKey: string, elementId: string) => string;
 }
@@ -114,7 +112,7 @@ function kindOptions(cb: Codebook | null, type: 'question' | 'other', current?: 
   return opts;
 }
 
-function moveSpecs(key: DataColumnKey, row: DataRow, rowIndex: number, ctx: Ctx): Spec | null {
+function moveSpecs(key: DataColumnKey, row: DataRow, ctx: Ctx): Spec | null {
   const slot: MoveSlot | null = key.startsWith('untyped_') ? 'untyped' : key.startsWith('question_') ? 'question' : key.startsWith('other_') ? 'other' : null;
   if (!slot) return null;
   const field = key.slice(slot.length + 1);
@@ -124,13 +122,11 @@ function moveSpecs(key: DataColumnKey, row: DataRow, rowIndex: number, ctx: Ctx)
   switch (field) {
     case 'move':
       return {
-        mode: 'text', node: m.text, initial: m.text, multiline: true,
+        mode: 'text', node: m.text, initial: m.content, multiline: true,
+        aside: m.time ? `(${m.time}) · edit the time on the canvas` : undefined,
         open: () => ctx.open(row.group.diagramId, m.id),
         commit: (v) => {
-          const { content, time } = splitMoveText(v);
-          const edits: CellEdit[] = [];
-          if (content !== m.content) edits.push({ kind: 'elementContent', elementId: m.id, value: content });
-          if (time !== m.time) edits.push({ kind: 'attribution', elementId: m.id, field: 'timestamp', value: time });
+          const edits = moveContentCommit(m, v);
           if (edits.length) ctx.edit(dk, edits);
         },
       };
@@ -151,7 +147,7 @@ function moveSpecs(key: DataColumnKey, row: DataRow, rowIndex: number, ctx: Ctx)
         commit: (v) => {
           if (v === 'question' || v === 'other') {
             ctx.setPending(m.id, v);
-            ctx.editKind(rowIndex);
+            ctx.editKind(rowKey(row));
           } else {
             ctx.setPending(m.id, null);
           }
@@ -194,7 +190,7 @@ function moveSpecs(key: DataColumnKey, row: DataRow, rowIndex: number, ctx: Ctx)
   return null;
 }
 
-function specFor(col: DataColumn, row: DataRow, rowIndex: number, seq: number, ctx: Ctx): Spec {
+function specFor(col: DataColumn, row: DataRow, seq: number, ctx: Ctx): Spec {
   const g = row.group;
   const c = g.component;
   const dk = g.diagramKey;
@@ -219,9 +215,9 @@ function specFor(col: DataColumn, row: DataRow, rowIndex: number, seq: number, c
         return {
           mode: 'text', node: muted(g.clipSuggestion), initial: g.clipSuggestion,
           title: 'Suggested from the info box. Edit it, or press Enter to keep it.',
-          commit: (v) => {
-            const next = v.trim();
-            if (next) ctx.edit(dk, [{ kind: 'episode', field: 'clip', value: next }]);
+          commit: (v, via) => {
+            const edits = clipCommit(v, via, g.clipSuggestion!);
+            if (edits.length) ctx.edit(dk, edits);
           },
         };
       }
@@ -276,7 +272,7 @@ function specFor(col: DataColumn, row: DataRow, rowIndex: number, seq: number, c
     case 'note':
       return { mode: 'readonly', node: c?.note ?? '', title: c?.note ? 'Edit notes in the Notes panel' : undefined };
     default:
-      return moveSpecs(col.key, row, rowIndex, ctx) ?? { mode: 'readonly', node: '' };
+      return moveSpecs(col.key, row, ctx) ?? { mode: 'readonly', node: '' };
   }
 }
 
@@ -284,14 +280,14 @@ function specFor(col: DataColumn, row: DataRow, rowIndex: number, seq: number, c
 
 interface RowProps {
   row: DataRow;
-  rowIndex: number;
   seq: number;
   editingCol: DataColumnKey | null;
   pendingType: 'question' | 'other' | undefined;
   codebook: Codebook | null;
   actions: Omit<Ctx, 'codebook' | 'pendingType'> & {
-    startEdit: (rowIndex: number, col: DataColumnKey) => void;
-    stopEdit: () => void;
+    startEdit: (key: string, col: DataColumnKey) => void;
+    /** Closes the editor; `refocus` returns keyboard focus to the cell. */
+    stopEdit: (key: string, col: DataColumnKey, refocus: boolean) => void;
   };
 }
 
@@ -318,15 +314,17 @@ function rowAt(offsets: number[], y: number): number {
   return Math.max(0, lo);
 }
 
-const GridRow = memo(function GridRow({ row, rowIndex, seq, editingCol, pendingType, codebook, actions }: RowProps) {
+const GridRow = memo(function GridRow({ row, seq, editingCol, pendingType, codebook, actions }: RowProps) {
   const ctx: Ctx = { ...actions, codebook, pendingType };
+  const key = rowKey(row);
   const continuation = !row.firstOfGroup;
   const rule = row.firstOfEpisode ? RULE_EPISODE : row.firstOfGroup ? RULE_GROUP : RULE_ROW;
 
   return (
-    <tr data-key={rowKey(row)}>
+    <tr data-key={key}>
       {VISIBLE.map((col) => {
-        const spec = specFor(col, row, rowIndex, seq, ctx);
+        const spec = specFor(col, row, seq, ctx);
+        const stop = (refocus: boolean) => actions.stopEdit(key, col.key, refocus);
         const gray = continuation && col.repeats;
         const sticky = STICKY_KEYS.includes(col.key);
         const editing = editingCol === col.key && spec.mode !== 'readonly';
@@ -346,20 +344,23 @@ const GridRow = memo(function GridRow({ row, rowIndex, seq, editingCol, pendingT
         let body: ReactNode = spec.node;
         if (editing && spec.mode === 'text') {
           body = (
-            <TextEditor
-              initial={spec.initial}
-              multiline={spec.multiline}
-              onCommit={(v) => { actions.stopEdit(); spec.commit(v); }}
-              onCancel={actions.stopEdit}
-            />
+            <>
+              <TextEditor
+                initial={spec.initial}
+                multiline={spec.multiline}
+                onCommit={(v, via) => { stop(via === 'enter'); spec.commit(v, via); }}
+                onCancel={() => stop(true)}
+              />
+              {spec.aside && <div className="text-[11px]" style={{ color: '#808080' }}>{spec.aside}</div>}
+            </>
           );
         } else if (editing && spec.mode === 'select') {
           body = (
             <SelectEditor
               value={spec.value}
               options={spec.options}
-              onCommit={(v) => { actions.stopEdit(); spec.commit(v); }}
-              onDismiss={(reason) => { actions.stopEdit(); spec.dismiss?.(reason); }}
+              onCommit={(v) => { stop(true); spec.commit(v); }}
+              onDismiss={(reason) => { stop(reason === 'escape'); spec.dismiss?.(reason); }}
             />
           );
         } else if (spec.open) {
@@ -373,17 +374,18 @@ const GridRow = memo(function GridRow({ row, rowIndex, seq, editingCol, pendingT
         return (
           <td
             key={col.key}
+            data-cell={`${key}|${col.key}`}
             style={style}
             title={spec.title}
             tabIndex={editable && !editing ? 0 : undefined}
             className={`px-1! py-0.5! align-top text-[12px] leading-[16px] ${editable && !editing ? 'cursor-text hover:bg-[var(--hover)]! focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--accent)]' : ''}`}
-            onClick={editable && !editing ? () => actions.startEdit(rowIndex, col.key) : undefined}
+            onClick={editable && !editing ? () => actions.startEdit(key, col.key) : undefined}
             onKeyDown={
               editable && !editing
                 ? (e) => {
                     if (e.key === 'Enter' || e.key === 'F2') {
                       e.preventDefault();
-                      actions.startEdit(rowIndex, col.key);
+                      actions.startEdit(key, col.key);
                     }
                   }
                 : undefined
@@ -412,9 +414,11 @@ export interface DataGridProps {
 
 export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: DataGridProps) {
   const [widths, setWidths] = useState<Record<string, number>>(loadWidths);
-  const [editing, setEditing] = useState<{ row: number; col: DataColumnKey } | null>(null);
+  // The open editor is tracked by row identity, never by index, so rows
+  // shifting under it (live edits, reload, filters) can't retarget it.
+  const [editing, setEditing] = useState<{ key: string; col: DataColumnKey } | null>(null);
   const [pending, setPendingState] = useState<Record<string, 'question' | 'other'>>({});
-  const drag = useRef<{ key: string; startX: number; startW: number } | null>(null);
+  const drag = useRef<{ key: string; startX: number; startW: number; w: number } | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const tbody = useRef<HTMLTableSectionElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -429,6 +433,8 @@ export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: Data
     return () => ro.disconnect();
   }, []);
 
+  const indexByKey = useMemo(() => new Map(rows.map((r, i) => [rowKey(r), i])), [rows]);
+
   const offsets = useMemo(() => {
     const out = new Array<number>(rows.length + 1);
     out[0] = 0;
@@ -440,7 +446,11 @@ export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: Data
   const start = rowAt(offsets, Math.max(0, scrollTop - OVERSCAN_PX));
   const end = Math.min(rows.length, rowAt(offsets, scrollTop + viewportH + OVERSCAN_PX) + 1);
   // Keep the row being edited mounted so its editor survives a scroll.
-  const editRow = editing && editing.row < rows.length ? editing.row : null;
+  const editRow = editing ? (indexByKey.get(editing.key) ?? null) : null;
+  // The edited row is gone (deleted, filtered out): close the editor without
+  // committing anything. Setting state during render is React's documented
+  // way to adjust state to new props.
+  if (editing && editRow === null) setEditing(null);
 
   // Measure what mounted; a changed height re-runs the window math once.
   // Runs after every render on purpose (any render can mount rows or change
@@ -479,9 +489,21 @@ export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: Data
       open: onOpen,
       speaker,
       setPending,
-      editKind: (row) => setEditing({ row, col: 'untyped_kind' }),
-      startEdit: (row, col) => setEditing({ row, col }),
-      stopEdit: () => setEditing(null),
+      editKind: (key) => setEditing({ key, col: 'untyped_kind' }),
+      startEdit: (key, col) => setEditing({ key, col }),
+      stopEdit: (key, col, refocus) => {
+        // Only close the editor that asked; a Type pick may already have opened Kind.
+        setEditing((cur) => (cur && cur.key === key && cur.col === col ? null : cur));
+        if (!refocus) return;
+        requestAnimationFrame(() => {
+          const active = document.activeElement;
+          // Another editor took focus (Type → Kind); leave it there.
+          if (active && scroller.current?.contains(active) && active.matches('input, textarea, select')) return;
+          scroller.current
+            ?.querySelector<HTMLElement>(`td[data-cell="${CSS.escape(`${key}|${col}`)}"]`)
+            ?.focus({ preventScroll: true });
+        });
+      },
     }),
     [onEdit, onOpen, speaker, setPending],
   );
@@ -502,18 +524,20 @@ export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: Data
     e.preventDefault();
     e.stopPropagation();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    drag.current = { key: col.key, startX: e.clientX, startW: widthOf(col) };
+    drag.current = { key: col.key, startX: e.clientX, startW: widthOf(col), w: widthOf(col) };
   };
   const onResizeMove = (e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
     const w = Math.max(MIN_WIDTH, Math.round(d.startW + e.clientX - d.startX));
+    d.w = w;
     setWidths((prev) => (prev[d.key] === w ? prev : { ...prev, [d.key]: w }));
   };
   const onResizeEnd = () => {
-    if (!drag.current) return;
+    const d = drag.current;
+    if (!d) return;
     drag.current = null;
-    setWidths((prev) => { saveWidths(prev); return prev; });
+    saveWidths({ ...widths, [d.key]: d.w });
   };
 
   const seqW = widthOf(VISIBLE[0]);
@@ -523,9 +547,8 @@ export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: Data
     <GridRow
       key={rowKey(rows[i])}
       row={rows[i]}
-      rowIndex={i}
       seq={seqs[i]}
-      editingCol={editing?.row === i ? editing.col : null}
+      editingCol={editRow === i ? editing!.col : null}
       pendingType={rows[i].untyped ? pending[rows[i].untyped!.id] : undefined}
       codebook={codebook}
       actions={actions}
@@ -596,12 +619,10 @@ export function DataGrid({ rows, seqs, codebook, onEdit, onOpen, speaker }: Data
                   onPointerUp={onResizeEnd}
                   onPointerCancel={onResizeEnd}
                   onDoubleClick={() => {
-                    setWidths((prev) => {
-                      const next = { ...prev };
-                      delete next[col.key];
-                      saveWidths(next);
-                      return next;
-                    });
+                    const next = { ...widths };
+                    delete next[col.key];
+                    setWidths(next);
+                    saveWidths(next);
                   }}
                 />
               </th>
