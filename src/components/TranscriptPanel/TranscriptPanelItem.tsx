@@ -106,7 +106,7 @@ export function TranscriptPanelItem({
 
   const dragTooltip = !canDrag
     ? incompatible
-      ? 'Support elements require teacher or student contributor.'
+      ? 'Responsive move elements require teacher or student contributor.'
       : 'Set contributor and object type first.'
     : '';
 
@@ -262,7 +262,7 @@ export function TranscriptPanelItem({
           className="text-[10px] mt-1"
           style={{ color: theme.danger.fg }}
         >
-          Support requires teacher or student contributor.
+          Responsive move requires teacher or student contributor.
         </div>
       )}
     </div>

@@ -395,7 +395,7 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
         style={{ borderColor: theme.sidebar.border }}
       >
         <SectionHeader
-          label="Support"
+          label="Responsive move"
           section="support"
           isExpanded={expandedSections.support}
         />

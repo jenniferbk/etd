@@ -10,8 +10,8 @@ interface AboutModalProps {
 export function AboutModal({ open, onClose }: AboutModalProps) {
   const features: string[] = [
     'Build Extended Toulmin diagrams by dragging from the palette to the canvas.',
-    'Six argument types (claim, data, warrant, backing, qualifier, rebuttal), three support types (action, question, other), and an info box for episode metadata.',
-    'Argument contributors: Given, Teacher, Student, Joint, Implicit. Support contributors: Teacher, Student. Border colors and styles reflect the contributor.',
+    'Six argument types (claim, data, warrant, backing, qualifier, rebuttal), three responsive move types (action, question, other), and an info box for episode metadata.',
+    'Argument contributors: Given, Teacher, Student, Joint, Implicit. Responsive move contributors: Teacher, Student. Border colors and styles reflect the contributor.',
     'Orthogonal connectors auto-route in Manhattan paths. Drag segment midpoints to reshape; drag edge anchors to slide endpoints along a box. Hover an anchor to reset.',
     'Warrants, backings, and rebuttals attach perpendicularly to the data→claim arrow they qualify. Drag a qualifier from the palette onto a connection line to attach it; it slides along the line and rebuttals targeting it render as a vertical line through the qualifier.',
     'Claims that supply data to another claim are auto-labeled "DataClaim"; claims that warrant another are auto-labeled "WarrantClaim". Labels update live as connections change, and any custom rename is preserved.',

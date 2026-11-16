@@ -172,7 +172,7 @@ export function ContextMenu({
           className={menuItemClass}
         >
           <Slash size={16} />
-          {connectionType === 'counterclaim' ? 'Mark as support' : 'Mark as counterclaim'}
+          {connectionType === 'counterclaim' ? 'Mark as responsive move' : 'Mark as counterclaim'}
         </button>
       )}
 

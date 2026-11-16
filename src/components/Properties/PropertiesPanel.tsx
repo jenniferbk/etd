@@ -37,7 +37,7 @@ const SUPPORT_CONTRIBUTOR_TYPES: { value: SupportContributor; label: string }[] 
 ];
 
 const CONNECTION_TYPES: { value: ConnectionType; label: string }[] = [
-  { value: 'support', label: 'Support' },
+  { value: 'support', label: 'Responsive move' },
   { value: 'counterclaim', label: 'Counterclaim' },
 ];
 
@@ -495,7 +495,7 @@ export function PropertiesPanel() {
                   className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={selectStyle}
                 >
-                  <option value="">To Support...</option>
+                  <option value="">To responsive move…</option>
                   <option value="action">Action</option>
                   <option value="question">Question</option>
                   {QUESTION_SUBTYPES.length > 0 && (
@@ -507,7 +507,7 @@ export function PropertiesPanel() {
                       ))}
                     </optgroup>
                   )}
-                  <optgroup label="Other Support">
+                  <optgroup label="Other responsive move">
                     {OTHER_SUBTYPES.map((subtype) => (
                       <option key={subtype.value} value={`other:${subtype.value}`}>
                         {subtype.label}

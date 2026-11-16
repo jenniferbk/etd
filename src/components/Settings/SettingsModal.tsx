@@ -40,7 +40,7 @@ function SettingsModalInner({ onClose }: { onClose: () => void }) {
 
   const handleResetAllTypeStyles = () => {
     const ok = window.confirm(
-      'Reset all argument and support type styles to defaults? This does NOT affect your custom subtypes.'
+      'Reset all argument and responsive move type styles to defaults? This does NOT affect your custom subtypes.'
     );
     if (!ok) return;
     const defaults = createCurrentDefaults();

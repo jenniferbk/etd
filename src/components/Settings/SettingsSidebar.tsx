@@ -57,7 +57,7 @@ export function SettingsSidebar({ config, selection, onSelect }: SettingsSidebar
 
       <div className="px-3 mt-4 mb-2">
         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: theme.sidebar.muted }}>
-          Supports
+          Responsive moves
         </span>
       </div>
       {SUPPORT_TYPES.map((type) => {
