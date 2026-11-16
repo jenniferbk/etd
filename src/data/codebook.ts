@@ -81,3 +81,41 @@ export function discoverKinds(docs: LiveDoc[]): { id: string; label: string; typ
 export function unknownSubtypes(docs: LiveDoc[], cb: Codebook) {
   return discoverKinds(docs).filter((k) => !byId(cb, k.id));
 }
+
+export interface PlannedKind { id: string; label: string; type: KindType }
+
+const labelKey = (label: string, id: string) => (label.trim() || id).toLowerCase();
+
+/** Plans how to bring discovered kinds into a group's codebook while keeping labels
+ *  unique. Same label (trimmed, case-insensitive) means the same concept: the first id
+ *  keeps the label; later ids are added under `label (idprefix)` and merged into it, so
+ *  every id still resolves. `existing` null means the codebook is empty (init path). */
+export function planCodebookAdditions(
+  existing: Codebook | null,
+  discovered: PlannedKind[],
+): { init: PlannedKind[]; add: PlannedKind[]; mergeInto: { id: string; into: string }[] } {
+  const owner = new Map<string, string>(); // label key -> id that holds the label
+  const known = new Set<string>();
+  for (const k of existing?.kinds ?? []) {
+    known.add(k.id);
+    if (k.mergedInto === undefined) owner.set(labelKey(k.label, k.id), k.id);
+  }
+  const init: PlannedKind[] = [];
+  const add: PlannedKind[] = [];
+  const mergeInto: { id: string; into: string }[] = [];
+  for (const d of discovered) {
+    if (known.has(d.id)) continue;
+    known.add(d.id);
+    const label = d.label.trim() || d.id;
+    const key = label.toLowerCase();
+    const holder = owner.get(key);
+    if (holder === undefined) {
+      owner.set(key, d.id);
+      (existing === null ? init : add).push({ id: d.id, label, type: d.type });
+    } else {
+      add.push({ id: d.id, label: `${label} (${d.id.slice(0, 8)})`, type: d.type });
+      mergeInto.push({ id: d.id, into: holder });
+    }
+  }
+  return { init, add, mergeInto };
+}

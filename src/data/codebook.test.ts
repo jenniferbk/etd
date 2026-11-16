@@ -3,7 +3,7 @@ import type { Codebook, CodebookKind } from './types';
 import type { StyleConfig } from '../types/styleConfig';
 import type { LiveDoc } from '../live/ops';
 import {
-  resolveKind, mirrorIntoStyleConfig, discoverKinds, findKindByLabel, activeKinds, unknownSubtypes,
+  resolveKind, mirrorIntoStyleConfig, discoverKinds, findKindByLabel, activeKinds, unknownSubtypes, planCodebookAdditions,
 } from './codebook';
 
 const kind = (o: Partial<CodebookKind> & { id: string }): CodebookKind => ({
@@ -86,5 +86,38 @@ describe('codebook', () => {
     expect(findKindByLabel(c, 'gone')).toBeUndefined();
     expect(findKindByLabel(c, 'retired')?.id).toBe('r');
     expect(findKindByLabel(c, 'retired', 'question')).toBeUndefined();
+  });
+
+  describe('planCodebookAdditions', () => {
+    const q = (id: string, label: string) => ({ id, label, type: 'question' as const });
+
+    it('init sends one kind per label and merges the other ids into it', () => {
+      const plan = planCodebookAdditions(null, [q('aaaaaaaa-1', 'Why'), q('bbbbbbbb-2', 'Why'), q('c', 'Other')]);
+      expect(plan.init.map((k) => k.id)).toEqual(['aaaaaaaa-1', 'c']);
+      expect(plan.add).toEqual([q('bbbbbbbb-2', 'Why (bbbbbbbb)')]);
+      expect(plan.mergeInto).toEqual([{ id: 'bbbbbbbb-2', into: 'aaaaaaaa-1' }]);
+    });
+
+    it('unknown whose label matches an existing kind is added disambiguated and merged', () => {
+      const plan = planCodebookAdditions(cb([kind({ id: 'a', label: 'Why' })]), [q('a', 'Why'), q('newid-123456', 'Why')]);
+      expect(plan.init).toEqual([]);
+      expect(plan.add).toEqual([q('newid-123456', 'Why (newid-12)')]);
+      expect(plan.mergeInto).toEqual([{ id: 'newid-123456', into: 'a' }]);
+    });
+
+    it('matches labels case-insensitively and ignoring whitespace', () => {
+      const plan = planCodebookAdditions(cb([kind({ id: 'a', label: 'Why' })]), [q('b', '  wHY ')]);
+      expect(plan.mergeInto).toEqual([{ id: 'b', into: 'a' }]);
+    });
+
+    it('a distinct unknown label is a plain add', () => {
+      const plan = planCodebookAdditions(cb([kind({ id: 'a', label: 'Why' })]), [q('b', 'How')]);
+      expect(plan).toEqual({ init: [], add: [q('b', 'How')], mergeInto: [] });
+    });
+
+    it('empty label uses the id', () => {
+      const plan = planCodebookAdditions(null, [q('xyz', '  ')]);
+      expect(plan.init).toEqual([q('xyz', 'xyz')]);
+    });
   });
 });

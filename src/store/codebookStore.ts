@@ -1,11 +1,13 @@
 import { create } from 'zustand';
 import type { Codebook, KindType } from '../data/types';
 import type { LiveDoc } from '../live/ops';
-import { discoverKinds, unknownSubtypes } from '../data/codebook';
+import { discoverKinds, planCodebookAdditions } from '../data/codebook';
 import * as codebookApi from '../api/codebook';
 import { ApiError } from '../api/client';
 
 const UNCATEGORIZED = '[uncategorized]';
+// Exact message from server/src/routes/codebook.ts for an add whose id already exists.
+const DUP_ID = 'kind id already exists';
 
 interface CodebookState {
   byGroup: Record<number, Codebook>;
@@ -32,29 +34,28 @@ export const useCodebookStore = create<CodebookState>((set) => {
 
     async ensure(groupId, docs = []) {
       let cb = await refresh(groupId);
-      if (cb.kinds.length === 0) {
-        const found = discoverKinds(docs);
-        if (found.length === 0) return cb;
+      const found = discoverKinds(docs);
+      let plan = planCodebookAdditions(cb.kinds.length === 0 ? null : cb, found);
+      if (cb.kinds.length === 0 && plan.init.length > 0) {
         try {
-          return store(groupId, await codebookApi.initCodebook(
-            groupId, found.map((k) => ({ ...k, category: UNCATEGORIZED })),
-          ));
+          await codebookApi.initCodebook(groupId, plan.init.map((k) => ({ ...k, category: UNCATEGORIZED })));
         } catch (e) {
           if (!isConflict(e)) throw e;
-          // Someone else initialized first; fall through and add what is still unknown.
+          // Someone else initialized first; plan again against what they wrote.
           cb = await refresh(groupId);
+          plan = planCodebookAdditions(cb, found);
         }
       }
-      const unknown = unknownSubtypes(docs, cb);
-      if (unknown.length === 0) return cb;
-      for (const k of unknown) {
+      if (plan.add.length === 0) return refresh(groupId);
+      for (const k of plan.add) {
         try {
-          await codebookApi.addKind(groupId, { id: k.id, label: k.label, category: UNCATEGORIZED, type: k.type });
+          await codebookApi.addKind(groupId, { ...k, category: UNCATEGORIZED });
         } catch (e) {
-          // A concurrent add of the same id or label; the refresh below picks it up.
-          if (!isConflict(e)) throw e;
+          // Only a concurrent add of the same id is ignorable; anything else is a real failure.
+          if (!(isConflict(e) && (e as ApiError).message === DUP_ID)) throw e;
         }
       }
+      for (const m of plan.mergeInto) await codebookApi.mergeKind(groupId, m.id, m.into);
       return refresh(groupId);
     },
 
