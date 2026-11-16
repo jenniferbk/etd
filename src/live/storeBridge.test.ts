@@ -1,4 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+// No DOM here: a stand-in measure that grows with the text.
+vi.mock('../utils/textMeasure', () => ({
+  calculateElementSize: (o: { content: string; hasAttribution: boolean }) =>
+    ({ width: 0, height: Math.ceil(o.content.length / 20) * 16 + (o.hasAttribution ? 16 : 0) }),
+}));
 import {
   applyDocToStore, applyLocalOpsToStore, applyMirroredStyleConfig, docFromStore, isApplyingRemoteDoc, rebaseUndoSnapshot,
 } from './storeBridge';
@@ -71,7 +76,8 @@ describe('episode fields', () => {
     useDiagramStore.getState().loadDiagram([], [], 'E');
     applyDocToStore({ ...docFromStore(), episode: { clip: '1:00-2:00' } });
     expect(useDiagramStore.getState().episode).toEqual({ clip: '1:00-2:00' });
-    const { episode: _omit, ...rest } = docFromStore();
+    const rest = { ...docFromStore() };
+    delete rest.episode;
     applyDocToStore(rest);
     expect(useDiagramStore.getState().episode).toEqual({});
   });
@@ -85,6 +91,28 @@ describe('applyLocalOpsToStore', () => {
     expect(useDiagramStore.getState().elements[0].content).toBe('after');
     useDiagramStore.temporal.getState().undo();
     expect(useDiagramStore.getState().elements[0].content).toBe('before');
+  });
+
+  it('content and attribution edits auto-size the element like updateElement', () => {
+    useDiagramStore.setState({ elements: [el('a', 'short')], connections: [], notes: [], selectedIds: [] });
+    applyLocalOpsToStore([{ t: 'patch', c: 'elements', id: 'a', fields: { content: 'many words '.repeat(60) } }]);
+    const grown = useDiagramStore.getState().elements[0].size;
+    expect(grown.width).toBe(10);
+    expect(grown.height).toBeGreaterThan(10);
+    useDiagramStore.setState({ elements: [el('b', 'x')] });
+    applyLocalOpsToStore([{ t: 'patch', c: 'elements', id: 'b', fields: { attribution: { speaker: 'S1', timestamp: '1:00' } } }]);
+    expect(useDiagramStore.getState().elements[0].size.height).toBeGreaterThan(10);
+  });
+
+  it('a part change re-normalizes containers', () => {
+    const arg = (id: string, extra: Record<string, unknown>) =>
+      ({ id, type: 'argument', argumentType: 'claim', contributor: 'student', label: id, content: '',
+        position: { x: 0, y: 0 }, size: { width: 100, height: 60 }, ...extra }) as unknown as DiagramElement;
+    useDiagramStore.setState({ elements: [arg('box', { isContainer: true }), arg('m', { containerId: 'box' })], connections: [], notes: [], selectedIds: [] });
+    // A qualifier can't be a container; its member is released.
+    applyLocalOpsToStore([{ t: 'patch', c: 'elements', id: 'box', fields: { argumentType: 'qualifier' } }]);
+    const els = useDiagramStore.getState().elements;
+    expect(els.find((e) => e.id === 'm')!.containerId).toBeUndefined();
   });
 
   it('applyLocalOpsToStore sets episode', () => {
