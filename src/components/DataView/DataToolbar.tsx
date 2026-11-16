@@ -44,10 +44,16 @@ export interface DataToolbarProps {
   refreshing: boolean;
   onRefresh: () => void;
   onOpenCodebook: (() => void) | null;
+  onExport: () => void;
+  onImport: () => void;
+  exporting: boolean;
+  /** Why Export all / Import can't be used here; null when they can. */
+  transferDisabled: string | null;
 }
 
 export function DataToolbar({
   scopeLabel, filter, onFilter, sort, onSort, codebook, rowCount, groupCount, refreshing, onRefresh, onOpenCodebook,
+  onExport, onImport, exporting, transferDisabled,
 }: DataToolbarProps) {
   const set = <K extends keyof GroupFilter>(k: K, v: GroupFilter[K] | undefined) => {
     const next = { ...filter };
@@ -72,11 +78,23 @@ export function DataToolbar({
             <RefreshCw size={14} className={refreshing ? 'animate-spin' : undefined} />
             Refresh
           </button>
-          <button type="button" className={buttonClass} disabled title="Available soon">
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={onExport}
+            disabled={transferDisabled !== null || exporting}
+            title={transferDisabled ?? 'Download these rows as an Excel workbook'}
+          >
             <Download size={14} />
-            Export all
+            {exporting ? 'Exporting…' : 'Export all'}
           </button>
-          <button type="button" className={buttonClass} disabled title="Available soon">
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={onImport}
+            disabled={transferDisabled !== null}
+            title={transferDisabled ?? 'Import Clip, Status, SG/WC, Discipline, Type and Kind from an exported workbook'}
+          >
             <Upload size={14} />
             Import
           </button>

@@ -5,8 +5,11 @@ import type { CellEdit } from '../../data/edits';
 import type { DataSource } from '../../data/sources';
 import type { ComponentGroup } from '../../data/types';
 import { useCloudStore } from '../../store/cloudStore';
+import { useToastStore } from '../../store/toastStore';
+import { buildExportWorkbook, exportFileName } from '../../data/xlsx/exportWorkbook';
 import { DataGrid } from './DataGrid';
 import { DataToolbar, type SortState } from './DataToolbar';
+import { ImportDialog } from './ImportDialog';
 
 const rowsIn = (g: ComponentGroup) =>
   Math.max(1, g.moves.untyped.length, g.moves.question.length, g.moves.other.length);
@@ -23,6 +26,8 @@ export function DataView({ source }: { source: DataSource }) {
   const [filter, setFilter] = useState<GroupFilter>({});
   const [sort, setSort] = useState<SortState>({ key: 'order', dir: 'asc' });
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   // Typing in the search box stays responsive while a large grid re-renders.
   const deferredFilter = useDeferredValue(filter);
   const deferredSort = useDeferredValue(sort);
@@ -82,6 +87,41 @@ export function DataView({ source }: { source: DataSource }) {
     }
   };
 
+  const { groupId, groupName } = source;
+  const transferDisabled =
+    groupId === null ? 'Add this diagram to a group library to export or import'
+      : !codebook ? 'Waiting for the codebook…'
+        : null;
+
+  // Export all: every row in scope (the folder filter applies; grid filters and sort don't).
+  const onExport = async () => {
+    if (groupId === null || !codebook) return;
+    setExporting(true);
+    try {
+      const versions: Record<number, number> = {};
+      const baseVersion = useCloudStore.getState().baseVersionId;
+      for (const i of inputs) {
+        if (i.diagramId === null) continue;
+        // The open diagram's version lives in the cloud store, not on the input.
+        const v = i.versionId ?? (source.scope === 'diagram' ? baseVersion : null);
+        if (v !== null) versions[i.diagramId] = v;
+      }
+      const now = new Date();
+      const name = groupName ?? `group ${groupId}`;
+      const wb = await buildExportWorkbook(groups, codebook, { groupId, groupName: name, exportedAt: now.toISOString(), versions });
+      const buf = await wb.xlsx.writeBuffer();
+      const { saveAs } = await import('file-saver');
+      saveAs(
+        new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        exportFileName(name, now),
+      );
+    } catch (err) {
+      useToastStore.getState().addToast('error', `Export failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const scopeLabel =
     source.scope === 'diagram'
       ? 'Data · this diagram'
@@ -133,7 +173,20 @@ export function DataView({ source }: { source: DataSource }) {
         refreshing={refreshing}
         onRefresh={() => void onRefresh()}
         onOpenCodebook={source.groupId !== null ? openCodebook : null}
+        onExport={() => void onExport()}
+        onImport={() => setImportOpen(true)}
+        exporting={exporting}
+        transferDisabled={transferDisabled}
       />
+      {groupId !== null && codebook && (
+        <ImportDialog
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          groupId={groupId}
+          codebook={codebook}
+          onApplied={reload}
+        />
+      )}
       <div className={`min-h-0 flex-1 bg-white! ${isGrid ? '' : 'overflow-auto'}`}>{body}</div>
     </div>
   );
