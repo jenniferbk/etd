@@ -507,7 +507,7 @@ export function PropertiesPanel() {
                       ))}
                     </optgroup>
                   )}
-                  <optgroup label="Other responsive move">
+                  <optgroup label="Other responsive moves">
                     {OTHER_SUBTYPES.map((subtype) => (
                       <option key={subtype.value} value={`other:${subtype.value}`}>
                         {subtype.label}
