@@ -201,7 +201,8 @@ function writeDataSheet(ws: Worksheet, rows: DataRow[]) {
     ],
   });
 
-  // Dropdowns. `dataValidations` is exceljs's range-keyed model (not in its typings).
+  // Dropdowns. `dataValidations` is exceljs's range-keyed internal model (not in its
+  // typings); this relies on the pinned exceljs 4.4.0 — re-check on any upgrade.
   const dvs = (ws as unknown as { dataValidations: { add(range: string, dv: object): void } }).dataValidations;
   const list = (key: DataColumnKey, formula: string, showErrorMessage = true) =>
     dvs.add(`${L(key)}${FIRST_DATA_ROW}:${L(key)}${last}`, {

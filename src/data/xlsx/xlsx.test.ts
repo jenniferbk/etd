@@ -6,7 +6,7 @@ import { editsToOps } from '../edits';
 import { applyOps, type LiveDoc } from '../../live/ops';
 import type { Codebook, CodebookKind, DataColumnKey, DiagramDocInput } from '../types';
 import { buildExportWorkbook, colLetter, exportFileName, loadExcelJS } from './exportWorkbook';
-import { NotAnExportError, planImport, planToEdits, readExportWorkbook } from './importWorkbook';
+import { NotAnExportError, planImport, planToEdits, plansDiffer, readExportWorkbook, summarizeEdits } from './importWorkbook';
 
 // ---- synthetic fixtures (no real diagram content)
 
@@ -342,6 +342,96 @@ describe('xlsx import', () => {
     const typed = await editSheet(base, (ws) => { ws.getCell(r(ws), col('clip')).value = '1:05-2:00'; });
     expect(planImport(await readExportWorkbook(typed), currentOf(fresh()), makeCb()).changes.map((c) => c.edit))
       .toEqual([{ kind: 'episode', field: 'clip', value: '1:05-2:00' }]);
+  });
+
+  it('a kind merged after export is neither a change nor a conflict, and a recode still applies', async () => {
+    const base = await exportOf(fresh());
+    const cb = makeCb();
+    // After the export, Clarify (kq1) is merged into Justify (kq2); qm1 still stores kq1.
+    Object.assign(cb.kinds.find((k) => k.id === 'kq1')!, { status: 'retired', mergedInto: 'kq2' });
+    const untouched = planImport(await readExportWorkbook(base), currentOf(fresh()), cb);
+    expect(untouched.changes).toEqual([]);
+    expect(untouched.conflicts).toEqual([]);
+    const recoded = await editSheet(base, (ws) => {
+      ws.getCell(rowWhere(ws, 'move_id_question', 'qm1'), col('question_kind')).value = '';
+    });
+    const plan = planImport(await readExportWorkbook(recoded), currentOf(fresh()), cb);
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.changes.map((c) => c.edit)).toEqual([{ kind: 'moveKind', moveId: 'qm1', kindId: null }]);
+  });
+
+  it('episode fields conflict when the diagram changed them, including a Clip stored over the suggestion', async () => {
+    const buf = await editSheet(await exportOf(fresh()), (ws) => {
+      const r = rowWhere(ws, 'move_id_question', 'qm1');
+      ws.getCell(r, col('status')).value = 'vetted';
+      ws.getCell(r, col('clip')).value = '1:10-2:00';
+    });
+    const a = docA();
+    a.episode = { clip: '0:55-2:05' }; // Status cleared and Clip confirmed in the app since export
+    const plan = planImport(await readExportWorkbook(buf), currentOf([[1, a], [2, docB()]]), makeCb());
+    expect(plan.changes).toEqual([]);
+    expect(plan.conflicts.map((c) => [c.key, c.diagramValue, c.sheet]).sort()).toEqual([
+      ['episode:1:clip', '0:55-2:05', { kind: 'episode', field: 'clip', value: '1:10-2:00' }],
+      ['episode:1:status', '(blank)', { kind: 'episode', field: 'status', value: 'vetted' }],
+    ]);
+    expect(planToEdits(plan, () => 'diagram').size).toBe(0);
+    expect(planToEdits(plan, (k) => (k === 'episode:1:clip' ? 'sheet' : 'diagram')).get(1))
+      .toEqual([{ kind: 'episode', field: 'clip', value: '1:10-2:00' }]);
+  });
+
+  it('a Type-only change conflicts when the move was retyped since export', async () => {
+    const buf = await editSheet(await exportOf(fresh()), (ws) => {
+      ws.getCell(rowWhere(ws, 'move_id_untyped', 'u1'), col('untyped_type')).value = 'Other';
+    });
+    const a = docA();
+    a.elements.find((e) => e.id === 'u1')!.supportType = 'question';
+    const plan = planImport(await readExportWorkbook(buf), currentOf([[1, a], [2, docB()]]), makeCb());
+    expect(plan.changes).toEqual([]);
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0]).toMatchObject({ key: 'move:1:u1:type', diagramValue: 'Question', sheet: { kind: 'moveType', moveId: 'u1', supportType: 'other' } });
+    expect(planToEdits(plan, () => 'diagram').size).toBe(0);
+    expect(planToEdits(plan, () => 'sheet').get(1)).toEqual([{ kind: 'moveType', moveId: 'u1', supportType: 'other' }]);
+  });
+
+  it('plansDiffer flags a re-plan that would write or ask something new', async () => {
+    const buf = await editSheet(await exportOf(fresh()), (ws) => {
+      ws.getCell(rowWhere(ws, 'move_id_question', 'qm1'), col('question_kind')).value = 'Justify';
+    });
+    const read = await readExportWorkbook(buf);
+    const cb = makeCb();
+    const before = planImport(read, currentOf(fresh()), cb);
+    // Unrelated edit (a rename) while reviewing: same plan.
+    const renamed = docA();
+    renamed.name = 'Episode A (renamed)';
+    expect(plansDiffer(before, planImport(read, currentOf([[1, renamed], [2, docB()]]), cb))).toBe(false);
+    // A teammate recodes the same move: the change becomes a conflict.
+    const recoded = docA();
+    recoded.elements.find((e) => e.id === 'qm1')!.subtype = 'kq3';
+    const after = planImport(read, currentOf([[1, recoded], [2, docB()]]), cb);
+    expect(after.conflicts).toHaveLength(1);
+    expect(plansDiffer(before, after)).toBe(true);
+    // The conflict's diagram value changes again: still material.
+    const again = docA();
+    again.elements.find((e) => e.id === 'qm1')!.subtype = 'kq2x';
+    expect(plansDiffer(after, planImport(read, currentOf([[1, again], [2, docB()]]), cb))).toBe(true);
+    // The move is deleted: the change becomes a skip.
+    const gone = docA();
+    gone.elements = gone.elements.filter((e) => e.id !== 'qm1');
+    expect(plansDiffer(before, planImport(read, currentOf([[1, gone], [2, docB()]]), cb))).toBe(true);
+  });
+
+  it('summary counts follow conflict choices and drop Kinds whose retype is kept', async () => {
+    const buf = await editSheet(await exportOf(fresh()), (ws) => {
+      const r = rowWhere(ws, 'move_id_untyped', 'u2');
+      ws.getCell(r, col('untyped_type')).value = 'Question';
+      ws.getCell(r, col('untyped_kind')).value = 'Justify';
+    });
+    const a = docA();
+    a.elements.find((e) => e.id === 'u2')!.supportType = 'other';
+    const plan = planImport(await readExportWorkbook(buf), currentOf([[1, a], [2, docB()]]), makeCb());
+    expect(summarizeEdits(planToEdits(plan, () => 'diagram'))).toEqual({ movesRecoded: 0, diagrams: 0, episodeFields: 0 });
+    expect(summarizeEdits(planToEdits(plan, () => 'sheet'))).toEqual({ movesRecoded: 1, diagrams: 1, episodeFields: 0 });
+    expect(plan.summary).toEqual({ movesRecoded: 0, diagrams: 0, episodeFields: 0 });
   });
 
   it('a non-export workbook throws NotAnExportError', async () => {

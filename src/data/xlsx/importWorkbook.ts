@@ -377,7 +377,9 @@ export function planImport(read: ReadWorkbook, current: Map<number, LiveDoc | nu
       const label = kindId === null ? '(blank)' : `“${resolveKind(cb, kindId).label}”`;
       const describe = `${diagramName(d)} · move ${moveName(el, t.moveId)} → Kind ${label}`;
       const extra = dependsOn ? { dependsOn } : {};
-      if (curId !== got.original.value) {
+      // Re-resolve the export-time id too, so a merge since the export isn't a conflict.
+      const origId = got.original.value ? resolveKind(cb, got.original.value).id : '';
+      if (curId !== origId) {
         conflicts.push({ key, diagramId: d, describe, sheet: edit, diagramValue: kindName(curId) || '(blank)', ...extra });
       } else {
         changes.push({ diagramId: d, edit, describe, ...extra });
@@ -407,15 +409,35 @@ export function planImport(read: ReadWorkbook, current: Map<number, LiveDoc | nu
   }
 
   skipped.sort((a, b) => a.row - b.row);
+  const plan: ImportPlan = { changes, conflicts, skipped, summary: { movesRecoded: 0, diagrams: 0, episodeFields: 0 } };
+  // Plain changes only; conflicts count once a choice is made (see summarizeEdits).
+  plan.summary = summarizeEdits(planToEdits(plan, () => 'diagram'));
+  return plan;
+}
+
+/** Counts for what will actually be written. */
+export function summarizeEdits(edits: Map<number, CellEdit[]>): ImportPlan['summary'] {
   const moves = new Set<string>();
-  const diagrams = new Set<number>();
   let episodeFields = 0;
-  for (const c of changes) {
-    diagrams.add(c.diagramId);
-    if (c.edit.kind === 'episode') episodeFields++;
-    else if (c.edit.kind === 'moveType' || c.edit.kind === 'moveKind') moves.add(`${c.diagramId}:${c.edit.moveId}`);
+  for (const [d, list] of edits) {
+    for (const e of list) {
+      if (e.kind === 'episode') episodeFields++;
+      else if (e.kind === 'moveType' || e.kind === 'moveKind') moves.add(`${d}:${e.moveId}`);
+    }
   }
-  return { changes, conflicts, skipped, summary: { movesRecoded: moves.size, diagrams: diagrams.size, episodeFields } };
+  return { movesRecoded: moves.size, diagrams: [...edits.values()].filter((l) => l.length > 0).length, episodeFields };
+}
+
+/** True when a re-plan against fresher diagrams would write or ask something the
+ *  user didn't review: any change, conflict (incl. the diagram's value), or skip differs.
+ *  Descriptions are ignored (a diagram rename alone isn't material). */
+export function plansDiffer(a: ImportPlan, b: ImportPlan): boolean {
+  const sig = (p: ImportPlan) => JSON.stringify({
+    changes: p.changes.map((c) => [c.diagramId, c.edit, c.dependsOn ?? null]),
+    conflicts: p.conflicts.map((c) => [c.key, c.diagramId, c.sheet, c.diagramValue, c.dependsOn ?? null]),
+    skipped: p.skipped.map((s) => [s.row, s.reason]),
+  });
+  return sig(a) !== sig(b);
 }
 
 const RANK: Partial<Record<CellEdit['kind'], number>> = { episode: 0, moveType: 1, moveKind: 2 };

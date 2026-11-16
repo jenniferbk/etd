@@ -4,11 +4,12 @@ import { theme } from '../../utils/theme';
 import { api, ApiError } from '../../api/client';
 import { friendlyError } from '../../api/friendlyError';
 import { useToastStore } from '../../store/toastStore';
-import { editsToOps } from '../../data/edits';
+import { editsToOps, type CellEdit } from '../../data/edits';
 import type { LiveDoc, Op } from '../../live/ops';
 import type { Codebook } from '../../data/types';
 import {
-  NotAnExportError, planImport, planToEdits, readExportWorkbook, type ImportPlan, type ReadWorkbook,
+  NotAnExportError, planImport, planToEdits, plansDiffer, readExportWorkbook, summarizeEdits,
+  type ImportPlan, type ReadWorkbook,
 } from '../../data/xlsx/importWorkbook';
 
 interface ImportDialogProps {
@@ -34,8 +35,9 @@ interface ApplyResult {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-function summaryLine(plan: ImportPlan): string {
-  const { movesRecoded, diagrams, episodeFields } = plan.summary;
+/** Counts follow the current conflict choices, so they match what Apply writes. */
+function summaryLine(plan: ImportPlan, edits: Map<number, CellEdit[]>): string {
+  const { movesRecoded, diagrams, episodeFields } = summarizeEdits(edits);
   return [
     `${plural(movesRecoded, 'move')} recoded in ${plural(diagrams, 'diagram')}`,
     plural(episodeFields, 'episode field'),
@@ -69,7 +71,8 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [choices, setChoices] = useState<Map<string, 'diagram' | 'sheet'>>(new Map());
-  const [failures, setFailures] = useState<string[] | null>(null);
+  const [failures, setFailures] = useState<{ diagramId: number; text: string }[] | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const reset = () => {
     setBusy(null);
@@ -77,6 +80,7 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
     setLoaded(null);
     setChoices(new Map());
     setFailures(null);
+    setNotice(null);
   };
   const finish = () => {
     reset();
@@ -88,8 +92,16 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
   };
 
   const choose = (key: string) => choices.get(key) ?? 'diagram';
-  const edits = useMemo(() => (loaded ? planToEdits(loaded.plan, (k) => choices.get(k) ?? 'diagram') : new Map()), [loaded, choices]);
+  const edits = useMemo(
+    () => (loaded ? planToEdits(loaded.plan, (k) => choices.get(k) ?? 'diagram') : new Map<number, CellEdit[]>()),
+    [loaded, choices],
+  );
   const editCount = [...edits.values()].reduce((n, l) => n + l.length, 0);
+
+  const fetchDocs = async () => {
+    const res = await api<{ diagrams: { id: number; snapshot: LiveDoc }[] }>(`/api/groups/${groupId}/data`);
+    return new Map(res.diagrams.map((d) => [d.id, d.snapshot]));
+  };
 
   const pick = async (file: File) => {
     reset();
@@ -101,8 +113,7 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
         return;
       }
       // Always plan against the diagrams as they are now, not the grid's copy.
-      const res = await api<{ diagrams: { id: number; snapshot: LiveDoc }[] }>(`/api/groups/${groupId}/data`);
-      const docs = new Map(res.diagrams.map((d) => [d.id, d.snapshot]));
+      const docs = await fetchDocs();
       setLoaded({ fileName: file.name, read, plan: planImport(read, docs, codebook), docs });
     } catch (err) {
       // Workbook problems carry a plain message; network and server errors go through friendlyError.
@@ -117,16 +128,40 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
     if (!loaded || editCount === 0) return;
     setBusy('applying');
     setError(null);
+    setNotice(null);
+    // Teammates may have edited while this preview was open. Re-plan against the
+    // diagrams as they are now, and build ops from those (never the stale copy).
+    let docs: Map<number, LiveDoc>;
+    try {
+      docs = await fetchDocs();
+    } catch (err) {
+      setError(friendlyError(err));
+      setBusy(null);
+      return;
+    }
+    const fresh = planImport(loaded.read, docs, codebook);
+    if (plansDiffer(loaded.plan, fresh)) {
+      // Choices stay keyed by conflict, so ones that still apply carry over.
+      setLoaded({ ...loaded, plan: fresh, docs });
+      setNotice('The diagrams changed while you were reviewing — please check again.');
+      setBusy(null);
+      return;
+    }
     const name = (id: number) => {
-      const n = loaded.docs.get(id)?.name;
+      const n = docs.get(id)?.name;
       return typeof n === 'string' && n ? n : `Diagram ${id}`;
     };
     const body: { diagramId: number; ops: Op[] }[] = [];
-    for (const [diagramId, list] of edits) {
-      const doc = loaded.docs.get(diagramId);
+    for (const [diagramId, list] of planToEdits(fresh, choose)) {
+      const doc = docs.get(diagramId);
       if (!doc) continue;
       const ops = editsToOps(list, doc);
       if (ops.length) body.push({ diagramId, ops });
+    }
+    if (body.length === 0) {
+      setNotice('Nothing to apply: the diagrams already have these values.');
+      setBusy(null);
+      return;
     }
     let result: ApplyResult | null = null;
     try {
@@ -158,9 +193,8 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
       finish(); // `busy` in this closure is still 'applying', so not close()
       return;
     }
-    const lines = failed.map((f) => `${name(f.diagramId)}: ${f.error}`);
     toast('error', `Import: ${plural(failed.length, 'diagram')} could not be updated.`);
-    setFailures(lines);
+    setFailures(failed.map((f) => ({ diagramId: f.diagramId, text: `${name(f.diagramId)}: ${f.error}` })));
   };
 
   const plan = loaded?.plan;
@@ -213,6 +247,7 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
         )}
         {busy === 'reading' && <p className="mt-3! text-sm text-[var(--text-secondary)]">Reading the workbook…</p>}
         {error && <p role="alert" className="mt-3! text-sm text-red-700">{error}</p>}
+        {notice && <p role="status" className="mt-3! rounded-md bg-amber-50! px-3! py-2! text-sm text-amber-900">{notice}</p>}
 
         {failures && (
           <div role="alert">
@@ -221,14 +256,14 @@ export function ImportDialog({ open, onClose, groupId, codebook, onApplied }: Im
               already written now match the diagram.
             </p>
             <ul className="mt-2! list-disc pl-5! text-[13px] text-red-700">
-              {failures.map((f) => <li key={f}>{f}</li>)}
+              {failures.map((f, i) => <li key={`${f.diagramId}-${i}`}>{f.text}</li>)}
             </ul>
           </div>
         )}
 
         {plan && loaded && !failures && (
           <div className="mt-4!">
-            <p className="text-sm font-medium text-[var(--text)]">{summaryLine(plan)}</p>
+            <p className="text-sm font-medium text-[var(--text)]">{summaryLine(plan, edits)}</p>
             {loaded.read.exportedAt && (
               <p className="text-xs text-[var(--text-secondary)]">
                 {loaded.fileName} · exported {new Date(loaded.read.exportedAt).toLocaleString()}
