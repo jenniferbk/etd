@@ -26,6 +26,13 @@ describe('parseTimeSeconds', () => {
     expect(parseTimeSeconds('1:21:38')).toBe(4898);
     expect(parseTimeSeconds('')).toBeNull();
   });
+
+  it('drops a fractional seconds suffix and splits on en and em dashes', () => {
+    expect(parseTimeSeconds('0:09:13.2')).toBe(553);
+    expect(parseTimeSeconds('(0:09:13.2)')).toBe(553);
+    expect(parseTimeSeconds('75:07–75:58')).toBe(4507);
+    expect(parseTimeSeconds('75:07—75:58')).toBe(4507);
+  });
 });
 
 describe('buildGroups', () => {

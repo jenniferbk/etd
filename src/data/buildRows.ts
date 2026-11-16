@@ -7,9 +7,10 @@ import { resolveKind } from './codebook';
 
 const PART = { data: 'D', claim: 'C', warrant: 'W', backing: 'B', qualifier: 'Q', rebuttal: 'R' } as const;
 
-/** Seconds of the first time in a value like `75:07-75:58`. Accepts `h:mm:ss` or `mm:ss`. */
+/** Seconds of the first time in a value like `75:07-75:58` (hyphen, en or em
+ *  dash). Accepts `h:mm:ss` or `mm:ss`; a fractional `.N` on the seconds is dropped. */
 export function parseTimeSeconds(t: string): number | null {
-  const first = (t ?? '').split('-')[0];
+  const first = (t ?? '').split(/[-–—]/)[0].replace(/(\d)\.\d+/g, '$1');
   const parts = first.match(/\d+/g);
   if (!parts) return null;
   return parts.reduce((acc, p) => acc * 60 + Number(p), 0);
