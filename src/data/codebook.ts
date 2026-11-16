@@ -94,11 +94,11 @@ export function planCodebookAdditions(
   existing: Codebook | null,
   discovered: PlannedKind[],
 ): { init: PlannedKind[]; add: PlannedKind[]; mergeInto: { id: string; into: string }[] } {
-  const owner = new Map<string, string>(); // label key -> id that holds the label
+  const owner = new Map<string, { id: string; mergeable: boolean }>(); // label key -> kind holding the label
   const known = new Set<string>();
   for (const k of existing?.kinds ?? []) {
     known.add(k.id);
-    if (k.mergedInto === undefined) owner.set(labelKey(k.label, k.id), k.id);
+    if (k.mergedInto === undefined) owner.set(labelKey(k.label, k.id), { id: k.id, mergeable: k.status === 'active' });
   }
   const init: PlannedKind[] = [];
   const add: PlannedKind[] = [];
@@ -110,11 +110,12 @@ export function planCodebookAdditions(
     const key = label.toLowerCase();
     const holder = owner.get(key);
     if (holder === undefined) {
-      owner.set(key, d.id);
+      owner.set(key, { id: d.id, mergeable: true });
       (existing === null ? init : add).push({ id: d.id, label, type: d.type });
     } else {
       add.push({ id: d.id, label: `${label} (${d.id.slice(0, 8)})`, type: d.type });
-      mergeInto.push({ id: d.id, into: holder });
+      // A retired holder is not a valid merge target; add the suffixed kind and leave it unmerged.
+      if (holder.mergeable) mergeInto.push({ id: d.id, into: holder.id });
     }
   }
   return { init, add, mergeInto };

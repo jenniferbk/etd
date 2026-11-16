@@ -115,6 +115,12 @@ describe('codebook', () => {
       expect(plan).toEqual({ init: [], add: [q('b', 'How')], mergeInto: [] });
     });
 
+    it('plans no merge when the same-label kind is retired', () => {
+      const plan = planCodebookAdditions(cb([kind({ id: 'a', label: 'Why', status: 'retired' })]), [q('newid-123456', 'why')]);
+      expect(plan.add).toEqual([q('newid-123456', 'why (newid-12)')]);
+      expect(plan.mergeInto).toEqual([]);
+    });
+
     it('empty label uses the id', () => {
       const plan = planCodebookAdditions(null, [q('xyz', '  ')]);
       expect(plan.init).toEqual([q('xyz', 'xyz')]);
