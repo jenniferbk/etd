@@ -177,11 +177,15 @@ export class LiveRooms {
     if (existing) return existing;
     const row = this.db
       .prepare(
-        `SELECT d.current_version_id AS versionId, v.snapshot_gz AS gz
+        `SELECT d.current_version_id AS versionId, d.title AS title, v.snapshot_gz AS gz
          FROM diagrams d JOIN diagram_versions v ON v.id = d.current_version_id WHERE d.id = ?`,
       )
-      .get(diagramId) as { versionId: number; gz: Buffer };
-    const room = new Room(this, diagramId, toLiveDoc(unpackSnapshot(row.gz)), row.versionId);
+      .get(diagramId) as { versionId: number; title: string; gz: Buffer };
+    // The gallery title is authoritative: a rename (PATCH) updates only
+    // diagrams.title, so the snapshot's name may be stale. Without this, the
+    // next persist would write the stale name back over the rename.
+    const doc = { ...toLiveDoc(unpackSnapshot(row.gz)), name: row.title };
+    const room = new Room(this, diagramId, doc, row.versionId);
     this.rooms.set(diagramId, room);
     this.startHeartbeat();
     return room;

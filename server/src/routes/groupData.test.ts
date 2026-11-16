@@ -170,4 +170,23 @@ describe('group data endpoints', () => {
     const opened = await request(app).get(`/api/diagrams/${a}`).set(auth(adminToken));
     expect(opened.body.snapshot.elements[0].content).toBe('second');
   });
+  it('a gallery rename survives a client-less live batch and a data apply', async () => {
+    const { app, adminToken, mk } = await setup();
+    const a = await mk('Old name');
+    const title = async () =>
+      (await request(app).get('/api/groups/1/diagrams').set(auth(adminToken))).body
+        .find((d: any) => d.id === a).title as string;
+    await request(app).patch(`/api/diagrams/${a}`).set(auth(adminToken)).send({ title: 'New name' });
+    expect(await title()).toBe('New name');
+    const ops = await request(app).post(`/api/diagrams/${a}/live/ops`).set(auth(adminToken))
+      .send({ clientId: 'grid-client-1', batchId: 'b1', ops: patch('A2') });
+    expect(ops.status).toBe(200);
+    expect(await title()).toBe('New name');
+    const r = await request(app).post('/api/groups/1/data/apply').set(auth(adminToken))
+      .send({ label: 'L', edits: [{ diagramId: a, ops: patch('A3') }] });
+    expect(r.status).toBe(200);
+    expect(await title()).toBe('New name');
+    const opened = await request(app).get(`/api/diagrams/${a}`).set(auth(adminToken));
+    expect(opened.body.snapshot.name).toBe('New name');
+  });
 });

@@ -112,6 +112,15 @@ interface GroupDataDiagram {
 
 const noop = () => {};
 
+/** The new title when the ops rename the diagram (last rename wins). */
+function titleFromOps(ops: ReturnType<typeof editsToOps>): string | null {
+  let title: string | null = null;
+  for (const op of ops) {
+    if (op.t === 'set' && op.k === 'name' && typeof op.value === 'string' && op.value.trim()) title = op.value.trim();
+  }
+  return title;
+}
+
 let tabClientId: string | null = null;
 /** One live-ops client id per browser tab, distinct from any canvas live session. */
 function dataClientId(): string {
@@ -181,8 +190,9 @@ export function useLibraryDataSource(
         .filter((d) => folderId === null || d.folderId === folderId)
         .map((d) => ({
           diagramId: d.id,
-          // The doc's name is what a title edit changes; the row title is the fallback.
-          title: typeof d.snapshot.name === 'string' && d.snapshot.name ? d.snapshot.name : d.title,
+          // The gallery title is authoritative: a rename updates only the
+          // title, so the snapshot's name can be stale. Title edits update it locally.
+          title: d.title,
           versionId: d.currentVersionId,
           folderId: d.folderId,
           doc: d.snapshot,
@@ -197,8 +207,11 @@ export function useLibraryDataSource(
       if (!target) return;
       const ops = editsToOps(edits, target.snapshot);
       if (ops.length === 0) return;
+      const renamed = titleFromOps(ops);
       putDiagrams(
-        diagramsRef.current!.map((d) => (d.id === id ? { ...d, snapshot: applyOps(d.snapshot, ops) } : d)),
+        diagramsRef.current!.map((d) =>
+          d.id === id ? { ...d, title: renamed ?? d.title, snapshot: applyOps(d.snapshot, ops) } : d,
+        ),
       );
       try {
         await api<{ seq?: number; duplicate?: boolean }>(`/api/diagrams/${id}/live/ops`, {
