@@ -52,6 +52,27 @@ CREATE TABLE IF NOT EXISTS folders (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS folders_group_name ON folders (group_id, name COLLATE NOCASE);
+CREATE TABLE IF NOT EXISTS codebook_kinds (
+  group_id INTEGER NOT NULL REFERENCES groups(id),
+  id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('question','other')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','retired')),
+  merged_into TEXT,
+  position INTEGER NOT NULL,
+  PRIMARY KEY (group_id, id)
+);
+CREATE TABLE IF NOT EXISTS codebook_log (
+  id INTEGER PRIMARY KEY,
+  group_id INTEGER NOT NULL,
+  user_id INTEGER REFERENCES users(id),
+  at TEXT NOT NULL DEFAULT (datetime('now')),
+  action TEXT NOT NULL,
+  kind_id TEXT,
+  before_json TEXT,
+  after_json TEXT
+);
 CREATE TABLE IF NOT EXISTS comments (
   id INTEGER PRIMARY KEY,
   diagram_id INTEGER NOT NULL REFERENCES diagrams(id),
