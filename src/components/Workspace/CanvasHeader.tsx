@@ -41,6 +41,7 @@ export function CanvasHeader() {
   const preview = useCloudStore((s) => s.preview);
   const historyOpen = useCloudStore((s) => s.historyOpen);
   const chatOpen = useCloudStore((s) => s.chatOpen);
+  const canvasMode = useCloudStore((s) => s.canvasMode);
   const unread = useCollabStore((s) => s.unread);
   const diagramName = useDiagramStore((s) => s.diagramName);
   const setDiagramName = useDiagramStore((s) => s.setDiagramName);
@@ -257,6 +258,31 @@ export function CanvasHeader() {
           >
             ← {backLabel}
           </button>
+          {diagramId !== null && (
+            <div
+              className="ml-3 inline-flex flex-shrink-0 rounded-lg border overflow-hidden"
+              role="group"
+              aria-label="Show"
+              style={{ borderColor: theme.button.secondary.border }}
+            >
+              {([['diagram', 'Diagram'], ['data', 'Data']] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  onClick={() => useCloudStore.getState().setCanvasMode(mode)}
+                  disabled={preview !== null}
+                  aria-pressed={canvasMode === mode}
+                  className="px-3! py-1.5! text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: canvasMode === mode ? theme.sidebar.surfaceActive : theme.button.secondary.bg,
+                    color: theme.button.secondary.text,
+                    outlineColor: theme.focus.ring,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-center flex-shrink-0 px-4" style={{ minWidth: 0, maxWidth: 360 }}>

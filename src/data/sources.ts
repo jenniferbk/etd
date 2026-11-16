@@ -13,6 +13,7 @@ import { applyLocalOpsToStore, docFromStore } from '../live/storeBridge';
 import { applyOps, type LiveDoc } from '../live/ops';
 import { generateUuid } from '../utils/uuid';
 import { editsToOps, type CellEdit } from './edits';
+import { focusElement } from './focusElement';
 import type { Codebook, DiagramDocInput } from './types';
 
 export interface DataSource {
@@ -77,8 +78,10 @@ export function useStoreDataSource(): DataSource {
     applyLocalOpsToStore(editsToOps(edits, docFromStore()));
   }, []);
 
+  // The element is in the open diagram: back to the canvas, selected and centered.
   const openElement = useCallback((_diagramId: number | null, elementId: string) => {
-    useDiagramStore.getState().setSelectedIds([elementId]);
+    useCloudStore.getState().setCanvasMode('diagram');
+    focusElement(elementId);
   }, []);
 
   const reload = useCallback(async () => {

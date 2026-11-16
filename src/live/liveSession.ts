@@ -297,7 +297,7 @@ export class LiveSession {
       // First contact: show exactly the server's document (it can be a beat
       // newer than what the gallery fetched). The title in the store came
       // from the diagrams table, which wins over a stale embedded name.
-      const name = useDiagramStore.getState().diagramName;
+      const { diagramName: name, selectedIds } = useDiagramStore.getState();
       this.engine = new SyncEngine(this.clientId, doc);
       this.ownLoad = true;
       try {
@@ -305,6 +305,11 @@ export class LiveSession {
       } finally {
         this.ownLoad = false;
       }
+      // Keep a selection made while joining (a Data view row opens the
+      // diagram selected) for elements that are still there.
+      const ids = new Set(useDiagramStore.getState().elements.map((e) => e.id));
+      const kept = selectedIds.filter((id) => ids.has(id));
+      if (kept.length > 0) useDiagramStore.getState().setSelectedIds(kept);
       // loadDiagram normalizes (migrations, sizes, title); send that back.
       this.local = docFromStore();
       useDiagramStore.temporal.getState().clear();

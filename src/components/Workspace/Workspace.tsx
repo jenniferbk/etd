@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ChevronRight, FolderPlus, LayoutGrid, List, Pencil, Search, Trash2, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { friendlyError } from '../../api/friendlyError';
-import type { CloudDiagram, DiagramListItem, FolderListItem } from '../../api/types';
+import type { DiagramListItem, FolderListItem } from '../../api/types';
 import { useAuthStore } from '../../api/authStore';
 import { useCloudStore } from '../../store/cloudStore';
 import { useDiagramStore } from '../../store';
@@ -11,11 +11,13 @@ import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { nameForLoadedFile } from '../../utils/saveDiagram';
-import type { AnalyticNote, Connection, DiagramElement, EpisodeFields, StyleConfig, Transcript } from '../../types';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
 import { PeoplePage } from './PeoplePage';
 import { TrashPage } from './TrashPage';
+import { LibraryDataPage } from './LibraryDataPage';
+import { openLibraryDiagram } from './openLibraryDiagram';
+import { CodebookPage } from '../Codebook';
 import { DiagramListView } from './DiagramListView';
 import { FolderTile } from './FolderTile';
 import { NameModal } from './NameModal';
@@ -196,33 +198,7 @@ export function Workspace() {
     e.target.value = '';
   };
 
-  const openDiagram = async (item: DiagramListItem) => {
-    try {
-      const d = await api<CloudDiagram>(`/api/diagrams/${item.id}`);
-      const snap = d.snapshot;
-      if (!snap.elements || !snap.connections) {
-        useToastStore.getState().addToast('error', 'That diagram looks corrupted — ask your group admin.');
-        return;
-      }
-      // Prefer the diagrams-table title over the snapshot's embedded name:
-      // PATCH-renaming a diagram (DiagramCard) updates only the title column,
-      // not the snapshot, so snap.name goes stale on rename until the next
-      // content save. d.title is always current.
-      useDiagramStore.getState().loadDiagram(
-        snap.elements as DiagramElement[],
-        snap.connections as Connection[],
-        d.title,
-        (snap.transcript ?? null) as Transcript | null,
-        snap.styleConfig as StyleConfig | undefined,
-        (snap.notes ?? []) as AnalyticNote[],
-        snap.episode as EpisodeFields | undefined,
-      );
-      useCloudStore.getState().setCloudTarget(d.id, d.groupId, d.currentVersionId);
-      useCloudStore.getState().setView('canvas');
-    } catch (err) {
-      useToastStore.getState().addToast('error', friendlyError(err));
-    }
-  };
+  const openDiagram = (item: DiagramListItem) => openLibraryDiagram(item.id);
 
   const selectedGroup = groups.find((g) => g.id === effectiveGroupId) ?? null;
   const currentFolder = folderId === null ? null : folders.find((f) => f.id === folderId) ?? null;
@@ -241,7 +217,11 @@ export function Workspace() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col" style={{ backgroundColor: theme.canvas.bg }}>
+    // The Data tab fills the screen so its grid scrolls inside itself.
+    <div
+      className={`${workspaceTab === 'data' ? 'h-screen' : 'min-h-screen'} w-full flex flex-col`}
+      style={{ backgroundColor: theme.canvas.bg }}
+    >
       <WorkspaceHeader
         groupName={selectedGroup?.name ?? ''}
         groups={groups}
@@ -253,6 +233,10 @@ export function Workspace() {
         effectiveGroupId !== null && <PeoplePage groupId={effectiveGroupId} groupName={selectedGroup?.name ?? ''} />
       ) : workspaceTab === 'trash' ? (
         effectiveGroupId !== null && <TrashPage groupId={effectiveGroupId} />
+      ) : workspaceTab === 'data' ? (
+        effectiveGroupId !== null && <LibraryDataPage groupId={effectiveGroupId} />
+      ) : workspaceTab === 'codebook' ? (
+        effectiveGroupId !== null && <CodebookPage groupId={effectiveGroupId} />
       ) : (
         <div className="max-w-5xl w-full mx-auto px-6 py-8 flex-1">
           <div className="flex flex-wrap items-center gap-3 mb-6">

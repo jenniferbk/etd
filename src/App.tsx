@@ -11,6 +11,8 @@ import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSav
 import { useDirtyTracking } from './hooks/dirtyTracking';
 import { useLiveSync } from './live/useLiveSync';
 import { useCodebookMirror } from './data/useCodebookMirror';
+import { useStoreDataSource } from './data/sources';
+import { DataView } from './components/DataView';
 import { saveToLibrary } from './hooks/librarySave';
 import { parseTranscript } from './utils/transcriptParser';
 import { nameForLoadedFile } from './utils/saveDiagram';
@@ -31,6 +33,11 @@ import { useCloudStore } from './store/cloudStore';
 function hasWork(): boolean {
   const d = useDiagramStore.getState();
   return d.elements.length > 0 || d.connections.length > 0 || d.transcript !== null || d.notes.length > 0;
+}
+
+/** The open diagram as a grid (canvas header's Data toggle). */
+function CanvasDataLayer() {
+  return <DataView source={useStoreDataSource()} />;
 }
 
 function App() {
@@ -111,6 +118,14 @@ function App() {
   const preview = useCloudStore((s) => s.preview);
   const historyOpen = useCloudStore((s) => s.historyOpen);
   const chatOpen = useCloudStore((s) => s.chatOpen);
+  const diagramId = useCloudStore((s) => s.diagramId);
+  const canvasMode = useCloudStore((s) => s.canvasMode);
+  // The canvas header's Data toggle: the open library diagram as a grid,
+  // layered over the toolbar and canvas (the Canvas stays mounted underneath).
+  // Never during a version preview: the grid would edit the past version.
+  const dataMode = user !== null && view === 'canvas' && diagramId !== null && preview === null && canvasMode === 'data';
+  // Full-screen is a drawing mode; it sits out while the grid is showing.
+  const fs = fullScreen && !dataMode;
   useDirtyTracking(user !== null && preview === null);
   useLiveSync();
   useCodebookMirror();
@@ -337,6 +352,16 @@ function App() {
         return;
       }
 
+      // The Data view owns the keyboard: no canvas shortcuts (Delete would
+      // remove the selected element). ⌘S still saves.
+      if (dataMode) {
+        if ((e.metaKey || e.ctrlKey) && (e.key === 's' || e.key === 'o')) {
+          e.preventDefault();
+          if (e.key === 's') handleSave();
+        }
+        return;
+      }
+
       // Ignore if typing in an input, textarea, or contenteditable
       const target = e.target as HTMLElement;
       if (
@@ -494,6 +519,7 @@ function App() {
     cancelPendingRetract,
     view,
     user,
+    dataMode,
   ]);
 
   return (
@@ -521,12 +547,15 @@ function App() {
           {/* Signed-in canvas header — title, live save status, back to Workspace. */}
           {user && view === 'canvas' && <CanvasHeader />}
 
+          {/* Toolbar + canvas region. The Data view (dataMode) is a layer over
+              it; this wrapper is always here, so the Canvas never remounts. */}
+          <div className={`flex flex-1 min-h-0 flex-col${dataMode ? ' relative' : ''}`}>
           {/* Toolbar wrapper — flow position normally, absolute overlay in full-screen.
               In full-screen, slides in from above on toolbarHovered. */}
           <div
-            className={fullScreen ? 'absolute top-0 left-0 right-0' : 'relative'}
+            className={fs ? 'absolute top-0 left-0 right-0' : 'relative'}
             style={{
-              ...(fullScreen
+              ...(fs
                 ? {
                     zIndex: theme.z.fsToolbar,
                     transform: toolbarHovered ? 'translateY(0)' : 'translateY(-100%)',
@@ -545,11 +574,11 @@ function App() {
               // mouse blocked but focus untouched.
               pointerEvents: preview ? 'none' : undefined,
             }}
-            inert={preview !== null}
-            onMouseLeave={fullScreen ? handleToolbarMouseLeave : undefined}
-            onMouseDown={fullScreen ? (e) => e.stopPropagation() : undefined}
-            onFocus={fullScreen ? handleToolbarFocus : undefined}
-            onBlur={fullScreen ? handleToolbarBlur : undefined}
+            inert={preview !== null || dataMode}
+            onMouseLeave={fs ? handleToolbarMouseLeave : undefined}
+            onMouseDown={fs ? (e) => e.stopPropagation() : undefined}
+            onFocus={fs ? handleToolbarFocus : undefined}
+            onBlur={fs ? handleToolbarBlur : undefined}
           >
             <Toolbar
               onLoadTranscript={handleLoadTranscriptClick}
@@ -567,14 +596,15 @@ function App() {
               goes inert during preview to stay interactive. */}
           <div
             className="flex flex-1 overflow-hidden"
-            onMouseDown={fullScreen ? () => setToolbarHovered(false) : undefined}
+            onMouseDown={fs ? () => setToolbarHovered(false) : undefined}
+            inert={dataMode}
           >
             <div
               className="flex flex-1 overflow-hidden"
               style={{ pointerEvents: preview ? 'none' : undefined }}
               inert={preview !== null}
             >
-              <div className={fullScreen ? 'hidden' : 'contents'}>
+              <div className={fs ? 'hidden' : 'contents'}>
                 <Palette
                   connectMode={connectMode}
                   onToggleConnectMode={toggleConnectMode}
@@ -589,11 +619,11 @@ function App() {
 
               {/* Notes side panel — inside the inert wrapper on purpose: notes
                   are diagram content, so they're read-only during preview. */}
-              <div className={fullScreen ? 'hidden' : 'contents'}>
+              <div className={fs ? 'hidden' : 'contents'}>
                 {notesPanelOpen && <NotesPanel />}
               </div>
 
-              <div className={fullScreen ? 'hidden' : 'contents'}>
+              <div className={fs ? 'hidden' : 'contents'}>
                 {transcriptPanelOpen ? (
                   <TranscriptPanel onClose={() => setTranscriptPanelOpen(false)} />
                 ) : (
@@ -605,18 +635,24 @@ function App() {
             {/* History side panel — stays interactive during preview (its own
                 pointerEvents: 'auto' override, plus living outside the inert
                 wrapper above). */}
-            <div className={fullScreen ? 'hidden' : 'contents'}>
+            <div className={fs ? 'hidden' : 'contents'}>
               {historyOpen && <HistoryPanel />}
             </div>
             {/* Chat stays usable during preview too (outside the inert wrapper). */}
-            <div className={fullScreen ? 'hidden' : 'contents'}>
+            <div className={fs ? 'hidden' : 'contents'}>
               {chatOpen && <ChatPanel />}
             </div>
+          </div>
+          {dataMode && (
+            <div className="absolute inset-0 flex" style={{ zIndex: theme.z.fsToolbar }}>
+              <CanvasDataLayer />
+            </div>
+          )}
           </div>
           <SummonBanner />
 
           {/* Hover zone — 12px transparent strip at top. Wakes the toolbar. */}
-          {fullScreen && (
+          {fs && (
             <div
               className="absolute top-0 left-0 right-0"
               style={{ height: 12, zIndex: theme.z.hoverZone, pointerEvents: preview ? 'none' : undefined }}
@@ -625,7 +661,7 @@ function App() {
           )}
 
           {/* Entry hint — disappears after 2.5s */}
-          {fullScreen && showHint && (
+          {fs && showHint && (
             <div
               className="absolute bottom-4 right-4 px-3 py-1.5 rounded-md text-xs pointer-events-none"
               style={{
@@ -642,7 +678,7 @@ function App() {
           )}
 
           {/* Properties — hidden in full-screen */}
-          <div className={fullScreen ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }} inert={preview !== null}>
+          <div className={fs ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }} inert={preview !== null}>
             <PropertiesPanel />
           </div>
 
