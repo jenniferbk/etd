@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
-import { visibleSubtypes } from '../../utils/styleResolver';
+import { findSubtype, visibleSubtypes } from '../../utils/styleResolver';
 import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType, Connection } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
@@ -95,7 +95,7 @@ export function PropertiesPanel() {
     isSupportElement(selectedElement) &&
     selectedElement.supportType !== 'action' &&
     selectedElement.subtype !== undefined &&
-    !styleConfig.subtypes[selectedElement.supportType].some((s) => s.id === selectedElement.subtype)
+    !findSubtype(styleConfig, selectedElement.supportType, selectedElement.subtype)
   );
 
   // Handle image changes - must be before early return for hooks rules

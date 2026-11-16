@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Subtype } from '../types/styleConfig';
-import { visibleSubtypes } from './styleResolver';
+import type { StyleConfig } from '../types/styleConfig';
+import { findSubtype, visibleSubtypes } from './styleResolver';
 
 describe('visibleSubtypes', () => {
   const list: Subtype[] = [
@@ -25,5 +26,30 @@ describe('visibleSubtypes', () => {
     expect(out.map((s) => s.id)).toEqual(['displays', 'merged', 'asks']);
     expect(new Set(out.map((s) => s.label)).size).toBe(out.length);
     expect(out[1].label).toBe('Displays (merged)');
+  });
+});
+
+describe('findSubtype', () => {
+  const sc = {
+    subtypes: {
+      question: [{ id: 'q', label: 'Q' }, { id: 'both', label: 'In question' }],
+      other: [{ id: 'moved', label: 'Moved kind', style: { backgroundColor: '#fff' } }, { id: 'both', label: 'In other' }],
+      action: [],
+    },
+  } as unknown as StyleConfig;
+
+  it("finds the id in the element's own bucket first", () => {
+    expect(findSubtype(sc, 'question', 'both')?.label).toBe('In question');
+    expect(findSubtype(sc, 'other', 'both')?.label).toBe('In other');
+  });
+
+  it("falls back to the other bucket when the kind's type changed", () => {
+    expect(findSubtype(sc, 'question', 'moved')?.label).toBe('Moved kind');
+    expect(findSubtype(sc, 'other', 'q')?.label).toBe('Q');
+  });
+
+  it('returns undefined for an unknown id or no id', () => {
+    expect(findSubtype(sc, 'question', 'gone')).toBeUndefined();
+    expect(findSubtype(sc, 'other', undefined)).toBeUndefined();
   });
 });

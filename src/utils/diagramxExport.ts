@@ -27,6 +27,7 @@ import {
 } from '../types';
 import { getContributorColor, getSupportColors } from './colors';
 import { resolveArrowhead } from './arrowhead';
+import { findSubtype } from './styleResolver';
 import { saveFile } from './saveFile';
 import { generateUuid } from './uuid';
 import { splitForRender, isContainerElement } from './containers';
@@ -165,8 +166,8 @@ function getElementStyle(element: DiagramElement, styleConfig?: StyleConfig): El
     const colors = getSupportColors(element.supportType, contributor);
     // A subtype fill override (e.g. Displays → white) wins over the type fill.
     // White exports as "no fill", matching how actions are emitted.
-    const subtypeFill = element.subtype
-      ? styleConfig?.subtypes[element.supportType]?.find((s) => s.id === element.subtype)?.style?.backgroundColor
+    const subtypeFill = styleConfig
+      ? findSubtype(styleConfig, element.supportType, element.subtype)?.style?.backgroundColor
       : undefined;
     const fill = subtypeFill ?? (element.supportType === 'action' ? null : colors.fill);
     return {

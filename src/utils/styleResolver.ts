@@ -1,4 +1,4 @@
-import type { ArgumentElement, SupportElement } from '../types';
+import type { ArgumentElement, SupportElement, SupportType } from '../types';
 import type { StyleConfig, BorderStyle, BorderShape, Subtype } from '../types/styleConfig';
 import { getContributorColor, getSupportColors } from './colors';
 
@@ -50,9 +50,7 @@ export function resolveSupportStyle(
 ): ResolvedStyle {
   const typeStyle = config.supportTypes[el.supportType];
   // A subtype may override shape and fill (e.g. Displays → white ellipse).
-  const subtypeStyle = el.subtype
-    ? config.subtypes[el.supportType]?.find((s) => s.id === el.subtype)?.style
-    : undefined;
+  const subtypeStyle = findSubtype(config, el.supportType, el.subtype)?.style;
   // Border color stays contributor-derived (existing getSupportColors logic).
   // We discard the .fill it returns; per-type config now owns background.
   const { border } = getSupportColors(el.supportType, el.contributor);
@@ -99,4 +97,14 @@ export function visibleSubtypes(list: readonly Subtype[], currentId?: string): S
   return shown.map((s) =>
     s.retired && activeLabels.has(s.label.trim().toLowerCase()) ? { ...s, label: `${s.label} (merged)` } : s,
   );
+}
+
+/** A move's kind by id: its own supportType's list first, then the other
+ *  one, so a kind whose type changed in the codebook still resolves. */
+export function findSubtype(config: StyleConfig, supportType: SupportType, id: string | undefined): Subtype | undefined {
+  if (!id) return undefined;
+  const own = config.subtypes[supportType]?.find((s) => s.id === id);
+  if (own) return own;
+  const other = supportType === 'question' ? 'other' : supportType === 'other' ? 'question' : null;
+  return other ? config.subtypes[other]?.find((s) => s.id === id) : undefined;
 }

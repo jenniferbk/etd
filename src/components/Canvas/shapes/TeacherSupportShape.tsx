@@ -2,7 +2,7 @@ import { Group, Rect, Ellipse, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { TeacherSupportElement, SupportElement } from '../../../types';
 import { useDiagramStore } from '../../../store';
-import { resolveSupportStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
+import { resolveSupportStyle, dashArrayForBorderStyle, findSubtype } from '../../../utils/styleResolver';
 import { NoteBadge } from './NoteBadge';
 
 interface TeacherSupportShapeProps {
@@ -63,11 +63,10 @@ export function TeacherSupportShape({
   // Build header label (action has no header; no contributor badge for legacy teacher elements).
   // Subtypes are now per-supportType: styleConfig.subtypes[supportType].
   const supportTypeLabel = styleConfig.supportTypes[supportType].label;
-  const subtypeList = styleConfig.subtypes[supportType];
-  const isOrphan = supportType !== 'action' && subtype !== undefined &&
-    !subtypeList.some((s) => s.id === subtype);
+  const foundSubtype = findSubtype(styleConfig, supportType, subtype);
+  const isOrphan = supportType !== 'action' && subtype !== undefined && !foundSubtype;
   const subtypeLabel = supportType !== 'action' && subtype
-    ? (subtypeList.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
+    ? (foundSubtype?.label ?? '[deleted subtype]')
     : null;
   const headerLabel =
     supportType === 'action' ? '' :
