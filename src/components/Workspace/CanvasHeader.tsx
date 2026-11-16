@@ -315,7 +315,7 @@ export function CanvasHeader() {
           <PresenceAvatars />
           <button
             onClick={handleToggleHistory}
-            disabled={diagramId === null}
+            disabled={diagramId === null || canvasMode === 'data'}
             aria-pressed={historyOpen}
             aria-label="History"
             className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -324,7 +324,7 @@ export function CanvasHeader() {
               backgroundColor: historyOpen ? theme.sidebar.hover : 'transparent',
               outlineColor: theme.focus.ring,
             }}
-            onMouseEnter={(e) => { if (diagramId !== null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseEnter={(e) => { if (diagramId !== null && canvasMode !== 'data') e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = historyOpen ? theme.sidebar.hover : 'transparent'; }}
           >
             History
@@ -332,7 +332,7 @@ export function CanvasHeader() {
 
           <button
             onClick={() => useCloudStore.getState().setChatOpen(!chatOpen)}
-            disabled={diagramId === null}
+            disabled={diagramId === null || canvasMode === 'data'}
             aria-pressed={chatOpen}
             aria-label={unread > 0 ? `Chat, ${unread} unread` : 'Chat'}
             className="relative px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -341,7 +341,7 @@ export function CanvasHeader() {
               backgroundColor: chatOpen ? theme.sidebar.hover : 'transparent',
               outlineColor: theme.focus.ring,
             }}
-            onMouseEnter={(e) => { if (diagramId !== null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseEnter={(e) => { if (diagramId !== null && canvasMode !== 'data') e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = chatOpen ? theme.sidebar.hover : 'transparent'; }}
           >
             Chat

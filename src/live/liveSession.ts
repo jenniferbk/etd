@@ -9,6 +9,7 @@
 //     both applied and autosaved this tab's edits, then Saved,
 //   - reconnects with backoff, resending anything that was not confirmed.
 import { api, ApiError, getServerUrl, getToken } from '../api/client';
+import { keepSelection } from './selection';
 import { useAuthStore } from '../api/authStore';
 import { useCloudStore } from '../store/cloudStore';
 import { useDiagramStore } from '../store';
@@ -307,8 +308,7 @@ export class LiveSession {
       }
       // Keep a selection made while joining (a Data view row opens the
       // diagram selected) for elements that are still there.
-      const ids = new Set(useDiagramStore.getState().elements.map((e) => e.id));
-      const kept = selectedIds.filter((id) => ids.has(id));
+      const kept = keepSelection(selectedIds, useDiagramStore.getState());
       if (kept.length > 0) useDiagramStore.getState().setSelectedIds(kept);
       // loadDiagram normalizes (migrations, sizes, title); send that back.
       this.local = docFromStore();

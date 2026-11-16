@@ -635,11 +635,11 @@ function App() {
             {/* History side panel — stays interactive during preview (its own
                 pointerEvents: 'auto' override, plus living outside the inert
                 wrapper above). */}
-            <div className={fs ? 'hidden' : 'contents'}>
+            <div className={fs || dataMode ? 'hidden' : 'contents'}>
               {historyOpen && <HistoryPanel />}
             </div>
             {/* Chat stays usable during preview too (outside the inert wrapper). */}
-            <div className={fs ? 'hidden' : 'contents'}>
+            <div className={fs || dataMode ? 'hidden' : 'contents'}>
               {chatOpen && <ChatPanel />}
             </div>
           </div>
@@ -677,8 +677,9 @@ function App() {
             </div>
           )}
 
-          {/* Properties — hidden in full-screen */}
-          <div className={fs ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }} inert={preview !== null}>
+          {/* Properties — hidden in full-screen, and under the Data view so
+              nothing editable sits below the grid. */}
+          <div className={fs || dataMode ? 'hidden' : ''} style={{ pointerEvents: preview ? 'none' : undefined }} inert={preview !== null}>
             <PropertiesPanel />
           </div>
 
