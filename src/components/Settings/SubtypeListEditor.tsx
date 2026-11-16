@@ -112,7 +112,7 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
 
       <div className="text-xs" style={{ color: theme.sidebar.muted }}>
         Subtypes appear in the palette dropdown and the transcript-line object-type selector.
-        Renaming a subtype updates every element that uses it. Deleting one orphans those elements.
+        {!managed && 'Renaming a subtype updates every element that uses it. Deleting one orphans those elements. '}
         A subtype can override the {typeLabel.toLowerCase()} shape and fill; "Type default" uses the {typeLabel} style.
       </div>
 
@@ -191,6 +191,7 @@ function SubtypeRow({ subtype, index, useCount, readOnly, typeFill, onRename, on
       }}
       onDrop={(e) => {
         e.preventDefault();
+        if (readOnly) return;
         const fromStr = e.dataTransfer.getData('text/plain');
         const from = fromStr === '' ? NaN : Number(fromStr);
         if (Number.isFinite(from) && from !== index) onReorder(from, index);

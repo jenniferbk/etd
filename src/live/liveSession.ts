@@ -95,7 +95,8 @@ export class LiveSession {
         if (useCloudStore.getState().preview !== null || !this.engine) return;
         if (
           s.elements === prev.elements && s.connections === prev.connections && s.notes === prev.notes &&
-          s.styleConfig === prev.styleConfig && s.transcript === prev.transcript && s.diagramName === prev.diagramName
+          s.styleConfig === prev.styleConfig && s.transcript === prev.transcript && s.diagramName === prev.diagramName &&
+          s.episode === prev.episode
         ) return;
         this.local = docFromState(s);
         this.thumbDirty = true;

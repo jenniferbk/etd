@@ -114,3 +114,25 @@ export function applyLocalOpsToStore(ops: Op[]): void {
     };
   });
 }
+
+/**
+ * Write a codebook-mirrored styleConfig. Kept out of undo history, and existing
+ * undo/redo snapshots take the same styleConfig so undo cannot bring back the
+ * pre-mirror kinds. The live engine still sends it: it follows store state by
+ * reference, not the temporal middleware.
+ */
+export function applyMirroredStyleConfig(next: StyleConfig): void {
+  const temporal = useDiagramStore.temporal;
+  temporal.getState().pause();
+  try {
+    useDiagramStore.setState({ styleConfig: next });
+  } finally {
+    temporal.getState().resume();
+  }
+  const t = temporal.getState();
+  const rebase = (p: UndoSnapshot): UndoSnapshot => (p.styleConfig ? { ...p, styleConfig: next } : p);
+  temporal.setState({
+    pastStates: t.pastStates.map(rebase),
+    futureStates: t.futureStates.map(rebase),
+  });
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyDocToStore, applyLocalOpsToStore, docFromStore, rebaseUndoSnapshot } from './storeBridge';
+import { applyDocToStore, applyLocalOpsToStore, applyMirroredStyleConfig, docFromStore, rebaseUndoSnapshot } from './storeBridge';
 import { useDiagramStore } from '../store';
+import { mirrorIntoStyleConfig } from '../data/codebook';
 import type { DiagramElement } from '../types';
 
 const el = (id: string, content: string) =>
@@ -76,5 +77,29 @@ describe('applyLocalOpsToStore', () => {
     useDiagramStore.getState().loadDiagram([], [], 'L');
     applyLocalOpsToStore([{ t: 'set', k: 'episode', value: { clip: '1:00-2:00' } }]);
     expect(useDiagramStore.getState().episode).toEqual({ clip: '1:00-2:00' });
+  });
+});
+
+describe('applyMirroredStyleConfig', () => {
+  const cb = { groupId: 1, kinds: [{ id: 'k1', label: 'Probe', category: 'c', type: 'question', status: 'active' }] } as never;
+
+  it('does not add an undo step, and undo of a later edit keeps the mirrored config', () => {
+    useDiagramStore.setState({ elements: [el('a', 'x')], connections: [], notes: [], selectedIds: [] });
+    useDiagramStore.temporal.getState().clear();
+    const mirrored = mirrorIntoStyleConfig(useDiagramStore.getState().styleConfig, cb);
+    expect(mirrored).not.toBe(useDiagramStore.getState().styleConfig);
+    applyMirroredStyleConfig(mirrored);
+    expect(useDiagramStore.temporal.getState().pastStates).toHaveLength(0);
+    applyLocalOpsToStore([{ t: 'patch', c: 'elements', id: 'a', fields: { content: 'y' } }]);
+    useDiagramStore.temporal.getState().undo();
+    expect(useDiagramStore.getState().elements[0].content).toBe('x');
+    expect(useDiagramStore.getState().styleConfig).toEqual(mirrored);
+  });
+
+  it('a second mirror returns the same reference, so no second write is needed', () => {
+    const mirrored = mirrorIntoStyleConfig(useDiagramStore.getState().styleConfig, cb);
+    applyMirroredStyleConfig(mirrored);
+    const after = useDiagramStore.getState().styleConfig;
+    expect(mirrorIntoStyleConfig(after, cb)).toBe(after);
   });
 });
