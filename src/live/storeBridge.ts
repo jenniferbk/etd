@@ -1,6 +1,7 @@
 // Moves documents between the diagram store and the live-sync engine.
 import { useDiagramStore } from '../store';
 import type { AnalyticNote, Connection, DiagramElement, Transcript } from '../types';
+import type { EpisodeFields } from '../types/episode';
 import type { StyleConfig } from '../types/styleConfig';
 import { normalizeContainers } from '../utils/containers';
 import { SAVE_SCHEMA_VERSION } from '../utils/schema';
@@ -18,6 +19,8 @@ export function docFromState(s: DiagramState): LiveDoc {
     notes: s.notes as unknown as LiveDoc['notes'],
     styleConfig: s.styleConfig,
     transcript: s.transcript,
+    // Omitted when empty so a doc without episode data diffs clean.
+    ...(Object.keys(s.episode).length > 0 ? { episode: s.episode } : {}),
   };
 }
 
@@ -74,6 +77,7 @@ export function applyDocToStore(next: LiveDoc): void {
         notes: next.notes as unknown as AnalyticNote[],
         styleConfig: (next.styleConfig as StyleConfig | undefined) ?? s.styleConfig,
         transcript: (next.transcript ?? null) as Transcript | null,
+        episode: (next.episode ?? {}) as EpisodeFields,
         selectedIds: s.selectedIds.filter((id) => ids.has(id) || connIds.has(id)),
       };
     });

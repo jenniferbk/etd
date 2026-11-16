@@ -17,5 +17,6 @@ export function buildCloudSnapshot(titleOverride?: string) {
     styleConfig: s.styleConfig,
     transcript: s.transcript,
     notes: s.notes,
+    episode: s.episode,
   });
 }

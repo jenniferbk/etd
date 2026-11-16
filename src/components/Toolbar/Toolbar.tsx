@@ -115,7 +115,7 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
-            loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes);
+            loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode);
             useCloudStore.getState().clearCloudTarget();
           } else {
             addToast('error', 'Invalid diagram file format');

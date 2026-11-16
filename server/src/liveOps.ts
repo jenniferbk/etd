@@ -14,7 +14,7 @@ export const opSchema = z.discriminatedUnion('t', [
   z.object({ t: z.literal('patch'), c: collection, id: z.string().min(1), fields: z.record(z.string(), z.unknown()) }),
   z.object({ t: z.literal('del'), c: collection, id: z.string().min(1) }),
   z.object({ t: z.literal('order'), c: collection, ids: z.array(z.string()) }),
-  z.object({ t: z.literal('set'), k: z.enum(['name', 'styleConfig', 'transcript', 'version']), value: z.unknown() }),
+  z.object({ t: z.literal('set'), k: z.enum(['name', 'styleConfig', 'transcript', 'version', 'episode']), value: z.unknown() }),
 ]);
 
 export type Op = z.infer<typeof opSchema>;

@@ -45,3 +45,19 @@ describe('applyDocToStore', () => {
     expect(els.find((e) => e.id === 'C')!.containerId).toBe('B');
   });
 });
+
+describe('episode fields', () => {
+  it('loadDiagram stores episode and docFromStore exposes it', () => {
+    useDiagramStore.getState().loadDiagram([], [], 'E', null, undefined, [], { status: 'not vetted' });
+    expect(docFromStore().episode).toEqual({ status: 'not vetted' });
+  });
+
+  it('applyDocToStore updates episode, and clears it when the doc has none', () => {
+    useDiagramStore.getState().loadDiagram([], [], 'E');
+    applyDocToStore({ ...docFromStore(), episode: { clip: '1:00-2:00' } });
+    expect(useDiagramStore.getState().episode).toEqual({ clip: '1:00-2:00' });
+    const { episode: _omit, ...rest } = docFromStore();
+    applyDocToStore(rest);
+    expect(useDiagramStore.getState().episode).toEqual({});
+  });
+});

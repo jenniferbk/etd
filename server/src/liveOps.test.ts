@@ -3,6 +3,14 @@ import { applyOps, danglingConnectionOps, opSchema, toLiveDoc } from './liveOps.
 
 const el = (id: string) => ({ id, content: id });
 
+describe('episode set op', () => {
+  it('is accepted by opSchema and applied', () => {
+    const op = { t: 'set', k: 'episode', value: { sgwc: 'SG' } };
+    expect(opSchema.safeParse(op).success).toBe(true);
+    expect(applyOps(toLiveDoc({}), [op as never]).episode).toEqual({ sgwc: 'SG' });
+  });
+});
+
 describe('server applyOps (mirrors src/live/ops.ts)', () => {
   it('patch merges fields, null removes a field, patch after delete is a no-op', () => {
     let d = toLiveDoc({ elements: [{ ...el('a'), image: 'x' }] });

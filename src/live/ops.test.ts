@@ -54,6 +54,16 @@ describe('applyOps', () => {
   });
 });
 
+describe('episode op', () => {
+  it('diffDocs emits a set op for episode and applyOps applies it', () => {
+    const a = doc({});
+    const b = doc({ episode: { status: 'vetted' } });
+    const ops = diffDocs(a, b);
+    expect(ops).toEqual([{ t: 'set', k: 'episode', value: { status: 'vetted' } }]);
+    expect(applyOps(a, ops).episode).toEqual({ status: 'vetted' });
+  });
+});
+
 describe('diffDocs', () => {
   const roundTrip = (a: LiveDoc, b: LiveDoc) => {
     const ops = diffDocs(a, b);

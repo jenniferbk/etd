@@ -59,6 +59,7 @@ export interface SavedDiagramFile {
   styleConfig?: unknown;
   transcript?: unknown;
   notes?: unknown[];
+  episode?: unknown;
 }
 
 export interface CloudDiagram {

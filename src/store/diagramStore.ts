@@ -7,6 +7,7 @@ import type {
   Transcript, TranscriptLine, EdgeAnchor, ConnectionType,
   AnalyticNote, NoteAnchor,
 } from '../types';
+import type { EpisodeFields } from '../types/episode';
 import type { StyleConfig } from '../types/styleConfig';
 import { applySubtypeStyleMigration, createCurrentDefaults, createV1_2_MigrationDefaults, normalizeStyleConfig } from '../utils/styleConfigDefaults';
 import { isArgumentElement, isInfoBoxElement, isSupportElement, isTeacherSupportElement } from '../types';
@@ -117,6 +118,10 @@ interface DiagramState {
   // Analytic notes — researcher memos saved with the diagram, never exported.
   notes: AnalyticNote[];
 
+  // Episode descriptors (status, SG/WC, discipline, clip) saved with the
+  // diagram. Not part of undo history.
+  episode: EpisodeFields;
+
   // UI: whether the Notes side panel is open (not persisted, not undoable).
   notesPanelOpen: boolean;
 
@@ -190,6 +195,7 @@ interface DiagramState {
     transcript?: Transcript | null,
     styleConfig?: StyleConfig,
     notes?: AnalyticNote[],
+    episode?: EpisodeFields,
   ) => void;
   clearDiagram: () => void;
 }
@@ -212,6 +218,7 @@ export const useDiagramStore = create<DiagramState>()(
       transcript: null,
       styleConfig: createCurrentDefaults(),
       notes: [],
+      episode: {},
       notesPanelOpen: false,
 
       addElement: (element) =>
@@ -785,7 +792,7 @@ export const useDiagramStore = create<DiagramState>()(
 
       setDiagramName: (name) => set({ diagramName: name }),
 
-      loadDiagram: (elements, connections, name, transcript, styleConfig, notes) => {
+      loadDiagram: (elements, connections, name, transcript, styleConfig, notes, episode) => {
         documentWillBeReplaced();
         // Orphan sweep: clear attachedTo on qualifiers whose connectionId is
         // no longer valid. Pure helper so it's testable without DOM.
@@ -803,6 +810,7 @@ export const useDiagramStore = create<DiagramState>()(
           diagramName: name || DEFAULT_DIAGRAM_NAME,
           transcript: transcript ?? null,
           notes: Array.isArray(notes) ? notes : [],
+          episode: episode ?? {},
           // v1.2 files have no styleConfig — apply the FROZEN migration defaults.
           // v1.3/v1.4 files have the old `otherSubtypes` shape; normalize moves it
           // into `subtypes.other` and seeds empty action/question buckets.
@@ -829,6 +837,7 @@ export const useDiagramStore = create<DiagramState>()(
           transcript: state.transcript, // preserved intentionally
           styleConfig: createCurrentDefaults(),
           notes: [],
+          episode: {},
         }));
       },
     }),

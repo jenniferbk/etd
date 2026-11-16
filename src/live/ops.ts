@@ -11,10 +11,12 @@
 // in step; both have tests pinning the same cases.
 
 export type Collection = 'elements' | 'connections' | 'notes';
-export type ScalarKey = 'name' | 'styleConfig' | 'transcript' | 'version';
+export type ScalarKey = 'name' | 'styleConfig' | 'transcript' | 'version' | 'episode';
 
 export const COLLECTIONS: readonly Collection[] = ['elements', 'connections', 'notes'];
-export const SCALAR_KEYS: readonly ScalarKey[] = ['name', 'styleConfig', 'transcript', 'version'];
+export const SCALAR_KEYS: readonly ScalarKey[] = ['name', 'styleConfig', 'transcript', 'version', 'episode'];
+
+import type { EpisodeFields } from '../types/episode';
 
 type Entity = { id: string } & Record<string, unknown>;
 
@@ -39,6 +41,7 @@ export interface LiveDoc {
   notes: Entity[];
   styleConfig?: unknown;
   transcript?: unknown;
+  episode?: EpisodeFields;
   [extra: string]: unknown;
 }
 

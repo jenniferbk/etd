@@ -11,7 +11,7 @@ import { confirmAsync } from '../../store/confirmStore';
 import { theme } from '../../utils/theme';
 import { importDrawingFile } from '../../utils/drawingImporter';
 import { nameForLoadedFile } from '../../utils/saveDiagram';
-import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, EpisodeFields, StyleConfig, Transcript } from '../../types';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { DiagramCard } from './DiagramCard';
 import { PeoplePage } from './PeoplePage';
@@ -176,7 +176,7 @@ export function Workspace() {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
             useDiagramStore.getState().loadDiagram(
-              data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes,
+              data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode,
             );
             useCloudStore.getState().clearCloudTarget();
             rememberFolderForNewDiagram();
@@ -215,6 +215,7 @@ export function Workspace() {
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
         (snap.notes ?? []) as AnalyticNote[],
+        snap.episode as EpisodeFields | undefined,
       );
       useCloudStore.getState().setCloudTarget(d.id, d.groupId, d.currentVersionId);
       useCloudStore.getState().setView('canvas');

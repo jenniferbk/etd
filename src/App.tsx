@@ -160,7 +160,7 @@ function App() {
   const handleRecover = useCallback(() => {
     const saved = getAutoSavedData();
     if (saved) {
-      loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig, saved.notes);
+      loadDiagram(saved.elements, saved.connections, saved.diagramName, saved.transcript, saved.styleConfig, saved.notes, saved.episode);
       useCloudStore.getState().clearCloudTarget();
       // Recovered work must be immediately visible — otherwise it loads
       // invisibly behind the Workspace gallery and a stray card click can
@@ -296,7 +296,7 @@ function App() {
       try {
         const data = JSON.parse(event.target?.result as string);
         if (data.elements && data.connections) {
-          loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes);
+          loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode);
           useCloudStore.getState().clearCloudTarget();
         }
       } catch (err) {

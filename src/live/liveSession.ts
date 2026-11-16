@@ -497,6 +497,7 @@ export class LiveSession {
         (doc.transcript ?? null) as Transcript | null,
         doc.styleConfig as StyleConfig | undefined,
         doc.notes as unknown as AnalyticNote[],
+        doc.episode,
       );
     } finally {
       temporal.resume();
