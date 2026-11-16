@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
+import { visibleSubtypes } from '../../utils/styleResolver';
 import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType, Connection } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
@@ -62,9 +63,7 @@ export function PropertiesPanel() {
     return sel && isSupportElement(sel) ? sel.subtype : undefined;
   })();
   const subtypeOptions = (list: typeof styleConfig.subtypes.other) =>
-    list
-      .filter((s) => !s.retired || s.id === currentSubtype)
-      .map((s) => ({ value: s.id, label: s.label }));
+    visibleSubtypes(list, currentSubtype).map((s) => ({ value: s.id, label: s.label }));
   const OTHER_SUBTYPES = subtypeOptions(styleConfig.subtypes.other);
   const QUESTION_SUBTYPES = subtypeOptions(styleConfig.subtypes.question);
 

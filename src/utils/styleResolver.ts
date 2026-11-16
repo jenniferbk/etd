@@ -1,5 +1,5 @@
 import type { ArgumentElement, SupportElement } from '../types';
-import type { StyleConfig, BorderStyle, BorderShape } from '../types/styleConfig';
+import type { StyleConfig, BorderStyle, BorderShape, Subtype } from '../types/styleConfig';
 import { getContributorColor, getSupportColors } from './colors';
 
 export type ResolvedBorderStyle = BorderStyle | 'dotdash';
@@ -87,4 +87,16 @@ export function dashArrayForBorderStyle(style: ResolvedBorderStyle): number[] | 
       return _exhaustive;
     }
   }
+}
+
+/** The kinds a dropdown offers: retired and merged kinds are hidden unless the
+ *  element already uses one (`currentId`). A kept retired kind whose label
+ *  repeats a shown kind's (a merged kind carries its survivor's label) is
+ *  marked "(merged)" so the label never shows twice. */
+export function visibleSubtypes(list: readonly Subtype[], currentId?: string): Subtype[] {
+  const shown = list.filter((s) => !s.retired || s.id === currentId);
+  const activeLabels = new Set(shown.filter((s) => !s.retired).map((s) => s.label.trim().toLowerCase()));
+  return shown.map((s) =>
+    s.retired && activeLabels.has(s.label.trim().toLowerCase()) ? { ...s, label: `${s.label} (merged)` } : s,
+  );
 }

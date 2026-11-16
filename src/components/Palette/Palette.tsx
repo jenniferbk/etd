@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ChevronDown, Link2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
+import { visibleSubtypes } from '../../utils/styleResolver';
 import { useToastStore } from '../../store/toastStore';
 import type {
   ArgumentType,
@@ -50,16 +51,17 @@ export function Palette({ connectMode, onToggleConnectMode }: PaletteProps) {
     { type: 'rebuttal',  label: styleConfig.argumentTypes.rebuttal.label },
   ];
 
-  const OTHER_SUBTYPES = styleConfig.subtypes.other;
-  const QUESTION_SUBTYPES = styleConfig.subtypes.question;
+  // Retired and merged kinds can't be placed; never offered, never the default.
+  const OTHER_SUBTYPES = useMemo(() => visibleSubtypes(styleConfig.subtypes.other), [styleConfig.subtypes.other]);
+  const QUESTION_SUBTYPES = useMemo(() => visibleSubtypes(styleConfig.subtypes.question), [styleConfig.subtypes.question]);
 
   const [selectedContributor, setSelectedContributor] = useState<ContributorType>('student');
   const [selectedSupportContributor, setSelectedSupportContributor] = useState<SupportContributor>('teacher');
   const [selectedOtherSubtype, setSelectedOtherSubtype] = useState<string>(
-    styleConfig.subtypes.other[0]?.id ?? ''
+    OTHER_SUBTYPES[0]?.id ?? ''
   );
   const [selectedQuestionSubtype, setSelectedQuestionSubtype] = useState<string>(
-    styleConfig.subtypes.question[0]?.id ?? ''
+    QUESTION_SUBTYPES[0]?.id ?? ''
   );
   const [expandedSections, setExpandedSections] = useState({
     arguments: true,
