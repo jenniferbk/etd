@@ -57,6 +57,33 @@ describe('editsToOps', () => {
     ]);
   });
 
+  it('contributor implicit forces argumentType warrant, like the Properties panel', () => {
+    const d = doc([comp('c1')]);
+    expect(editsToOps([{ kind: 'contributor', elementId: 'c1', value: 'implicit' }], d)).toEqual([
+      { t: 'patch', c: 'elements', id: 'c1', fields: { contributor: 'implicit', argumentType: 'warrant' } },
+    ]);
+  });
+
+  it('part cannot change on an implicit element', () => {
+    const d = doc([comp('c1', { contributor: 'implicit', argumentType: 'warrant' })]);
+    expect(editsToOps([{ kind: 'part', elementId: 'c1', argumentType: 'claim' }], d)).toEqual([]);
+  });
+
+  it('part applies when the same batch also changes contributor away from implicit', () => {
+    const d = doc([comp('c1', { contributor: 'implicit', argumentType: 'warrant' })]);
+    const ops = editsToOps(
+      [
+        { kind: 'part', elementId: 'c1', argumentType: 'claim' },
+        { kind: 'contributor', elementId: 'c1', value: 'student' },
+      ],
+      d,
+    );
+    expect(ops).toEqual([
+      { t: 'patch', c: 'elements', id: 'c1', fields: { argumentType: 'claim' } },
+      { t: 'patch', c: 'elements', id: 'c1', fields: { contributor: 'student' } },
+    ]);
+  });
+
   it('title sets name', () => {
     expect(editsToOps([{ kind: 'title', value: 'New' }], doc([]))).toEqual([{ t: 'set', k: 'name', value: 'New' }]);
   });

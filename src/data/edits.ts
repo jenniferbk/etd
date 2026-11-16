@@ -25,6 +25,11 @@ export function editsToOps(edits: CellEdit[], doc: LiveDoc): Op[] {
   const patch = (id: string, fields: Record<string, unknown>) =>
     emit({ t: 'patch', c: 'elements', id, fields });
 
+  // Where each element's contributor ends up after this batch: Part is locked
+  // on an implicit element (always a warrant), unless the batch changes that.
+  const finalContributor = new Map<string, string>();
+  for (const e of edits) if (e.kind === 'contributor') finalContributor.set(e.elementId, e.value);
+
   for (const e of edits) {
     switch (e.kind) {
       case 'title':
@@ -50,12 +55,25 @@ export function editsToOps(edits: CellEdit[], doc: LiveDoc): Op[] {
         patch(e.elementId, { attribution: merged });
         break;
       }
-      case 'part':
-        if (find(e.elementId)) patch(e.elementId, { argumentType: e.argumentType });
+      case 'part': {
+        const el = find(e.elementId);
+        if (!el) break;
+        const contributor = finalContributor.get(e.elementId) ?? el.contributor;
+        if (contributor === 'implicit') break;
+        patch(e.elementId, { argumentType: e.argumentType });
         break;
-      case 'contributor':
-        if (find(e.elementId)) patch(e.elementId, { contributor: e.value });
+      }
+      case 'contributor': {
+        const el = find(e.elementId);
+        if (!el) break;
+        // Same rule as the Properties panel: an implicit component is a warrant.
+        if (e.value === 'implicit' && el.type === 'argument') {
+          patch(e.elementId, { contributor: 'implicit', argumentType: 'warrant' });
+        } else {
+          patch(e.elementId, { contributor: e.value });
+        }
         break;
+      }
       case 'moveType':
         if (find(e.moveId)) patch(e.moveId, { supportType: e.supportType, subtype: null });
         break;

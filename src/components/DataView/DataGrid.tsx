@@ -230,7 +230,10 @@ function specFor(col: DataColumn, row: DataRow, seq: number, ctx: Ctx): Spec {
       return { mode: 'text', node: ep.discipline ?? '', initial: ep.discipline ?? '', commit: (v) => episodeEdit('discipline', v) };
     case 'part': {
       if (!c) return { mode: 'readonly', node: '—' };
-      const opts: SelectOption[] = Object.keys(PART_TYPE).map((p) => ({ value: p, label: p }));
+      // An implicit component is always a warrant (same rule as the Properties panel).
+      const opts: SelectOption[] = Object.keys(PART_TYPE).map((p) => ({
+        value: p, label: p, disabled: c.contributor === 'implicit' && PART_TYPE[p] !== 'warrant',
+      }));
       if (c.part === 'Q') opts.unshift({ value: 'Q', label: 'Q', disabled: true });
       return {
         mode: 'select', node: c.part, value: c.part, options: opts,

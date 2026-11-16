@@ -76,7 +76,8 @@ function calculatedHeight(element: DiagramElement): number {
   return calculated.height;
 }
 
-function getAutoSize(element: DiagramElement): Size {
+/** Grow an element's height to fit its content (width is kept). */
+export function getAutoSize(element: DiagramElement): Size {
   // Force height to be at least the calculated height
   const newHeight = Math.max(element.size.height, calculatedHeight(element));
 

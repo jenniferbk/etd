@@ -1,5 +1,6 @@
 // Moves documents between the diagram store and the live-sync engine.
 import { useDiagramStore } from '../store';
+import { getAutoSize } from '../store/diagramStore';
 import type { AnalyticNote, Connection, DiagramElement, Transcript } from '../types';
 import type { EpisodeFields } from '../types/episode';
 import type { StyleConfig } from '../types/styleConfig';
@@ -106,8 +107,18 @@ export function applyDocToStore(next: LiveDoc): void {
 export function applyLocalOpsToStore(ops: Op[]): void {
   if (ops.length === 0) return;
   const next = applyOps(docFromStore(), ops);
+  // Canvas rules updateElement applies: text edits grow the element to fit,
+  // and a part change can break the container rules.
+  const resize = new Set<string>();
+  for (const op of ops) {
+    if (op.t === 'patch' && op.c === 'elements' && ('content' in op.fields || 'label' in op.fields || 'attribution' in op.fields)) {
+      resize.add(op.id);
+    }
+  }
   useDiagramStore.setState((s) => {
-    const elements = next.elements as unknown as DiagramElement[];
+    const elements = normalizeContainers(
+      (next.elements as unknown as DiagramElement[]).map((e) => (resize.has(e.id) ? { ...e, size: getAutoSize(e) } : e)),
+    );
     const connections = next.connections as unknown as Connection[];
     const ids = new Set(elements.map((e) => e.id));
     const connIds = new Set(connections.map((c) => c.id));
