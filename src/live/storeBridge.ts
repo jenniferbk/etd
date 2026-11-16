@@ -90,3 +90,27 @@ export function applyDocToStore(next: LiveDoc): void {
     futureStates: t.futureStates.map((p) => rebaseUndoSnapshot(p, delta)),
   });
 }
+
+/**
+ * Apply the user's own edit (ops built by the data view) to the store. Unlike
+ * applyDocToStore it is NOT paused in undo, so it is undoable, and the live
+ * sync engine diffs the new state and sends it.
+ */
+export function applyLocalOpsToStore(ops: Op[]): void {
+  if (ops.length === 0) return;
+  const next = applyOps(docFromStore(), ops);
+  useDiagramStore.setState((s) => {
+    const elements = next.elements as unknown as DiagramElement[];
+    const connections = next.connections as unknown as Connection[];
+    const ids = new Set(elements.map((e) => e.id));
+    const connIds = new Set(connections.map((c) => c.id));
+    return {
+      diagramName: typeof next.name === 'string' ? next.name : s.diagramName,
+      elements,
+      connections,
+      notes: next.notes as unknown as AnalyticNote[],
+      episode: (next.episode ?? {}) as EpisodeFields,
+      selectedIds: s.selectedIds.filter((id) => ids.has(id) || connIds.has(id)),
+    };
+  });
+}

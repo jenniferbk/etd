@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyDocToStore, docFromStore, rebaseUndoSnapshot } from './storeBridge';
+import { applyDocToStore, applyLocalOpsToStore, docFromStore, rebaseUndoSnapshot } from './storeBridge';
 import { useDiagramStore } from '../store';
 import type { DiagramElement } from '../types';
 
@@ -59,5 +59,22 @@ describe('episode fields', () => {
     const { episode: _omit, ...rest } = docFromStore();
     applyDocToStore(rest);
     expect(useDiagramStore.getState().episode).toEqual({});
+  });
+});
+
+describe('applyLocalOpsToStore', () => {
+  it('applyLocalOpsToStore patches an element and is undoable', () => {
+    useDiagramStore.setState({ elements: [el('a', 'before')], connections: [], notes: [], selectedIds: [] });
+    useDiagramStore.temporal.getState().clear();
+    applyLocalOpsToStore([{ t: 'patch', c: 'elements', id: 'a', fields: { content: 'after' } }]);
+    expect(useDiagramStore.getState().elements[0].content).toBe('after');
+    useDiagramStore.temporal.getState().undo();
+    expect(useDiagramStore.getState().elements[0].content).toBe('before');
+  });
+
+  it('applyLocalOpsToStore sets episode', () => {
+    useDiagramStore.getState().loadDiagram([], [], 'L');
+    applyLocalOpsToStore([{ t: 'set', k: 'episode', value: { clip: '1:00-2:00' } }]);
+    expect(useDiagramStore.getState().episode).toEqual({ clip: '1:00-2:00' });
   });
 });

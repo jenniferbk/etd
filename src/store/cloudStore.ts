@@ -3,7 +3,7 @@ import { DEFAULT_SORT, type SortSpec } from '../components/Workspace/workspaceLi
 
 export type LibrarySaveStatus = 'saved' | 'dirty' | 'saving' | 'notInLibrary' | 'offline';
 export type AppView = 'workspace' | 'canvas';
-export type WorkspaceTab = 'diagrams' | 'people' | 'trash';
+export type WorkspaceTab = 'diagrams' | 'people' | 'trash' | 'data' | 'codebook';
 export type WorkspaceViewMode = 'grid' | 'list';
 
 // Grid/list and sort are a per-browser convenience; storage can be missing

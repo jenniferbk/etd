@@ -56,14 +56,17 @@ export function PropertiesPanel() {
     ['action', 'question', 'other'] as const
   ).map((value) => ({ value, label: styleConfig.supportTypes[value].label }));
 
-  const OTHER_SUBTYPES = styleConfig.subtypes.other.map((s) => ({
-    value: s.id,
-    label: s.label,
-  }));
-  const QUESTION_SUBTYPES = styleConfig.subtypes.question.map((s) => ({
-    value: s.id,
-    label: s.label,
-  }));
+  // Retired kinds are hidden from the dropdown unless the element already uses one.
+  const currentSubtype = (() => {
+    const sel = selectedIds.length === 1 ? elements.find((el) => el.id === selectedIds[0]) : undefined;
+    return sel && isSupportElement(sel) ? sel.subtype : undefined;
+  })();
+  const subtypeOptions = (list: typeof styleConfig.subtypes.other) =>
+    list
+      .filter((s) => !s.retired || s.id === currentSubtype)
+      .map((s) => ({ value: s.id, label: s.label }));
+  const OTHER_SUBTYPES = subtypeOptions(styleConfig.subtypes.other);
+  const QUESTION_SUBTYPES = subtypeOptions(styleConfig.subtypes.question);
 
   const connections = useDiagramStore((s) => s.connections);
   const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);

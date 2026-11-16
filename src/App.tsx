@@ -10,6 +10,7 @@ import { useDiagramStore, useTemporalStore, useLightboxStore } from './store';
 import { useAutoSave, getAutoSavedData, clearAutoSave } from './hooks/useAutoSave';
 import { useDirtyTracking } from './hooks/dirtyTracking';
 import { useLiveSync } from './live/useLiveSync';
+import { useCodebookMirror } from './data/useCodebookMirror';
 import { saveToLibrary } from './hooks/librarySave';
 import { parseTranscript } from './utils/transcriptParser';
 import { nameForLoadedFile } from './utils/saveDiagram';
@@ -112,6 +113,7 @@ function App() {
   const chatOpen = useCloudStore((s) => s.chatOpen);
   useDirtyTracking(user !== null && preview === null);
   useLiveSync();
+  useCodebookMirror();
 
   // Defensive: preview is normally exited via "Back to current" (clears it
   // itself) since CanvasHeader's ← is disabled while previewing — but if the
