@@ -212,25 +212,38 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
       res.status(400).json({ error: 'invalid bulk edit' });
       return;
     }
-    const { label, edits } = parsed.data;
-    for (const e of edits) {
-      const d = db.prepare('SELECT group_id, deleted_at FROM diagrams WHERE id = ?').get(e.diagramId) as
+    const { label } = parsed.data;
+    // One batch (and so one labeled version) per diagram, ops in request order.
+    const merged = new Map<number, typeof parsed.data.edits[number]['ops']>();
+    for (const e of parsed.data.edits) merged.set(e.diagramId, [...(merged.get(e.diagramId) ?? []), ...e.ops]);
+    for (const diagramId of merged.keys()) {
+      const d = db.prepare('SELECT group_id, deleted_at FROM diagrams WHERE id = ?').get(diagramId) as
         { group_id: number; deleted_at: string | null } | undefined;
       if (!d || d.group_id !== groupId) {
-        res.status(400).json({ error: `diagram ${e.diagramId} is not in this group`, diagramId: e.diagramId });
+        res.status(400).json({ error: `diagram ${diagramId} is not in this group`, diagramId });
         return;
       }
       if (d.deleted_at !== null) {
-        res.status(410).json({ error: `diagram ${e.diagramId} is in the trash`, diagramId: e.diagramId });
+        res.status(410).json({ error: `diagram ${diagramId} is in the trash`, diagramId });
         return;
       }
     }
+    // Not atomic across diagrams (each is its own version, and open editors
+    // see ops live). A failure on one diagram does not undo the others: it is
+    // reported in `failed`, and the status is 500 only if nothing succeeded.
     const clientId = `import:${req.user!.id}`;
-    const results = edits.map((e, i) => ({
-      diagramId: e.diagramId,
-      versionId: live.applyAndSave(e.diagramId, clientId, `import:${Date.now()}:${i}`, e.ops, req.user!, label),
-    }));
-    res.json({ results });
+    const results: { diagramId: number; versionId: number }[] = [];
+    const failed: { diagramId: number; error: string }[] = [];
+    let i = 0;
+    for (const [diagramId, ops] of merged) {
+      try {
+        const versionId = live.applyAndSave(diagramId, clientId, `import:${Date.now()}:${i++}`, ops, req.user!, label);
+        results.push({ diagramId, versionId });
+      } catch (err) {
+        failed.push({ diagramId, error: err instanceof Error ? err.message : 'apply failed' });
+      }
+    }
+    res.status(results.length === 0 ? 500 : 200).json(failed.length > 0 ? { results, failed } : { results });
   });
 
   router.get('/diagrams/:id/thumbnail', (req, res) => {

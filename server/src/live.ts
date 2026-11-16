@@ -247,18 +247,25 @@ export class LiveRooms {
   }
 
   /** Apply ops, then save them as one new labeled version (bulk import).
-   *  Open clients receive the ops live. Returns the new version id. */
+   *  Open clients receive the ops live. Unsaved live edits are autosaved
+   *  first, so the labeled version holds only the import on top of them.
+   *  Returns the new version id. */
   applyAndSave(
     diagramId: number, clientId: string, batchId: string, ops: Op[], user: SessionUser, label: string,
   ): number {
     const room = this.load(diagramId);
-    room.apply(clientId, batchId, ops, user);
-    const versionId = room.flush({ manual: true, userId: user.id, label });
-    if (room.clients.size === 0) {
-      this.rooms.delete(diagramId);
-      this.stopHeartbeatIfIdle();
+    try {
+      if (room.dirty) room.flush();
+      room.apply(clientId, batchId, ops, user);
+      return room.flush({ manual: true, userId: user.id, label });
+    } finally {
+      // Never leak a client-less room, even when apply or persist throws.
+      if (room.clients.size === 0) {
+        room.cancelFlush();
+        this.rooms.delete(diagramId);
+        this.stopHeartbeatIfIdle();
+      }
     }
-    return versionId;
   }
 
   setSelection(diagramId: number, clientId: string, selectedIds: string[]): boolean {
