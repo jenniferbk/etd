@@ -177,7 +177,7 @@ export function HistoryPanel() {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm truncate" style={{ color: theme.sidebar.text }}>
-                {item.author}
+                {item.label || item.author}
               </span>
               {item.isCurrent && (
                 <span
@@ -189,7 +189,7 @@ export function HistoryPanel() {
               )}
             </div>
             <span className="text-xs" style={{ color: theme.sidebar.textSecondary }}>
-              {item.auto ? 'Autosaved · ' : ''}{relativeTime(item.createdAt)}
+              {item.label ? `${item.author} · ` : ''}{item.auto ? 'Autosaved · ' : ''}{relativeTime(item.createdAt)}
             </span>
           </button>
         ))}

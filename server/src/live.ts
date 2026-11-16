@@ -139,12 +139,14 @@ class Room {
   }
 
   /** Write the live document to SQLite. Manual saves always add a version. */
-  flush({ manual = false, userId }: { manual?: boolean; userId?: number } = {}): number {
+  flush({ manual = false, userId, label }: { manual?: boolean; userId?: number; label?: string } = {}): number {
     this.cancelFlush();
     if (!this.dirty && !manual) return this.currentVersionId;
     const authorId = userId ?? this.lastEditorId;
     if (authorId === null) return this.currentVersionId;
-    this.currentVersionId = this.mgr.persist(this.diagramId, this.doc, authorId, manual, this.currentVersionId);
+    this.currentVersionId = this.mgr.persist(
+      this.diagramId, this.doc, authorId, manual, this.currentVersionId, label,
+    );
     this.persistedSeq = this.seq;
     this.send('persisted', { seq: this.persistedSeq, currentVersionId: this.currentVersionId });
     return this.currentVersionId;
@@ -244,6 +246,21 @@ export class LiveRooms {
     return seq;
   }
 
+  /** Apply ops, then save them as one new labeled version (bulk import).
+   *  Open clients receive the ops live. Returns the new version id. */
+  applyAndSave(
+    diagramId: number, clientId: string, batchId: string, ops: Op[], user: SessionUser, label: string,
+  ): number {
+    const room = this.load(diagramId);
+    room.apply(clientId, batchId, ops, user);
+    const versionId = room.flush({ manual: true, userId: user.id, label });
+    if (room.clients.size === 0) {
+      this.rooms.delete(diagramId);
+      this.stopHeartbeatIfIdle();
+    }
+    return versionId;
+  }
+
   setSelection(diagramId: number, clientId: string, selectedIds: string[]): boolean {
     const client = this.rooms.get(diagramId)?.clients.get(clientId);
     if (!client) return false;
@@ -330,7 +347,9 @@ export class LiveRooms {
     return room ? { doc: room.doc, currentVersionId: room.currentVersionId } : null;
   }
 
-  persist(diagramId: number, doc: LiveDoc, authorId: number, manual: boolean, currentVersionId: number): number {
+  persist(
+    diagramId: number, doc: LiveDoc, authorId: number, manual: boolean, currentVersionId: number, label?: string,
+  ): number {
     const gz = packSnapshot(doc);
     const title = typeof doc.name === 'string' && doc.name.trim() ? doc.name.trim() : null;
     let versionId = currentVersionId;
@@ -348,10 +367,10 @@ export class LiveRooms {
       } else {
         const r = this.db
           .prepare(
-            `INSERT INTO diagram_versions (diagram_id, author_id, snapshot_gz, auto, saved_at)
-             VALUES (?, ?, ?, ?, datetime('now'))`,
+            `INSERT INTO diagram_versions (diagram_id, author_id, snapshot_gz, auto, saved_at, label)
+             VALUES (?, ?, ?, ?, datetime('now'), ?)`,
           )
-          .run(diagramId, authorId, gz, manual ? 0 : 1);
+          .run(diagramId, authorId, gz, manual ? 0 : 1, label ?? null);
         versionId = Number(r.lastInsertRowid);
       }
       this.db

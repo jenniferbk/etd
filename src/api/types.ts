@@ -80,6 +80,8 @@ export interface DiagramVersionListItem {
   isCurrent: boolean;
   /** True for versions written by live autosave; absent from older servers. */
   auto?: boolean;
+  /** Set on labeled versions, e.g. a spreadsheet import. */
+  label?: string | null;
 }
 
 /** A single version's full content (GET /api/diagrams/:id/versions/:versionId). */
