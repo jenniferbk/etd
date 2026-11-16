@@ -36,6 +36,16 @@ describe('buildDiagramFile', () => {
       transcript: null,
       notes: [],
     });
+    expect('episode' in file).toBe(false);
+  });
+
+  it('carries episode fields and stamps version 1.10', () => {
+    const file = buildDiagramFile({
+      diagramName: 'E', elements: [], connections: [], styleConfig: {} as never,
+      transcript: null, notes: [], episode: { discipline: 'M' },
+    });
+    expect(file.episode).toEqual({ discipline: 'M' });
+    expect(file.version).toBe('1.10');
   });
 });
 

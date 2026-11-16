@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useDiagramStore } from '../store';
 import { useCloudStore } from '../store/cloudStore';
-import type { Transcript, StyleConfig, AnalyticNote } from '../types';
+import type { Transcript, StyleConfig, AnalyticNote, EpisodeFields } from '../types';
 
 const AUTO_SAVE_KEY = 'toulmin-diagram-autosave';
 const AUTO_SAVE_INTERVAL = 60000; // 60 seconds
@@ -18,6 +18,8 @@ interface AutoSaveData {
   diagramName?: string;
   // Optional: autosave entries written before notes existed lack this field.
   notes?: AnalyticNote[];
+  // Optional: older autosave entries lack episode fields.
+  episode?: EpisodeFields;
   timestamp: number;
 }
 
@@ -43,6 +45,7 @@ export function useAutoSave() {
           styleConfig: state.styleConfig,
           diagramName: state.diagramName,
           notes: state.notes,
+          episode: state.episode,
           timestamp: Date.now(),
         };
 

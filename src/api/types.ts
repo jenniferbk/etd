@@ -59,6 +59,7 @@ export interface SavedDiagramFile {
   styleConfig?: unknown;
   transcript?: unknown;
   notes?: unknown[];
+  episode?: unknown;
 }
 
 export interface CloudDiagram {
@@ -79,6 +80,8 @@ export interface DiagramVersionListItem {
   isCurrent: boolean;
   /** True for versions written by live autosave; absent from older servers. */
   auto?: boolean;
+  /** Set on labeled versions, e.g. a spreadsheet import. */
+  label?: string | null;
 }
 
 /** A single version's full content (GET /api/diagrams/:id/versions/:versionId). */

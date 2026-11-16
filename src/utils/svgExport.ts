@@ -2,7 +2,7 @@ import type { DiagramElement, Connection, ArgumentElement, SupportElement, Teach
 import { imageAreaHeight } from './imageLayout';
 import type { StyleConfig } from '../types';
 import { isArrowAttachment } from '../types';
-import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle } from './styleResolver';
+import { resolveArgumentStyle, resolveSupportStyle, dashArrayForBorderStyle, findSubtype } from './styleResolver';
 import { generateCloudPath } from './cloudPath';
 import {
   getEffectiveWaypoints,
@@ -308,11 +308,10 @@ function renderSupportSvg(el: SupportElement, x: number, y: number, width: numbe
   const dashAttr = dashArrayValues ? `stroke-dasharray="${dashArrayValues.join(' ')}"` : '';
 
   // Orphan detection: any non-'action' supportType with a subtype that no longer exists.
-  const subtypeList = styleConfig.subtypes[el.supportType];
-  const isOrphan = el.supportType !== 'action' && el.subtype !== undefined &&
-    !subtypeList.some((s) => s.id === el.subtype);
+  const foundSubtype = findSubtype(styleConfig, el.supportType, el.subtype);
+  const isOrphan = el.supportType !== 'action' && el.subtype !== undefined && !foundSubtype;
   const subtypeLabel = el.supportType !== 'action' && el.subtype
-    ? (subtypeList.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
+    ? (foundSubtype?.label ?? '[deleted subtype]')
     : null;
   const supportTypeLabel = styleConfig.supportTypes[el.supportType].label;
   const contributorLabel = el.contributor === 'teacher' ? 'T' : 'S';
@@ -378,11 +377,10 @@ function renderTeacherSupportSvg(el: TeacherSupportElement, x: number, y: number
   }
 
   // Action returned above, so el.supportType is 'question' | 'other' here.
-  const subtypeList = styleConfig.subtypes[el.supportType];
-  const isOrphan = el.subtype !== undefined &&
-    !subtypeList.some((s) => s.id === el.subtype);
+  const foundSubtype = findSubtype(styleConfig, el.supportType, el.subtype);
+  const isOrphan = el.subtype !== undefined && !foundSubtype;
   const subtypeLabel = el.subtype
-    ? (subtypeList.find((s) => s.id === el.subtype)?.label ?? '[deleted subtype]')
+    ? (foundSubtype?.label ?? '[deleted subtype]')
     : null;
 
   // Rounded rectangle — header is type label, with subtype suffix when one is set.

@@ -54,6 +54,68 @@ describe('applyOps', () => {
   });
 });
 
+describe('episode op', () => {
+  it('diffDocs emits a set op for episode and applyOps applies it', () => {
+    const a = doc({});
+    const b = doc({ episode: { status: 'vetted' } });
+    const ops = diffDocs(a, b);
+    expect(ops).toEqual([{ t: 'set', k: 'episode', value: { status: 'vetted' } }]);
+    expect(applyOps(a, ops).episode).toEqual({ status: 'vetted' });
+  });
+});
+
+describe('episode clearing', () => {
+  it('diffDocs from set to absent emits the removed fields as null, and applying it removes episode', () => {
+    const from = doc({ episode: { status: 'vetted' } });
+    const ops = diffDocs(from, doc({}));
+    expect(ops).toEqual([{ t: 'set', k: 'episode', value: { status: null } }]);
+    expect('episode' in applyOps(from, ops)).toBe(false);
+  });
+});
+
+describe('episode is field-granular', () => {
+  it('set merges into the existing episode, keeping other fields', () => {
+    const d = applyOps(doc({ episode: { status: 'vetted', clip: '1:00-2:00' } }), [
+      { t: 'set', k: 'episode', value: { discipline: 'math' } },
+    ]);
+    expect(d.episode).toEqual({ status: 'vetted', clip: '1:00-2:00', discipline: 'math' });
+  });
+
+  it('a null field deletes that field; emptying it removes episode', () => {
+    let d = applyOps(doc({ episode: { status: 'vetted', sgwc: 'SG' } }), [
+      { t: 'set', k: 'episode', value: { status: null } },
+    ]);
+    expect(d.episode).toEqual({ sgwc: 'SG' });
+    d = applyOps(d, [{ t: 'set', k: 'episode', value: { sgwc: null } }]);
+    expect('episode' in d).toBe(false);
+  });
+
+  it('a null value clears episode', () => {
+    expect('episode' in applyOps(doc({ episode: { status: 'vetted' } }), [{ t: 'set', k: 'episode', value: null }])).toBe(false);
+  });
+
+  it('diffDocs treats {} and absent as equal', () => {
+    expect(diffDocs(doc({ episode: {} }), doc({}))).toEqual([]);
+    expect(diffDocs(doc({}), doc({ episode: {} }))).toEqual([]);
+  });
+
+  it('diffDocs sends only the changed fields', () => {
+    const ops = diffDocs(
+      doc({ episode: { status: 'vetted', discipline: 'math', clip: 'x' } }),
+      doc({ episode: { status: 'vetted', discipline: 'physics' } }),
+    );
+    expect(ops).toEqual([{ t: 'set', k: 'episode', value: { discipline: 'physics', clip: null } }]);
+  });
+
+  it("a stale-cache Discipline edit does not wipe a teammate's Status", () => {
+    const stale = doc({ episode: {} });
+    const mine = diffDocs(stale, doc({ episode: { discipline: 'math' } }));
+    // The server already has the teammate's Status.
+    const server = applyOps(doc({ episode: { status: 'vetted' } }), mine);
+    expect(server.episode).toEqual({ status: 'vetted', discipline: 'math' });
+  });
+});
+
 describe('diffDocs', () => {
   const roundTrip = (a: LiveDoc, b: LiveDoc) => {
     const ops = diffDocs(a, b);

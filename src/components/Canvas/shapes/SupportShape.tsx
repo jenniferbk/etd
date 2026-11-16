@@ -2,7 +2,7 @@ import { Group, Rect, Ellipse, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { SupportElement } from '../../../types';
 import { useDiagramStore } from '../../../store';
-import { resolveSupportStyle, dashArrayForBorderStyle } from '../../../utils/styleResolver';
+import { resolveSupportStyle, dashArrayForBorderStyle, findSubtype } from '../../../utils/styleResolver';
 import { NoteBadge } from './NoteBadge';
 
 interface SupportShapeProps {
@@ -64,11 +64,10 @@ export function SupportShape({
   // styleConfig.subtypes[supportType]. Both 'question' and 'other' may have subtypes;
   // a question element with no subtype falls back to the type label ("Question").
   const supportTypeLabel = styleConfig.supportTypes[supportType].label;
-  const subtypeList = styleConfig.subtypes[supportType];
-  const isOrphan = supportType !== 'action' && subtype !== undefined &&
-    !subtypeList.some((s) => s.id === subtype);
+  const foundSubtype = findSubtype(styleConfig, supportType, subtype);
+  const isOrphan = supportType !== 'action' && subtype !== undefined && !foundSubtype;
   const subtypeLabel = supportType !== 'action' && subtype
-    ? (subtypeList.find((s) => s.id === subtype)?.label ?? '[deleted subtype]')
+    ? (foundSubtype?.label ?? '[deleted subtype]')
     : null;
   const headerLabel =
     supportType === 'action' ? '' :

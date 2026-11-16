@@ -159,6 +159,93 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
     res.json(rows.map((r) => ({ ...r, hasThumbnail: r.hasThumbnail === 1 })));
   });
 
+  router.get('/groups/:id/data', (req, res) => {
+    const groupId = Number(req.params.id);
+    if (!Number.isInteger(groupId)) {
+      res.status(400).json({ error: 'invalid group id' });
+      return;
+    }
+    if (getRole(db, req.user!.id, groupId) === null) {
+      res.status(403).json({ error: 'not a member of this group' });
+      return;
+    }
+    const rows = db
+      .prepare(
+        `SELECT d.id, d.title, d.folder_id AS folderId, d.current_version_id AS currentVersionId, v.snapshot_gz AS gz
+         FROM diagrams d JOIN diagram_versions v ON v.id = d.current_version_id
+         WHERE d.group_id = ? AND d.deleted_at IS NULL ORDER BY d.id`,
+      )
+      .all(groupId) as { id: number; title: string; folderId: number | null; currentVersionId: number; gz: Buffer }[];
+    res.json({
+      diagrams: rows.map(({ gz, ...r }) => {
+        const open = live.liveDoc(r.id);
+        return {
+          ...r,
+          currentVersionId: open ? open.currentVersionId : r.currentVersionId,
+          snapshot: open ? open.doc : unpackSnapshot(gz),
+        };
+      }),
+    });
+  });
+
+  // Bulk edit across a group's diagrams (spreadsheet import). Every target
+  // is validated before any is touched; each gets one labeled version.
+  router.post('/groups/:id/data/apply', (req, res) => {
+    const groupId = Number(req.params.id);
+    if (!Number.isInteger(groupId)) {
+      res.status(400).json({ error: 'invalid group id' });
+      return;
+    }
+    if (getRole(db, req.user!.id, groupId) === null) {
+      res.status(403).json({ error: 'not a member of this group' });
+      return;
+    }
+    const parsed = z
+      .object({
+        label: z.string().min(1).max(200),
+        edits: z
+          .array(z.object({ diagramId: z.number().int(), ops: z.array(opSchema).min(1).max(MAX_OPS_PER_BATCH) }))
+          .min(1).max(500),
+      })
+      .safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'invalid bulk edit' });
+      return;
+    }
+    const { label } = parsed.data;
+    // One batch (and so one labeled version) per diagram, ops in request order.
+    const merged = new Map<number, typeof parsed.data.edits[number]['ops']>();
+    for (const e of parsed.data.edits) merged.set(e.diagramId, [...(merged.get(e.diagramId) ?? []), ...e.ops]);
+    for (const diagramId of merged.keys()) {
+      const d = db.prepare('SELECT group_id, deleted_at FROM diagrams WHERE id = ?').get(diagramId) as
+        { group_id: number; deleted_at: string | null } | undefined;
+      if (!d || d.group_id !== groupId) {
+        res.status(400).json({ error: `diagram ${diagramId} is not in this group`, diagramId });
+        return;
+      }
+      if (d.deleted_at !== null) {
+        res.status(410).json({ error: `diagram ${diagramId} is in the trash`, diagramId });
+        return;
+      }
+    }
+    // Not atomic across diagrams (each is its own version, and open editors
+    // see ops live). A failure on one diagram does not undo the others: it is
+    // reported in `failed`, and the status is 500 only if nothing succeeded.
+    const clientId = `import:${req.user!.id}`;
+    const results: { diagramId: number; versionId: number }[] = [];
+    const failed: { diagramId: number; error: string }[] = [];
+    let i = 0;
+    for (const [diagramId, ops] of merged) {
+      try {
+        const versionId = live.applyAndSave(diagramId, clientId, `import:${Date.now()}:${i++}`, ops, req.user!, label);
+        results.push({ diagramId, versionId });
+      } catch (err) {
+        failed.push({ diagramId, error: err instanceof Error ? err.message : 'apply failed' });
+      }
+    }
+    res.status(results.length === 0 ? 500 : 200).json(failed.length > 0 ? { results, failed } : { results });
+  });
+
   router.get('/diagrams/:id/thumbnail', (req, res) => {
     const row = getDiagramForMember(req, res);
     if (!row) return;
@@ -198,11 +285,11 @@ export function diagramRoutes(db: Db, live: LiveRooms): Router {
     if (!row) return;
     const versions = db
       .prepare(
-        `SELECT v.id, u.display_name AS author, COALESCE(v.saved_at, v.created_at) AS createdAt, v.auto
+        `SELECT v.id, u.display_name AS author, COALESCE(v.saved_at, v.created_at) AS createdAt, v.auto, v.label
          FROM diagram_versions v JOIN users u ON u.id = v.author_id
          WHERE v.diagram_id = ? ORDER BY v.id DESC`,
       )
-      .all(row.id) as { id: number; author: string; createdAt: string; auto: number }[];
+      .all(row.id) as { id: number; author: string; createdAt: string; auto: number; label: string | null }[];
     res.json(versions.map((v) => ({ ...v, auto: v.auto === 1, isCurrent: v.id === row.current_version_id })));
   });
 

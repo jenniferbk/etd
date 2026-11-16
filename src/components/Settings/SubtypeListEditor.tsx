@@ -6,6 +6,7 @@ import { isSupportElement } from '../../types';
 import { theme } from '../../utils/theme';
 import { createCurrentDefaults } from '../../utils/styleConfigDefaults';
 import { generateUuid } from '../../utils/uuid';
+import { useCloudStore } from '../../store/cloudStore';
 
 interface SubtypeListEditorProps {
   supportType: SupportType;
@@ -15,6 +16,8 @@ interface SubtypeListEditorProps {
 
 export function SubtypeListEditor({ supportType, config, onChange }: SubtypeListEditorProps) {
   const elements = useDiagramStore((s) => s.elements);
+  // Library diagrams take question/other kinds from the group codebook.
+  const managed = useCloudStore((s) => s.groupId !== null) && supportType !== 'action';
 
   const list = config.subtypes[supportType];
   const typeLabel = config.supportTypes[supportType].label;
@@ -80,18 +83,36 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
         >
           {typeLabel} Subtypes
         </h3>
-        <button
-          onClick={handleResetSubtypes}
-          className="text-xs underline"
-          style={{ color: theme.sidebar.muted }}
-        >
-          Reset subtypes to defaults
-        </button>
+        {!managed && (
+          <button
+            onClick={handleResetSubtypes}
+            className="text-xs underline"
+            style={{ color: theme.sidebar.muted }}
+          >
+            Reset subtypes to defaults
+          </button>
+        )}
       </div>
+
+      {managed && (
+        <div className="flex items-center gap-2 text-xs" style={{ color: theme.sidebar.muted }}>
+          <span>Kinds are managed in the library codebook</span>
+          <button
+            onClick={() => {
+              useCloudStore.getState().setView('workspace');
+              useCloudStore.getState().setWorkspaceTab('codebook');
+            }}
+            className="underline"
+            style={{ color: theme.sidebar.text }}
+          >
+            Open Codebook
+          </button>
+        </div>
+      )}
 
       <div className="text-xs" style={{ color: theme.sidebar.muted }}>
         Subtypes appear in the palette dropdown and the transcript-line object-type selector.
-        Renaming a subtype updates every element that uses it. Deleting one orphans those elements.
+        {!managed && 'Renaming a subtype updates every element that uses it. Deleting one orphans those elements. '}
         A subtype can override the {typeLabel.toLowerCase()} shape and fill; "Type default" uses the {typeLabel} style.
       </div>
 
@@ -102,6 +123,7 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
             subtype={s}
             index={idx}
             useCount={countUsesForId(s.id)}
+            readOnly={managed}
             typeFill={config.supportTypes[supportType].backgroundColor}
             onRename={handleRename}
             onStyleChange={handleStyleChange}
@@ -111,13 +133,15 @@ export function SubtypeListEditor({ supportType, config, onChange }: SubtypeList
         ))}
       </div>
 
-      <button
-        onClick={handleAdd}
-        className="flex items-center gap-2 px-3 py-2 text-sm rounded"
-        style={{ backgroundColor: theme.sidebar.surface, color: theme.sidebar.text }}
-      >
-        <Plus size={14} /> Add subtype
-      </button>
+      {!managed && (
+        <button
+          onClick={handleAdd}
+          className="flex items-center gap-2 px-3 py-2 text-sm rounded"
+          style={{ backgroundColor: theme.sidebar.surface, color: theme.sidebar.text }}
+        >
+          <Plus size={14} /> Add subtype
+        </button>
+      )}
     </div>
   );
 }
@@ -126,6 +150,7 @@ interface SubtypeRowProps {
   subtype: Subtype;
   index: number;
   useCount: number;
+  readOnly: boolean;
   typeFill: string;
   onRename: (id: string, label: string) => void;
   onStyleChange: (id: string, style: SubtypeStyle) => void;
@@ -140,7 +165,7 @@ const SHAPE_OPTIONS: { value: '' | BorderShape; label: string }[] = [
   { value: 'ellipse', label: 'Ellipse' },
 ];
 
-function SubtypeRow({ subtype, index, useCount, typeFill, onRename, onStyleChange, onRemove, onReorder }: SubtypeRowProps) {
+function SubtypeRow({ subtype, index, useCount, readOnly, typeFill, onRename, onStyleChange, onRemove, onReorder }: SubtypeRowProps) {
   // Initial label comes from props. External changes (e.g. undo) are handled by
   // the `key={id:label}` on the parent — forcing a remount with fresh state.
   const [labelDraft, setLabelDraft] = useState(subtype.label);
@@ -155,7 +180,7 @@ function SubtypeRow({ subtype, index, useCount, typeFill, onRename, onStyleChang
     <div
       className="px-2 py-1.5 rounded space-y-1.5"
       style={{ backgroundColor: theme.sidebar.surface }}
-      draggable
+      draggable={!readOnly}
       onDragStart={(e) => {
         e.dataTransfer.setData('text/plain', String(index));
         e.dataTransfer.effectAllowed = 'move';
@@ -166,14 +191,16 @@ function SubtypeRow({ subtype, index, useCount, typeFill, onRename, onStyleChang
       }}
       onDrop={(e) => {
         e.preventDefault();
+        if (readOnly) return;
         const fromStr = e.dataTransfer.getData('text/plain');
         const from = fromStr === '' ? NaN : Number(fromStr);
         if (Number.isFinite(from) && from !== index) onReorder(from, index);
       }}
     >
       <div className="flex items-center gap-2">
-      <GripVertical size={14} style={{ color: theme.sidebar.muted, cursor: 'grab' }} />
+      {!readOnly && <GripVertical size={14} style={{ color: theme.sidebar.muted, cursor: 'grab' }} />}
       <input
+        readOnly={readOnly}
         type="text"
         value={labelDraft}
         onChange={(e) => setLabelDraft(e.target.value)}
@@ -193,6 +220,7 @@ function SubtypeRow({ subtype, index, useCount, typeFill, onRename, onStyleChang
           {useCount} use{useCount === 1 ? '' : 's'}
         </span>
       )}
+      {!readOnly && (
       <button
         onClick={() => onRemove(subtype.id)}
         className="p-1 rounded transition-colors"
@@ -202,6 +230,7 @@ function SubtypeRow({ subtype, index, useCount, typeFill, onRename, onStyleChang
       >
         <Trash2 size={14} style={{ color: theme.sidebar.muted }} />
       </button>
+      )}
       </div>
       <div className="flex items-center gap-2 pl-6 text-xs" style={{ color: theme.sidebar.muted }}>
         <label className="flex items-center gap-1">

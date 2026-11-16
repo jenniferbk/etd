@@ -141,6 +141,38 @@ is also the recovery invariant for the whole system: because site admins can
 manage any group's membership, the bootstrap site-admin account is always
 the recovery path if a group ever loses all of its own admins.
 
+### Seeding the research codebook
+
+Every group gets its own codebook, built on first use from the subtypes
+already in that group's diagrams. The 34-kind research codebook
+(`server/seeds/research-codebook.json`) is applied only to the research
+group, by hand, with this script. Run it from `server/` with the path to the
+live database:
+
+```bash
+cd server
+npx tsx scripts/seed-codebook.ts \
+  --db "$ETD_DB_PATH" \
+  --group-name "[VERIFY with Jennifer: research group's name on COMS]" \
+  --seed seeds/research-codebook.json
+# Seeded group "...": 34 added, 0 updated, 0 unchanged.
+# (If the codebook already exists with the six default kinds, it prints
+# "28 added, 6 updated, 0 unchanged".)
+```
+
+`--group-name` must match the group's name exactly; the script exits with
+`no group named "..."` otherwise.
+
+The seed upserts by kind id: it adds missing kinds and updates the label,
+category, and type of existing ones, logging one `seed` entry per change in
+the codebook's change log. So it does not have to run before the team first
+opens the Codebook tab. Re-running it is safe for the kinds the group added,
+but it resets the label, category, and type of any seeded kind back to the
+seed file, so do not re-run it after the team has renamed seeded kinds. It
+**never deletes**: kinds the group added that are not in the seed file stay,
+and merged or retired status is left as it is. Take a backup (Section 7)
+before running it against the production database.
+
 ## 4. COMS Mac setup
 
 This assumes a shared Mac in the COMS lab that stays powered on and logged

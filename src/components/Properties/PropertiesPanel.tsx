@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, MousePointer2, Trash2 } from 'lucide-react';
 import { useDiagramStore } from '../../store';
+import { findSubtype, visibleSubtypes } from '../../utils/styleResolver';
 import type { DiagramElement, CropArea, ArgumentType, ContributorType, SupportType, SupportSubtype, SupportContributor, ConnectionType, Connection } from '../../types';
 import { isArgumentElement, isSupportElement, isTeacherSupportElement, isInfoBoxElement } from '../../types';
 import { theme } from '../../utils/theme';
@@ -56,14 +57,15 @@ export function PropertiesPanel() {
     ['action', 'question', 'other'] as const
   ).map((value) => ({ value, label: styleConfig.supportTypes[value].label }));
 
-  const OTHER_SUBTYPES = styleConfig.subtypes.other.map((s) => ({
-    value: s.id,
-    label: s.label,
-  }));
-  const QUESTION_SUBTYPES = styleConfig.subtypes.question.map((s) => ({
-    value: s.id,
-    label: s.label,
-  }));
+  // Retired kinds are hidden from the dropdown unless the element already uses one.
+  const currentSubtype = (() => {
+    const sel = selectedIds.length === 1 ? elements.find((el) => el.id === selectedIds[0]) : undefined;
+    return sel && isSupportElement(sel) ? sel.subtype : undefined;
+  })();
+  const subtypeOptions = (list: typeof styleConfig.subtypes.other) =>
+    visibleSubtypes(list, currentSubtype).map((s) => ({ value: s.id, label: s.label }));
+  const OTHER_SUBTYPES = subtypeOptions(styleConfig.subtypes.other);
+  const QUESTION_SUBTYPES = subtypeOptions(styleConfig.subtypes.question);
 
   const connections = useDiagramStore((s) => s.connections);
   const resetConnectionRouting = useDiagramStore((s) => s.resetConnectionRouting);
@@ -93,7 +95,7 @@ export function PropertiesPanel() {
     isSupportElement(selectedElement) &&
     selectedElement.supportType !== 'action' &&
     selectedElement.subtype !== undefined &&
-    !styleConfig.subtypes[selectedElement.supportType].some((s) => s.id === selectedElement.subtype)
+    !findSubtype(styleConfig, selectedElement.supportType, selectedElement.subtype)
   );
 
   // Handle image changes - must be before early return for hooks rules
@@ -492,7 +494,7 @@ export function PropertiesPanel() {
                   className="px-3 py-2 text-sm border rounded-lg transition-all duration-150 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
                   style={selectStyle}
                 >
-                  <option value="">To Support...</option>
+                  <option value="">To responsive move…</option>
                   <option value="action">Action</option>
                   <option value="question">Question</option>
                   {QUESTION_SUBTYPES.length > 0 && (
@@ -504,7 +506,7 @@ export function PropertiesPanel() {
                       ))}
                     </optgroup>
                   )}
-                  <optgroup label="Other Support">
+                  <optgroup label="Other responsive moves">
                     {OTHER_SUBTYPES.map((subtype) => (
                       <option key={subtype.value} value={`other:${subtype.value}`}>
                         {subtype.label}

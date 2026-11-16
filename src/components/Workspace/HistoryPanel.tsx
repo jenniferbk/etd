@@ -10,7 +10,7 @@ import { saveToLibrary } from '../../hooks/librarySave';
 import { theme } from '../../utils/theme';
 import { relativeTime } from '../../utils/relativeTime';
 import type { DiagramVersionListItem, DiagramVersion } from '../../api/types';
-import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, EpisodeFields, StyleConfig, Transcript } from '../../types';
 
 /** Right-side panel (mirrors TranscriptPanel's conventions) listing a
  *  diagram's saved versions. Clicking a row loads that version read-only
@@ -73,6 +73,7 @@ export function HistoryPanel() {
         (snap.transcript ?? null) as Transcript | null,
         snap.styleConfig as StyleConfig | undefined,
         (snap.notes ?? []) as AnalyticNote[],
+        snap.episode as EpisodeFields | undefined,
       );
     } catch (err) {
       useToastStore.getState().addToast('error', friendlyError(err));
@@ -176,7 +177,7 @@ export function HistoryPanel() {
           >
             <div className="flex items-center justify-between gap-2">
               <span className="text-sm truncate" style={{ color: theme.sidebar.text }}>
-                {item.author}
+                {item.label || item.author}
               </span>
               {item.isCurrent && (
                 <span
@@ -188,7 +189,7 @@ export function HistoryPanel() {
               )}
             </div>
             <span className="text-xs" style={{ color: theme.sidebar.textSecondary }}>
-              {item.auto ? 'Autosaved · ' : ''}{relativeTime(item.createdAt)}
+              {item.label ? `${item.author} · ` : ''}{item.auto ? 'Autosaved · ' : ''}{relativeTime(item.createdAt)}
             </span>
           </button>
         ))}

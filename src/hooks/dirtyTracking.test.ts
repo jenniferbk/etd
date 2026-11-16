@@ -67,6 +67,13 @@ describe('startDirtyTracking', () => {
     expect(useCloudStore.getState().status).toBe('dirty');
   });
 
+  it('marks saved → dirty when an episode field changes', () => {
+    stop = startDirtyTracking();
+    useDiagramStore.setState({ episode: { status: 'vetted' } });
+    expect(useCloudStore.getState().status).toBe('dirty');
+    useDiagramStore.setState({ episode: {} });
+  });
+
   it('does not increment getEditTick when the notes panel is toggled', () => {
     stop = startDirtyTracking();
     const before = getEditTick();

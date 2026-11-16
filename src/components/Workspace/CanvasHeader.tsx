@@ -7,6 +7,7 @@ import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { friendlyError } from '../../api/friendlyError';
 import { theme } from '../../utils/theme';
+import { currentDiagramSnapshot } from '../../utils/buildCloudSnapshot';
 import { saveDiagramJson, nameForLoadedFile } from '../../utils/saveDiagram';
 import { saveToLibrary } from '../../hooks/librarySave';
 import { importDrawingFile } from '../../utils/drawingImporter';
@@ -40,6 +41,7 @@ export function CanvasHeader() {
   const preview = useCloudStore((s) => s.preview);
   const historyOpen = useCloudStore((s) => s.historyOpen);
   const chatOpen = useCloudStore((s) => s.chatOpen);
+  const canvasMode = useCloudStore((s) => s.canvasMode);
   const unread = useCollabStore((s) => s.unread);
   const diagramName = useDiagramStore((s) => s.diagramName);
   const setDiagramName = useDiagramStore((s) => s.setDiagramName);
@@ -176,15 +178,7 @@ export function CanvasHeader() {
   }
 
   const handleDownloadCopy = () => {
-    const d = useDiagramStore.getState();
-    void saveDiagramJson({
-      diagramName: d.diagramName,
-      elements: d.elements,
-      connections: d.connections,
-      styleConfig: d.styleConfig,
-      transcript: d.transcript,
-      notes: d.notes,
-    });
+    void saveDiagramJson(currentDiagramSnapshot());
   };
 
   const handleOpenFileClick = () => {
@@ -200,8 +194,9 @@ export function CanvasHeader() {
     try {
       if (file.name.endsWith('.drawing')) {
         const result = await importDrawingFile(file);
-        useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
+        // Clear the library target first so the codebook mirror never touches a local file.
         useCloudStore.getState().clearCloudTarget();
+        useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
         e.target.value = '';
         return;
       }
@@ -211,10 +206,11 @@ export function CanvasHeader() {
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
-            useDiagramStore.getState().loadDiagram(
-              data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes,
-            );
+            // Clear the library target first so the codebook mirror never touches a local file.
             useCloudStore.getState().clearCloudTarget();
+            useDiagramStore.getState().loadDiagram(
+              data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode,
+            );
           } else {
             useToastStore.getState().addToast('error', 'Invalid diagram file format');
           }
@@ -264,6 +260,31 @@ export function CanvasHeader() {
           >
             ← {backLabel}
           </button>
+          {diagramId !== null && (
+            <div
+              className="ml-3 inline-flex flex-shrink-0 rounded-lg border overflow-hidden"
+              role="group"
+              aria-label="Show"
+              style={{ borderColor: theme.button.secondary.border }}
+            >
+              {([['diagram', 'Diagram'], ['data', 'Data']] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  onClick={() => useCloudStore.getState().setCanvasMode(mode)}
+                  disabled={preview !== null}
+                  aria-pressed={canvasMode === mode}
+                  className="px-3! py-1.5! text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{
+                    backgroundColor: canvasMode === mode ? theme.sidebar.surfaceActive : theme.button.secondary.bg,
+                    color: theme.button.secondary.text,
+                    outlineColor: theme.focus.ring,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col items-center flex-shrink-0 px-4" style={{ minWidth: 0, maxWidth: 360 }}>
@@ -296,7 +317,7 @@ export function CanvasHeader() {
           <PresenceAvatars />
           <button
             onClick={handleToggleHistory}
-            disabled={diagramId === null}
+            disabled={diagramId === null || canvasMode === 'data'}
             aria-pressed={historyOpen}
             aria-label="History"
             className="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -305,7 +326,7 @@ export function CanvasHeader() {
               backgroundColor: historyOpen ? theme.sidebar.hover : 'transparent',
               outlineColor: theme.focus.ring,
             }}
-            onMouseEnter={(e) => { if (diagramId !== null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseEnter={(e) => { if (diagramId !== null && canvasMode !== 'data') e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = historyOpen ? theme.sidebar.hover : 'transparent'; }}
           >
             History
@@ -313,7 +334,7 @@ export function CanvasHeader() {
 
           <button
             onClick={() => useCloudStore.getState().setChatOpen(!chatOpen)}
-            disabled={diagramId === null}
+            disabled={diagramId === null || canvasMode === 'data'}
             aria-pressed={chatOpen}
             aria-label={unread > 0 ? `Chat, ${unread} unread` : 'Chat'}
             className="relative px-3 py-1.5 text-sm font-medium rounded-lg transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -322,7 +343,7 @@ export function CanvasHeader() {
               backgroundColor: chatOpen ? theme.sidebar.hover : 'transparent',
               outlineColor: theme.focus.ring,
             }}
-            onMouseEnter={(e) => { if (diagramId !== null) e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
+            onMouseEnter={(e) => { if (diagramId !== null && canvasMode !== 'data') e.currentTarget.style.backgroundColor = theme.sidebar.hover; }}
             onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = chatOpen ? theme.sidebar.hover : 'transparent'; }}
           >
             Chat

@@ -40,7 +40,7 @@ export function describeElement(
   }
   if (isInfoBoxElement(el)) return el.label;
   // Deprecated TeacherSupportElement
-  return el.content.trim() ? truncate(el.content, 24) : 'Teacher support';
+  return el.content.trim() ? truncate(el.content, 24) : 'Teacher responsive move';
 }
 
 /** "Data 1 → Claim 2"; "Claim 1 –/– Claim 2" for counterclaims;

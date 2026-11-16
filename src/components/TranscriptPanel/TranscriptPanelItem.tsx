@@ -5,6 +5,7 @@ import type { TranscriptLine, TranscriptObjectType } from '../../types/transcrip
 import { theme } from '../../utils/theme';
 import { getContributorColor } from '../../utils/colors';
 import { useDiagramStore } from '../../store';
+import { visibleSubtypes } from '../../utils/styleResolver';
 
 const CONTRIBUTOR_OPTIONS: { value: ContributorType | ''; label: string }[] = [
   { value: '', label: '—' },
@@ -75,6 +76,9 @@ export function TranscriptPanelItem({
   onDismissChange,
 }: TranscriptPanelItemProps) {
   const styleConfig = useDiagramStore((s) => s.styleConfig);
+  // Retired and merged kinds are hidden unless this line already uses one.
+  const questionKinds = visibleSubtypes(styleConfig.subtypes.question, line.subtype);
+  const otherKinds = visibleSubtypes(styleConfig.subtypes.other, line.subtype);
 
   const OBJECT_TYPE_OPTIONS: ObjectTypeOption[] = [
     { value: '', label: '—', objectType: null },
@@ -86,13 +90,13 @@ export function TranscriptPanelItem({
     { value: 'rebuttal',  label: styleConfig.argumentTypes.rebuttal.label,  objectType: 'rebuttal' },
     { value: 'action',    label: styleConfig.supportTypes.action.label,     objectType: 'action' },
     { value: 'question',  label: styleConfig.supportTypes.question.label,   objectType: 'question' },
-    ...styleConfig.subtypes.question.map((s) => ({
+    ...questionKinds.map((s) => ({
       value: `question:${s.id}`,
       label: `${styleConfig.supportTypes.question.label}: ${s.label}`,
       objectType: 'question' as const,
       subtype: s.id,
     })),
-    ...styleConfig.subtypes.other.map((s) => ({
+    ...otherKinds.map((s) => ({
       value: `other:${s.id}`,
       label: `${styleConfig.supportTypes.other.label}: ${s.label}`,
       objectType: 'other' as const,
@@ -106,7 +110,7 @@ export function TranscriptPanelItem({
 
   const dragTooltip = !canDrag
     ? incompatible
-      ? 'Support elements require teacher or student contributor.'
+      ? 'Responsive move elements require teacher or student contributor.'
       : 'Set contributor and object type first.'
     : '';
 
@@ -241,7 +245,7 @@ export function TranscriptPanelItem({
           value={encodeObjectTypeValue(
             line.objectType,
             line.subtype,
-            styleConfig.subtypes.other[0]?.id ?? '',
+            otherKinds.find((s) => !s.retired)?.id ?? '',
           )}
           onChange={(e) => {
             const { objectType, subtype } = decodeObjectTypeValue(e.target.value, OBJECT_TYPE_OPTIONS);
@@ -262,7 +266,7 @@ export function TranscriptPanelItem({
           className="text-[10px] mt-1"
           style={{ color: theme.danger.fg }}
         >
-          Support requires teacher or student contributor.
+          Responsive move requires teacher or student contributor.
         </div>
       )}
     </div>

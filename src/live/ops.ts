@@ -5,16 +5,18 @@
 // the server applies in arrival order, so the server's order is the single
 // source of truth. Merging is last-writer-wins PER FIELD of an element,
 // connection, or note: one person moving a box while another edits its text
-// keeps both changes.
+// keeps both changes. The episode fields merge per field the same way.
 //
 // The server holds a copy of applyOps (server/src/liveOps.ts). Keep the two
 // in step; both have tests pinning the same cases.
 
+import type { EpisodeFields } from '../types/episode';
+
 export type Collection = 'elements' | 'connections' | 'notes';
-export type ScalarKey = 'name' | 'styleConfig' | 'transcript' | 'version';
+export type ScalarKey = 'name' | 'styleConfig' | 'transcript' | 'version' | 'episode';
 
 export const COLLECTIONS: readonly Collection[] = ['elements', 'connections', 'notes'];
-export const SCALAR_KEYS: readonly ScalarKey[] = ['name', 'styleConfig', 'transcript', 'version'];
+export const SCALAR_KEYS: readonly ScalarKey[] = ['name', 'styleConfig', 'transcript', 'version', 'episode'];
 
 type Entity = { id: string } & Record<string, unknown>;
 
@@ -39,11 +41,28 @@ export interface LiveDoc {
   notes: Entity[];
   styleConfig?: unknown;
   transcript?: unknown;
+  episode?: EpisodeFields;
   [extra: string]: unknown;
+}
+
+/** Episode is merged per field: a null value clears it; otherwise each field
+ *  of value is set, a null field deletes that field, and an episode left
+ *  empty is removed. A stale client editing one field can't wipe another. */
+function applyEpisode(doc: LiveDoc, value: unknown): LiveDoc {
+  const { episode: prev, ...rest } = doc;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return rest as LiveDoc;
+  const merged: Record<string, unknown> = { ...((prev as Record<string, unknown> | undefined) ?? {}) };
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === '__proto__') continue;
+    if (v === null) delete merged[k];
+    else merged[k] = v;
+  }
+  return Object.keys(merged).length === 0 ? (rest as LiveDoc) : ({ ...rest, episode: merged } as LiveDoc);
 }
 
 function applyOne(doc: LiveDoc, op: Op): LiveDoc {
   if (op.t === 'set') {
+    if (op.k === 'episode') return applyEpisode(doc, op.value);
     return { ...doc, [op.k]: op.value };
   }
   const list = doc[op.c] ?? [];
@@ -161,7 +180,23 @@ export function diffDocs(from: LiveDoc, to: LiveDoc): Op[] {
     ops.push(...diffCollection(c, from[c] ?? [], to[c] ?? []));
   }
   for (const k of SCALAR_KEYS) {
-    if (!jsonEqual(from[k], to[k])) ops.push({ t: 'set', k, value: to[k] ?? null });
+    if (k === 'episode') {
+      const value = diffEpisode(from.episode, to.episode);
+      if (value) ops.push({ t: 'set', k, value });
+    } else if (!jsonEqual(from[k], to[k])) ops.push({ t: 'set', k, value: to[k] ?? null });
   }
   return ops;
+}
+
+/** Only the episode fields that changed (removed ones as null), or null when
+ *  equal. Absent, null, and {} are all the same empty episode. */
+function diffEpisode(from: unknown, to: unknown): Record<string, unknown> | null {
+  const a = (from ?? {}) as Record<string, unknown>;
+  const b = (to ?? {}) as Record<string, unknown>;
+  const changed: Record<string, unknown> = {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (a[k] == null && b[k] == null) continue;
+    if (!jsonEqual(a[k], b[k])) changed[k] = b[k] ?? null;
+  }
+  return Object.keys(changed).length === 0 ? null : changed;
 }

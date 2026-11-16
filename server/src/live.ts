@@ -139,12 +139,14 @@ class Room {
   }
 
   /** Write the live document to SQLite. Manual saves always add a version. */
-  flush({ manual = false, userId }: { manual?: boolean; userId?: number } = {}): number {
+  flush({ manual = false, userId, label }: { manual?: boolean; userId?: number; label?: string } = {}): number {
     this.cancelFlush();
     if (!this.dirty && !manual) return this.currentVersionId;
     const authorId = userId ?? this.lastEditorId;
     if (authorId === null) return this.currentVersionId;
-    this.currentVersionId = this.mgr.persist(this.diagramId, this.doc, authorId, manual, this.currentVersionId);
+    this.currentVersionId = this.mgr.persist(
+      this.diagramId, this.doc, authorId, manual, this.currentVersionId, label,
+    );
     this.persistedSeq = this.seq;
     this.send('persisted', { seq: this.persistedSeq, currentVersionId: this.currentVersionId });
     return this.currentVersionId;
@@ -175,11 +177,15 @@ export class LiveRooms {
     if (existing) return existing;
     const row = this.db
       .prepare(
-        `SELECT d.current_version_id AS versionId, v.snapshot_gz AS gz
+        `SELECT d.current_version_id AS versionId, d.title AS title, v.snapshot_gz AS gz
          FROM diagrams d JOIN diagram_versions v ON v.id = d.current_version_id WHERE d.id = ?`,
       )
-      .get(diagramId) as { versionId: number; gz: Buffer };
-    const room = new Room(this, diagramId, toLiveDoc(unpackSnapshot(row.gz)), row.versionId);
+      .get(diagramId) as { versionId: number; title: string; gz: Buffer };
+    // The gallery title is authoritative: a rename (PATCH) updates only
+    // diagrams.title, so the snapshot's name may be stale. Without this, the
+    // next persist would write the stale name back over the rename.
+    const doc = { ...toLiveDoc(unpackSnapshot(row.gz)), name: row.title };
+    const room = new Room(this, diagramId, doc, row.versionId);
     this.rooms.set(diagramId, room);
     this.startHeartbeat();
     return room;
@@ -242,6 +248,28 @@ export class LiveRooms {
       this.rooms.delete(diagramId);
     }
     return seq;
+  }
+
+  /** Apply ops, then save them as one new labeled version (bulk import).
+   *  Open clients receive the ops live. Unsaved live edits are autosaved
+   *  first, so the labeled version holds only the import on top of them.
+   *  Returns the new version id. */
+  applyAndSave(
+    diagramId: number, clientId: string, batchId: string, ops: Op[], user: SessionUser, label: string,
+  ): number {
+    const room = this.load(diagramId);
+    try {
+      if (room.dirty) room.flush();
+      room.apply(clientId, batchId, ops, user);
+      return room.flush({ manual: true, userId: user.id, label });
+    } finally {
+      // Never leak a client-less room, even when apply or persist throws.
+      if (room.clients.size === 0) {
+        room.cancelFlush();
+        this.rooms.delete(diagramId);
+        this.stopHeartbeatIfIdle();
+      }
+    }
   }
 
   setSelection(diagramId: number, clientId: string, selectedIds: string[]): boolean {
@@ -330,7 +358,9 @@ export class LiveRooms {
     return room ? { doc: room.doc, currentVersionId: room.currentVersionId } : null;
   }
 
-  persist(diagramId: number, doc: LiveDoc, authorId: number, manual: boolean, currentVersionId: number): number {
+  persist(
+    diagramId: number, doc: LiveDoc, authorId: number, manual: boolean, currentVersionId: number, label?: string,
+  ): number {
     const gz = packSnapshot(doc);
     const title = typeof doc.name === 'string' && doc.name.trim() ? doc.name.trim() : null;
     let versionId = currentVersionId;
@@ -348,10 +378,10 @@ export class LiveRooms {
       } else {
         const r = this.db
           .prepare(
-            `INSERT INTO diagram_versions (diagram_id, author_id, snapshot_gz, auto, saved_at)
-             VALUES (?, ?, ?, ?, datetime('now'))`,
+            `INSERT INTO diagram_versions (diagram_id, author_id, snapshot_gz, auto, saved_at, label)
+             VALUES (?, ?, ?, ?, datetime('now'), ?)`,
           )
-          .run(diagramId, authorId, gz, manual ? 0 : 1);
+          .run(diagramId, authorId, gz, manual ? 0 : 1, label ?? null);
         versionId = Number(r.lastInsertRowid);
       }
       this.db

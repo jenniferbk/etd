@@ -14,7 +14,7 @@ describe('cloudStore view/status', () => {
     useCloudStore.setState({
       diagramId: null, groupId: null, baseVersionId: null, conflict: null, view: 'canvas',
       status: 'notInLibrary', addToLibraryOpen: false, workspaceTab: 'diagrams',
-      preview: null, historyOpen: false, chatOpen: false,
+      preview: null, historyOpen: false, chatOpen: false, canvasMode: 'diagram',
       folderId: null, viewMode: 'grid', sort: { key: 'updatedAt', dir: 'desc' }, newDiagramFolder: null,
     }),
   );
@@ -97,6 +97,21 @@ describe('cloudStore view/status', () => {
     expect(useCloudStore.getState().preview).toEqual({ versionId: 12, createdAt: '2026-08-01T00:00:00' });
     useCloudStore.getState().setPreview(null);
     expect(useCloudStore.getState().preview).toBeNull();
+  });
+
+  it('setCloudTarget resets canvasMode to diagram', () => {
+    useCloudStore.getState().setCloudTarget(7, 1);
+    useCloudStore.getState().setCanvasMode('data');
+    expect(useCloudStore.getState().canvasMode).toBe('data');
+    useCloudStore.getState().setCloudTarget(8, 1);
+    expect(useCloudStore.getState().canvasMode).toBe('diagram');
+  });
+
+  it('clearCloudTarget resets canvasMode to diagram', () => {
+    useCloudStore.getState().setCloudTarget(7, 1);
+    useCloudStore.getState().setCanvasMode('data');
+    useCloudStore.getState().clearCloudTarget();
+    expect(useCloudStore.getState().canvasMode).toBe('diagram');
   });
 
   it('clearCloudTarget also closes history and clears any preview', () => {

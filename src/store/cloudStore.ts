@@ -3,8 +3,9 @@ import { DEFAULT_SORT, type SortSpec } from '../components/Workspace/workspaceLi
 
 export type LibrarySaveStatus = 'saved' | 'dirty' | 'saving' | 'notInLibrary' | 'offline';
 export type AppView = 'workspace' | 'canvas';
-export type WorkspaceTab = 'diagrams' | 'people' | 'trash';
+export type WorkspaceTab = 'diagrams' | 'people' | 'trash' | 'data' | 'codebook';
 export type WorkspaceViewMode = 'grid' | 'list';
+export type CanvasMode = 'diagram' | 'data';
 
 // Grid/list and sort are a per-browser convenience; storage can be missing
 // or throw (private windows, tests), so every access is guarded.
@@ -49,6 +50,9 @@ interface CloudState {
   /** Which pane of the Workspace's header nav is showing — the diagram
    *  gallery (default) or the People roster. */
   workspaceTab: WorkspaceTab;
+  /** The canvas header's Diagram | Data toggle. Back to 'diagram' whenever
+   *  the canvas switches to (or away from) a library diagram. */
+  canvasMode: CanvasMode;
   /** Whether the version-history side panel is open. */
   historyOpen: boolean;
   /** Whether the diagram chat side panel is open. */
@@ -72,6 +76,7 @@ interface CloudState {
   setStatus: (status: LibrarySaveStatus) => void;
   setAddToLibraryOpen: (open: boolean) => void;
   setWorkspaceTab: (tab: WorkspaceTab) => void;
+  setCanvasMode: (mode: CanvasMode) => void;
   setHistoryOpen: (open: boolean) => void;
   setChatOpen: (open: boolean) => void;
   setPreview: (preview: { versionId: number; createdAt: string } | null) => void;
@@ -90,6 +95,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
   status: 'notInLibrary',
   addToLibraryOpen: false,
   workspaceTab: 'diagrams',
+  canvasMode: 'diagram',
   historyOpen: false,
   chatOpen: false,
   preview: null,
@@ -102,6 +108,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
       groupId,
       status: 'saved',
       newDiagramFolder: null,
+      canvasMode: 'diagram',
       ...(baseVersionId !== undefined ? { baseVersionId } : {}),
     }),
   clearCloudTarget: () =>
@@ -114,6 +121,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
       preview: null,
       historyOpen: false,
       chatOpen: false,
+      canvasMode: 'diagram',
     }),
   setBaseVersionId: (baseVersionId) => set({ baseVersionId }),
   setConflict: (conflict) => set({ conflict }),
@@ -121,6 +129,7 @@ export const useCloudStore = create<CloudState>((set, get) => ({
   setStatus: (status) => set({ status }),
   setAddToLibraryOpen: (addToLibraryOpen) => set({ addToLibraryOpen }),
   setWorkspaceTab: (workspaceTab) => set({ workspaceTab }),
+  setCanvasMode: (canvasMode) => set({ canvasMode }),
   setHistoryOpen: (historyOpen) => set({ historyOpen }),
   setChatOpen: (chatOpen) => set({ chatOpen }),
   setPreview: (preview) => set({ preview }),

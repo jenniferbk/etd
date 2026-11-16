@@ -7,7 +7,7 @@ import { useCloudStore } from '../../store/cloudStore';
 import { useToastStore } from '../../store/toastStore';
 import { confirmAsync } from '../../store/confirmStore';
 import { saveDiagramJson } from '../../utils/saveDiagram';
-import type { AnalyticNote, Connection, DiagramElement, StyleConfig, Transcript } from '../../types';
+import type { AnalyticNote, Connection, DiagramElement, EpisodeFields, StyleConfig, Transcript } from '../../types';
 import type { OptionsMenuItem } from './OptionsMenu';
 import { NameModal } from './NameModal';
 import { MoveToFolderModal } from './MoveToFolderModal';
@@ -57,6 +57,7 @@ export function useDiagramActions(
         styleConfig: snap.styleConfig as StyleConfig,
         transcript: (snap.transcript ?? null) as Transcript | null,
         notes: (snap.notes ?? []) as AnalyticNote[],
+        episode: snap.episode as EpisodeFields | undefined,
       });
     } catch (err) {
       showError(err);

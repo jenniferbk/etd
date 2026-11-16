@@ -69,7 +69,7 @@ export function TypeStyleEditor({ kind, typeKey, config, onChange }: TypeStyleEd
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: theme.sidebar.text }}>
-          {kind === 'argument' ? 'Argument Type' : 'Support Type'}: {typeKey}
+          {kind === 'argument' ? 'Argument Type' : 'Responsive move type'}: {typeKey}
         </h3>
         <button
           onClick={handleReset}
