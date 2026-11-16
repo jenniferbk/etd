@@ -1,0 +1,209 @@
+{
+ "source": "VLOOKUP tab of Teacher Support Analysis Combined.xlsx (Downloads, 2026-11-16)",
+ "kinds": [
+  {
+   "id": "calculation",
+   "label": "Calculation",
+   "category": "Requesting a factual answer",
+   "type": "question"
+  },
+  {
+   "id": "distinguish",
+   "label": "Distinguish",
+   "category": "Requesting a factual answer",
+   "type": "question"
+  },
+  {
+   "id": "previous-result",
+   "label": "Previous result",
+   "category": "Requesting a factual answer",
+   "type": "question"
+  },
+  {
+   "id": "recall",
+   "label": "Recall",
+   "category": "Requesting a factual answer",
+   "type": "question"
+  },
+  {
+   "id": "term",
+   "label": "Term",
+   "category": "Requesting a factual answer",
+   "type": "question"
+  },
+  {
+   "id": "description",
+   "label": "Description",
+   "category": "Requesting a factual answer",
+   "type": "question"
+  },
+  {
+   "id": "comparison",
+   "label": "Comparison",
+   "category": "Requesting an idea",
+   "type": "question"
+  },
+  {
+   "id": "conjecture",
+   "label": "Conjecture",
+   "category": "Requesting an idea",
+   "type": "question"
+  },
+  {
+   "id": "construct-result",
+   "label": "Construct result",
+   "category": "Requesting an idea",
+   "type": "question"
+  },
+  {
+   "id": "demonstrate-a-method",
+   "label": "Demonstrate a method",
+   "category": "Requesting a method",
+   "type": "question"
+  },
+  {
+   "id": "describe-a-method",
+   "label": "Describe a method",
+   "category": "Requesting a method",
+   "type": "question"
+  },
+  {
+   "id": "generate-a-method",
+   "label": "Generate a method",
+   "category": "Requesting a method",
+   "type": "question"
+  },
+  {
+   "id": "choose-a-method",
+   "label": "Choose a method",
+   "category": "Requesting a method",
+   "type": "question"
+  },
+  {
+   "id": "explanation",
+   "label": "Explanation",
+   "category": "Requesting elaboration",
+   "type": "question"
+  },
+  {
+   "id": "interpretation",
+   "label": "Interpretation",
+   "category": "Requesting elaboration",
+   "type": "question"
+  },
+  {
+   "id": "justification",
+   "label": "Justification",
+   "category": "Requesting elaboration",
+   "type": "question"
+  },
+  {
+   "id": "consensus",
+   "label": "Consensus",
+   "category": "Requesting evaluation",
+   "type": "question"
+  },
+  {
+   "id": "reconsider",
+   "label": "Reconsider",
+   "category": "Requesting evaluation",
+   "type": "question"
+  },
+  {
+   "id": "highlights",
+   "label": "Highlights",
+   "category": "Directing",
+   "type": "other"
+  },
+  {
+   "id": "hints",
+   "label": "Hints",
+   "category": "Directing",
+   "type": "other"
+  },
+  {
+   "id": "refocuses",
+   "label": "Refocuses",
+   "category": "Directing",
+   "type": "other"
+  },
+  {
+   "id": "encourages",
+   "label": "Encourages",
+   "category": "Promoting",
+   "type": "other"
+  },
+  {
+   "id": "suggests",
+   "label": "Suggests",
+   "category": "Promoting",
+   "type": "other"
+  },
+  {
+   "id": "corrects",
+   "label": "Corrects",
+   "category": "Evaluating",
+   "type": "other"
+  },
+  {
+   "id": "validates",
+   "label": "Validates",
+   "category": "Evaluating",
+   "type": "other"
+  },
+  {
+   "id": "verifies",
+   "label": "Verifies",
+   "category": "Evaluating",
+   "type": "other"
+  },
+  {
+   "id": "clarifies",
+   "label": "Clarifies",
+   "category": "Informing",
+   "type": "other"
+  },
+  {
+   "id": "expands",
+   "label": "Expands",
+   "category": "Informing",
+   "type": "other"
+  },
+  {
+   "id": "summarizes",
+   "label": "Summarizes",
+   "category": "Informing",
+   "type": "other"
+  },
+  {
+   "id": "displays",
+   "label": "Displays",
+   "category": "Repeating",
+   "type": "other"
+  },
+  {
+   "id": "restates",
+   "label": "Restates",
+   "category": "Repeating",
+   "type": "other"
+  },
+  {
+   "id": "nonpermanent-displays",
+   "label": "Nonpermanent displays",
+   "category": "Informing",
+   "type": "other"
+  },
+  {
+   "id": "solicits-restate",
+   "label": "Solicits restate",
+   "category": "Repeating",
+   "type": "other"
+  },
+  {
+   "id": "appraise",
+   "label": "Appraise",
+   "category": "Requesting evaluation",
+   "type": "question"
+  }
+ ]
+}
