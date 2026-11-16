@@ -194,8 +194,9 @@ export function CanvasHeader() {
     try {
       if (file.name.endsWith('.drawing')) {
         const result = await importDrawingFile(file);
-        useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
+        // Clear the library target first so the codebook mirror never touches a local file.
         useCloudStore.getState().clearCloudTarget();
+        useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
         e.target.value = '';
         return;
       }
@@ -205,10 +206,11 @@ export function CanvasHeader() {
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
+            // Clear the library target first so the codebook mirror never touches a local file.
+            useCloudStore.getState().clearCloudTarget();
             useDiagramStore.getState().loadDiagram(
               data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode,
             );
-            useCloudStore.getState().clearCloudTarget();
           } else {
             useToastStore.getState().addToast('error', 'Invalid diagram file format');
           }

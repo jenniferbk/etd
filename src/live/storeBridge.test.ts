@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { applyDocToStore, applyLocalOpsToStore, applyMirroredStyleConfig, docFromStore, rebaseUndoSnapshot } from './storeBridge';
+import {
+  applyDocToStore, applyLocalOpsToStore, applyMirroredStyleConfig, docFromStore, isApplyingRemoteDoc, rebaseUndoSnapshot,
+} from './storeBridge';
 import { useDiagramStore } from '../store';
 import { mirrorIntoStyleConfig } from '../data/codebook';
 import type { DiagramElement } from '../types';
@@ -44,6 +46,18 @@ describe('applyDocToStore', () => {
     const els = useDiagramStore.getState().elements;
     expect(els.find((e) => e.id === 'B')!.containerId).toBeUndefined();
     expect(els.find((e) => e.id === 'C')!.containerId).toBe('B');
+  });
+
+  it('flags its store write as remote, and only while it runs', () => {
+    useDiagramStore.setState({ elements: [el('a', 'x')], connections: [], notes: [], selectedIds: [] });
+    const seen: boolean[] = [];
+    const unsub = useDiagramStore.subscribe(() => seen.push(isApplyingRemoteDoc()));
+    applyDocToStore({ ...docFromStore(), elements: [el('a', 'remote')] as never });
+    applyLocalOpsToStore([{ t: 'patch', c: 'elements', id: 'a', fields: { content: 'local' } }]);
+    unsub();
+    expect(seen[0]).toBe(true);
+    expect(seen.at(-1)).toBe(false);
+    expect(isApplyingRemoteDoc()).toBe(false);
   });
 });
 

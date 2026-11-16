@@ -59,6 +59,17 @@ describe('codebook', () => {
     expect(mirrorIntoStyleConfig(once, c)).toBe(once);
   });
 
+  it('mirrorIntoStyleConfig keeps question/other entries the codebook does not know yet', () => {
+    const c = cb([kind({ id: 'q1', label: 'Q1', category: 'k' })]);
+    const custom = { id: 'custom', label: 'Custom', style: { borderShape: 'ellipse' } };
+    const otherCustom = { id: 'oc', label: 'Other custom' };
+    const sc = emptySc([{ id: 'q1', label: 'old' }, custom], [otherCustom]);
+    const out = mirrorIntoStyleConfig(sc, c);
+    expect(out.subtypes.question).toEqual([{ id: 'q1', label: 'Q1', category: 'k' }, custom]);
+    expect(out.subtypes.other).toEqual([otherCustom]);
+    expect(mirrorIntoStyleConfig(out, c)).toBe(out);
+  });
+
   it('discoverKinds dedupes by id keeping most common label', () => {
     const docs = [
       docWith([{ id: 'a', label: 'Why' }]),

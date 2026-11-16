@@ -103,8 +103,9 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
       // Handle .drawing files (DiagramMix binary plist)
       if (file.name.endsWith('.drawing')) {
         const result = await importDrawingFile(file);
-        loadDiagram(result.elements, result.connections, result.name, null);
+        // Clear the library target first so the codebook mirror never touches a local file.
         useCloudStore.getState().clearCloudTarget();
+        loadDiagram(result.elements, result.connections, result.name, null);
         e.target.value = '';
         return;
       }
@@ -115,8 +116,9 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
-            loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode);
+            // Clear the library target first so the codebook mirror never touches a local file.
             useCloudStore.getState().clearCloudTarget();
+            loadDiagram(data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode);
           } else {
             addToast('error', 'Invalid diagram file format');
           }
@@ -213,8 +215,9 @@ export function Toolbar({ onLoadTranscript, onOpenSettings, onOpenSignIn }: Tool
       variant: 'destructive',
     });
     if (ok) {
-      clearDiagram();
+      // Clear the library target first so the codebook mirror never touches the new diagram.
       useCloudStore.getState().clearCloudTarget();
+      clearDiagram();
     }
   };
 

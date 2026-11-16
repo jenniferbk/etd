@@ -82,9 +82,9 @@ export function ImageImportModal({ open, onClose }: Props) {
     setState({ kind: 'loading', abort });
     const result = await importImage(file, { signal: abort.signal });
     if (result.kind === 'ok') {
-      loadDiagram(result.diagram.elements, result.diagram.connections, result.diagram.name, null);
       // An imported diagram is new work, not an edit of the open library diagram.
       useCloudStore.getState().clearCloudTarget();
+      loadDiagram(result.diagram.elements, result.diagram.connections, result.diagram.name, null);
       onClose();
     } else if (result.kind === 'cancelled') {
       setState({ kind: 'picker' });

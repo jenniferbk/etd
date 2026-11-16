@@ -34,7 +34,10 @@ export function findKindByLabel(cb: Codebook, label: string, type?: KindType): C
 
 function mirrorList(existing: Subtype[], cb: Codebook, type: KindType): Subtype[] {
   const styles = new Map(existing.map((s) => [s.id, s.style]));
-  return cb.kinds
+  // Kinds the codebook doesn't know yet (a custom kind not yet discovered) stay
+  // as they are, after the codebook's kinds, until ensure adds them.
+  const unknown = existing.filter((s) => !byId(cb, s.id));
+  const mirrored = cb.kinds
     .filter((k) => k.type === type)
     .sort((a, b) => a.position - b.position)
     .map((k) => {
@@ -45,10 +48,11 @@ function mirrorList(existing: Subtype[], cb: Codebook, type: KindType): Subtype[
       if (k.status === 'retired' || k.mergedInto !== undefined) out.retired = true;
       return out;
     });
+  return [...mirrored, ...unknown];
 }
 
-/** Rebuilds question/other subtypes from the codebook; `action` is untouched.
- *  Returns the same object when nothing changed. */
+/** Rebuilds question/other subtypes from the codebook, keeping entries the
+ *  codebook doesn't know yet; `action` is untouched. Returns the same object when nothing changed. */
 export function mirrorIntoStyleConfig(sc: StyleConfig, cb: Codebook): StyleConfig {
   const question = mirrorList(sc.subtypes.question ?? [], cb, 'question');
   const other = mirrorList(sc.subtypes.other ?? [], cb, 'other');

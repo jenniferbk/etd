@@ -16,6 +16,10 @@ export async function openLibraryDiagram(id: number): Promise<boolean> {
       useToastStore.getState().addToast('error', 'That diagram looks corrupted — ask your group admin.');
       return false;
     }
+    // Coming from another group's diagram: drop that target first, so its
+    // codebook mirror doesn't write the old group's kinds into this diagram.
+    const current = useCloudStore.getState().groupId;
+    if (current !== null && current !== d.groupId) useCloudStore.getState().clearCloudTarget();
     // Prefer the diagrams-table title over the snapshot's embedded name:
     // PATCH-renaming a diagram (DiagramCard) updates only the title column,
     // not the snapshot, so snap.name goes stale on rename until the next

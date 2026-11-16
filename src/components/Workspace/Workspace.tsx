@@ -108,8 +108,9 @@ export function Workspace() {
   };
 
   const handleNewDiagram = () => {
-    useDiagramStore.getState().clearDiagram();
+    // Clear the library target first so the codebook mirror never touches the new diagram.
     useCloudStore.getState().clearCloudTarget();
+    useDiagramStore.getState().clearDiagram();
     rememberFolderForNewDiagram();
     useCloudStore.getState().setView('canvas');
   };
@@ -163,8 +164,9 @@ export function Workspace() {
       // Handle .drawing files (DiagramMix binary plist)
       if (file.name.endsWith('.drawing')) {
         const result = await importDrawingFile(file);
-        useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
+        // Clear the library target first so the codebook mirror never touches a local file.
         useCloudStore.getState().clearCloudTarget();
+        useDiagramStore.getState().loadDiagram(result.elements, result.connections, result.name, null);
         rememberFolderForNewDiagram();
         useCloudStore.getState().setView('canvas');
         e.target.value = '';
@@ -177,10 +179,11 @@ export function Workspace() {
         try {
           const data = JSON.parse(event.target?.result as string);
           if (data.elements && data.connections) {
+            // Clear the library target first so the codebook mirror never touches a local file.
+            useCloudStore.getState().clearCloudTarget();
             useDiagramStore.getState().loadDiagram(
               data.elements, data.connections, nameForLoadedFile(data.name, file.name), data.transcript ?? null, data.styleConfig, data.notes, data.episode,
             );
-            useCloudStore.getState().clearCloudTarget();
             rememberFolderForNewDiagram();
             useCloudStore.getState().setView('canvas');
           } else {

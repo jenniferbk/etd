@@ -56,12 +56,18 @@ export function rebaseUndoSnapshot(snap: UndoSnapshot, delta: readonly Op[]): Un
  * change is kept out of undo history, existing undo snapshots are rebased
  * onto it, and the selection drops anything a teammate deleted.
  */
+let remoteDepth = 0;
+/** True while applyDocToStore is writing remote edits into the store, so a
+ *  store subscriber can tell a teammate's change from a local one. */
+export const isApplyingRemoteDoc = (): boolean => remoteDepth > 0;
+
 export function applyDocToStore(next: LiveDoc): void {
   const prev = docFromStore();
   const delta = diffDocs(prev, next);
   if (delta.length === 0) return;
   const temporal = useDiagramStore.temporal;
   temporal.getState().pause();
+  remoteDepth += 1;
   try {
     useDiagramStore.setState((s) => {
       // Concurrent edits can break the one-level rule; repair it here. The
@@ -82,6 +88,7 @@ export function applyDocToStore(next: LiveDoc): void {
       };
     });
   } finally {
+    remoteDepth -= 1;
     temporal.getState().resume();
   }
   const t = temporal.getState();
