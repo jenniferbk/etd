@@ -11,6 +11,27 @@ describe('episode set op', () => {
   });
 });
 
+describe('episode is field-granular (mirrors src/live/ops.ts)', () => {
+  const set = (value: unknown) => ({ t: 'set', k: 'episode', value }) as never;
+  it('merge keeps other fields', () => {
+    const d = applyOps(toLiveDoc({ episode: { status: 'vetted', clip: 'x' } }), [set({ discipline: 'math' })]);
+    expect(d.episode).toEqual({ status: 'vetted', clip: 'x', discipline: 'math' });
+  });
+  it('a null field deletes that field; emptying it removes episode', () => {
+    let d = applyOps(toLiveDoc({ episode: { status: 'vetted', sgwc: 'SG' } }), [set({ status: null })]);
+    expect(d.episode).toEqual({ sgwc: 'SG' });
+    d = applyOps(d, [set({ sgwc: null })]);
+    expect('episode' in d).toBe(false);
+  });
+  it('a null value clears episode', () => {
+    expect('episode' in applyOps(toLiveDoc({ episode: { status: 'vetted' } }), [set(null)])).toBe(false);
+  });
+  it("a stale-cache Discipline edit does not wipe a teammate's Status", () => {
+    const d = applyOps(toLiveDoc({ episode: { status: 'vetted' } }), [set({ discipline: 'math' })]);
+    expect(d.episode).toEqual({ status: 'vetted', discipline: 'math' });
+  });
+});
+
 describe('server applyOps (mirrors src/live/ops.ts)', () => {
   it('patch merges fields, null removes a field, patch after delete is a no-op', () => {
     let d = toLiveDoc({ elements: [{ ...el('a'), image: 'x' }] });

@@ -34,8 +34,26 @@ export function toLiveDoc(snapshot: unknown): LiveDoc {
   return { ...s, elements: arr(s.elements), connections: arr(s.connections), notes: arr(s.notes) };
 }
 
+/** Episode is merged per field: a null value clears it; otherwise each field
+ *  of value is set, a null field deletes that field, and an episode left
+ *  empty is removed. A stale client editing one field can't wipe another. */
+function applyEpisode(doc: LiveDoc, value: unknown): LiveDoc {
+  const { episode: prev, ...rest } = doc;
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return rest as LiveDoc;
+  const merged: Record<string, unknown> = { ...((prev as Record<string, unknown> | undefined) ?? {}) };
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (k === '__proto__') continue;
+    if (v === null) delete merged[k];
+    else merged[k] = v;
+  }
+  return Object.keys(merged).length === 0 ? (rest as LiveDoc) : ({ ...rest, episode: merged } as LiveDoc);
+}
+
 function applyOne(doc: LiveDoc, op: Op): LiveDoc {
-  if (op.t === 'set') return { ...doc, [op.k]: op.value };
+  if (op.t === 'set') {
+    if (op.k === 'episode') return applyEpisode(doc, op.value);
+    return { ...doc, [op.k]: op.value };
+  }
   const list = doc[op.c];
   switch (op.t) {
     case 'put': {

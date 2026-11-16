@@ -35,8 +35,8 @@ describe('buildDiagramFile', () => {
       styleConfig: {},
       transcript: null,
       notes: [],
-      episode: {},
     });
+    expect('episode' in file).toBe(false);
   });
 
   it('carries episode fields and stamps version 1.10', () => {

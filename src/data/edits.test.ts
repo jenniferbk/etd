@@ -35,15 +35,15 @@ describe('editsToOps', () => {
     ]);
   });
 
-  it('episode null removes the field', () => {
+  it('episode null sends only that field as null', () => {
     const d = doc([], { episode: { status: 'vetted', sgwc: 'SG' } });
     expect(editsToOps([{ kind: 'episode', field: 'status', value: null }], d)).toEqual([
-      { t: 'set', k: 'episode', value: { sgwc: 'SG' } },
+      { t: 'set', k: 'episode', value: { status: null } },
     ]);
   });
 
-  it('episode edits chain against earlier ones', () => {
-    const d = doc([]);
+  it('episode edits send only the edited field, never the whole object', () => {
+    const d = doc([], { episode: { status: 'vetted' } });
     const ops = editsToOps(
       [
         { kind: 'episode', field: 'discipline', value: 'math' },
@@ -51,7 +51,10 @@ describe('editsToOps', () => {
       ],
       d,
     );
-    expect(ops[1]).toEqual({ t: 'set', k: 'episode', value: { discipline: 'math', clip: 'x' } });
+    expect(ops).toEqual([
+      { t: 'set', k: 'episode', value: { discipline: 'math' } },
+      { t: 'set', k: 'episode', value: { clip: 'x' } },
+    ]);
   });
 
   it('title sets name', () => {

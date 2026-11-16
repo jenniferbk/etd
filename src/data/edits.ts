@@ -30,13 +30,11 @@ export function editsToOps(edits: CellEdit[], doc: LiveDoc): Op[] {
       case 'title':
         emit({ t: 'set', k: 'name', value: e.value });
         break;
-      case 'episode': {
-        const next: Record<string, unknown> = { ...(cur.episode ?? {}) };
-        if (e.value === null) delete next[e.field];
-        else next[e.field] = e.value;
-        emit({ t: 'set', k: 'episode', value: next });
+      case 'episode':
+        // Only the edited field: the op merges per field, so a stale doc
+        // can't wipe a field a teammate set.
+        emit({ t: 'set', k: 'episode', value: { [e.field]: e.value } });
         break;
-      }
       case 'elementContent':
         if (find(e.elementId)) patch(e.elementId, { content: e.value });
         break;

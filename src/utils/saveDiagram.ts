@@ -46,7 +46,8 @@ export function buildDiagramFile(snapshot: DiagramSnapshot) {
     styleConfig: snapshot.styleConfig,
     transcript: snapshot.transcript,
     notes: snapshot.notes,
-    episode: snapshot.episode ?? {},
+    // Omitted when empty, so a file with no episode fields stays as before.
+    ...(snapshot.episode && Object.keys(snapshot.episode).length > 0 ? { episode: snapshot.episode } : {}),
   };
 }
 
