@@ -37,7 +37,7 @@ const SUPPORT_CONTRIBUTOR_TYPES: { value: SupportContributor; label: string }[] 
 ];
 
 const CONNECTION_TYPES: { value: ConnectionType; label: string }[] = [
-  { value: 'support', label: 'Responsive move' },
+  { value: 'support', label: 'Support' },
   { value: 'counterclaim', label: 'Counterclaim' },
 ];
 
