@@ -4,7 +4,7 @@ import { useAuthStore } from '../api/authStore';
 import { useCloudStore } from '../store/cloudStore';
 import { useDiagramStore } from '../store';
 import { useToastStore } from '../store/toastStore';
-import { buildCloudSnapshot } from '../utils/buildCloudSnapshot';
+import { buildCloudSnapshot, currentDiagramSnapshot } from '../utils/buildCloudSnapshot';
 import { saveDiagramJson } from '../utils/saveDiagram';
 import { getEditTick } from './dirtyTracking';
 import { captureThumbnail } from '../utils/thumbnail';
@@ -21,14 +21,7 @@ export async function saveToLibrary(opts: { force?: boolean } = {}): Promise<voi
   const d = useDiagramStore.getState();
 
   if (!user) {
-    await saveDiagramJson({
-      diagramName: d.diagramName,
-      elements: d.elements,
-      connections: d.connections,
-      styleConfig: d.styleConfig,
-      transcript: d.transcript,
-      notes: d.notes,
-    });
+    await saveDiagramJson(currentDiagramSnapshot());
     return;
   }
 

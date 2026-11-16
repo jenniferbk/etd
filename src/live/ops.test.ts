@@ -64,6 +64,13 @@ describe('episode op', () => {
   });
 });
 
+describe('episode clearing', () => {
+  it('diffDocs from set to absent emits set episode null', () => {
+    const ops = diffDocs(doc({ episode: { status: 'vetted' } }), doc({}));
+    expect(ops).toEqual([{ t: 'set', k: 'episode', value: null }]);
+  });
+});
+
 describe('diffDocs', () => {
   const roundTrip = (a: LiveDoc, b: LiveDoc) => {
     const ops = diffDocs(a, b);

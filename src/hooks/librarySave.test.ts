@@ -16,6 +16,12 @@ import { useCloudStore } from '../store/cloudStore';
 import { useDiagramStore } from '../store';
 import { useToastStore } from '../store/toastStore';
 
+const saveJsonSpy = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('../utils/saveDiagram', async (orig) => ({
+  ...(await orig<typeof import('../utils/saveDiagram')>()),
+  saveDiagramJson: saveJsonSpy,
+}));
+
 const USER = { id: 1, email: 'a@uga.edu', displayName: 'A', isSiteAdmin: false };
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -175,5 +181,17 @@ describe('saveToLibrary', () => {
     } finally {
       stop();
     }
+  });
+});
+
+describe('saveToLibrary signed out', () => {
+  it('writes episode fields into the local file', async () => {
+    useAuthStore.setState({ user: null, groups: [] });
+    useDiagramStore.setState({ episode: { sgwc: 'WC', clip: '0:10-0:40' } });
+    await saveToLibrary();
+    expect(saveJsonSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ episode: { sgwc: 'WC', clip: '0:10-0:40' } }),
+    );
+    useDiagramStore.setState({ episode: {} });
   });
 });

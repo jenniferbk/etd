@@ -7,6 +7,7 @@ import { useDiagramStore } from '../../store';
 import { useToastStore } from '../../store/toastStore';
 import { friendlyError } from '../../api/friendlyError';
 import { theme } from '../../utils/theme';
+import { currentDiagramSnapshot } from '../../utils/buildCloudSnapshot';
 import { saveDiagramJson, nameForLoadedFile } from '../../utils/saveDiagram';
 import { saveToLibrary } from '../../hooks/librarySave';
 import { importDrawingFile } from '../../utils/drawingImporter';
@@ -176,15 +177,7 @@ export function CanvasHeader() {
   }
 
   const handleDownloadCopy = () => {
-    const d = useDiagramStore.getState();
-    void saveDiagramJson({
-      diagramName: d.diagramName,
-      elements: d.elements,
-      connections: d.connections,
-      styleConfig: d.styleConfig,
-      transcript: d.transcript,
-      notes: d.notes,
-    });
+    void saveDiagramJson(currentDiagramSnapshot());
   };
 
   const handleOpenFileClick = () => {

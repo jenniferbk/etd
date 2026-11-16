@@ -10,13 +10,13 @@
 // The server holds a copy of applyOps (server/src/liveOps.ts). Keep the two
 // in step; both have tests pinning the same cases.
 
+import type { EpisodeFields } from '../types/episode';
+
 export type Collection = 'elements' | 'connections' | 'notes';
 export type ScalarKey = 'name' | 'styleConfig' | 'transcript' | 'version' | 'episode';
 
 export const COLLECTIONS: readonly Collection[] = ['elements', 'connections', 'notes'];
 export const SCALAR_KEYS: readonly ScalarKey[] = ['name', 'styleConfig', 'transcript', 'version', 'episode'];
-
-import type { EpisodeFields } from '../types/episode';
 
 type Entity = { id: string } & Record<string, unknown>;
 
